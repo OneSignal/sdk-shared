@@ -1,0 +1,123 @@
+# Generates release notes and creates release PR
+name: Create Release
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+        description: The new version being released (e.g., 5.2.15-beta.1)
+      release_type:
+        required: true
+        type: string
+        description: Release type (Alpha, Beta, or Current)
+      release_branch:
+        required: true
+        type: string
+        description: Name of the release branch
+      merged_prs:
+        required: true
+        type: string
+        description: JSON array of merged PRs
+      android_from:
+        required: false
+        type: string
+        description: Android SDK version being updated from
+      android_to:
+        required: false
+        type: string
+        description: Android SDK version being updated to
+      ios_from:
+        required: false
+        type: string
+        description: iOS SDK version being updated from
+      ios_to:
+        required: false
+        type: string
+        description: iOS SDK version being updated to
+
+jobs:
+  create_release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Generate release notes
+        id: release_notes
+        uses: actions/github-script@v8
+        with:
+          script: |
+            // Trim whitespace from PR titles
+            const prs = JSON.parse('${{ inputs.merged_prs }}').map(pr => ({
+              ...pr,
+              title: pr.title.trim()
+            }));
+
+            // Categorize PRs (exclude internal changes like ci/chore)
+            const features = prs.filter(pr => /^feat/i.test(pr.title));
+            const fixes = prs.filter(pr => /^fix/i.test(pr.title));
+            const improvements = prs.filter(pr => /^(perf|refactor)/i.test(pr.title));
+
+            // Helper function to build section
+            const buildSection = (title, prs) => {
+              if (prs.length === 0) return '';
+              let section = `### ${title}\n\n`;
+              prs.forEach(pr => {
+                section += `- ${pr.title} (#${pr.number})\n`;
+              });
+              return section + '\n';
+            };
+
+            let releaseNotes = `Channels: ${{ inputs.release_type }}\n\n`;
+            releaseNotes += buildSection('🚀 New Features', features);
+            releaseNotes += buildSection('🐛 Bug Fixes', fixes);
+            releaseNotes += buildSection('✨ Improvements', improvements);
+
+            // Check for native dependency changes
+            const androidFrom = '${{ inputs.android_from }}';
+            const androidTo = '${{ inputs.android_to }}';
+            const iosFrom = '${{ inputs.ios_from }}';
+            const iosTo = '${{ inputs.ios_to }}';
+            const hasAndroidUpdate = androidFrom && androidTo;
+            const hasIosUpdate = iosFrom && iosTo;
+
+            if (hasAndroidUpdate || hasIosUpdate) {
+              releaseNotes += '\n### 🛠️ Native Dependency Updates\n\n';
+              if (hasAndroidUpdate) {
+                releaseNotes += `- Update Android SDK from ${androidFrom} to ${androidTo}\n`;
+                releaseNotes += `  - See [release notes](https://github.com/OneSignal/OneSignal-Android-SDK/releases) for full details\n`;
+              }
+              if (hasIosUpdate) {
+                releaseNotes += `- Update iOS SDK from ${iosFrom} to ${iosTo}\n`;
+                releaseNotes += `  - See [release notes](https://github.com/OneSignal/OneSignal-iOS-SDK/releases) for full details\n`;
+              }
+              releaseNotes += '\n';
+            }
+
+            core.setOutput('notes', releaseNotes);
+
+      - name: Create release PR
+        run: |
+          NEW_VERSION="${{ inputs.version }}"
+          RELEASE_TYPE="${{ inputs.release_type }}"
+
+          # Determine base branch based on release type
+          if [[ "$RELEASE_TYPE" == "Current" ]]; then
+            BASE_BRANCH="main"
+          else
+            BASE_BRANCH="${{ inputs.release_branch }}"
+          fi
+
+          # Write release notes to file to avoid shell interpretation
+          cat > release_notes.md << 'EOF'
+          ${{ steps.release_notes.outputs.notes }}
+          EOF
+
+          gh pr create \
+            --title "chore: Release $NEW_VERSION" \
+            --body-file release_notes.md \
+            --base "$BASE_BRANCH"
+
