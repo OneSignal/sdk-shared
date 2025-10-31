@@ -16,10 +16,6 @@ on:
         required: true
         type: string
         description: Name of the release branch
-      merged_prs:
-        required: true
-        type: string
-        description: JSON array of merged PRs
       android_from:
         required: false
         type: string
@@ -45,13 +41,61 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Get last release commit
+        id: last_commit
+        run: |
+          CURRENT_VERSION=$(jq -r .version package.json)
+          LAST_RELEASE_DATE=$(git show -s --format=%cI "$CURRENT_VERSION")
+          echo "date=$LAST_RELEASE_DATE" >> $GITHUB_OUTPUT
+
+      - name: Get merged PRs
+        id: get_prs
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const lastReleaseDate = '${{ steps.last_commit.outputs.date }}';
+            const releaseBranch = '${{ inputs.release_branch }}';
+            const releaseType = '${{ inputs.release_type }}';
+
+            // Get the creation date of the release branch (when it diverged from main)
+            const { data: branchInfo } = await github.rest.repos.getBranch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              branch: releaseBranch
+            });
+            const branchCreatedAt = branchInfo.commit.commit.committer.date;
+
+
+            // For Current: Get PRs merged to main since last release but BEFORE release branch was created
+            // For Alpha/Beta: Use releaseBranch as base
+            const baseBranch = (releaseType === 'Alpha' || releaseType === 'Beta') ? releaseBranch : 'main';
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              base: baseBranch,
+              per_page: 100
+            });
+
+            const mergedPrs = prs
+              .filter(pr =>
+                pr.merged_at &&
+                new Date(pr.merged_at) > new Date(lastReleaseDate) &&
+                (releaseType === 'Current' ? new Date(pr.merged_at) <= new Date(branchCreatedAt) : true)
+              )
+              .map(pr => ({
+                number: pr.number,
+                title: pr.title,
+              }));
+            core.setOutput('prs', JSON.stringify(mergedPrs));
+
       - name: Generate release notes
         id: release_notes
         uses: actions/github-script@v8
         with:
           script: |
             // Trim whitespace from PR titles
-            const prs = JSON.parse('${{ inputs.merged_prs }}').map(pr => ({
+            const prs = JSON.parse('${{ steps.get_prs.outputs.prs }}').map(pr => ({
               ...pr,
               title: pr.title.trim()
             }));

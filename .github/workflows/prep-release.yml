@@ -15,9 +15,6 @@ on:
       release_branch:
         description: Name of the release branch
         value: ${{ jobs.prepare_release.outputs.release_branch }}
-      merged_prs:
-        description: JSON array of merged PRs
-        value: ${{ jobs.prepare_release.outputs.merged_prs }}
 
 jobs:
   prepare_release:
