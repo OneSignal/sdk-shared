@@ -81,6 +81,7 @@ jobs:
           script: |
             const lastReleaseDate = '${{ steps.last_commit.outputs.date }}';
             const releaseBranch = '${{ steps.release_branch.outputs.releaseBranch }}';
+            const releaseType = '${{ steps.release_type.outputs.release-type }}';
 
             // Get the creation date of the release branch (when it diverged from main)
             const { data: branchInfo } = await github.rest.repos.getBranch({
@@ -90,12 +91,15 @@ jobs:
             });
             const branchCreatedAt = branchInfo.commit.commit.committer.date;
 
-            // Get PRs merged to main since last release but BEFORE release branch was created
+
+            // For Current: Get PRs merged to main since last release but BEFORE release branch was created
+            // For Alpha/Beta: Use releaseBranch as base
+            const baseBranch = (releaseType === 'Alpha' || releaseType === 'Beta') ? releaseBranch : 'main';
             const { data: prs } = await github.rest.pulls.list({
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'closed',
-              base: 'main',
+              base: baseBranch,
               per_page: 100
             });
 
@@ -103,7 +107,7 @@ jobs:
               .filter(pr =>
                 pr.merged_at &&
                 new Date(pr.merged_at) > new Date(lastReleaseDate) &&
-                new Date(pr.merged_at) <= new Date(branchCreatedAt)  // Only before branch creation
+                (releaseType === 'Current' ? new Date(pr.merged_at) <= new Date(branchCreatedAt) : true)
               )
               .map(pr => ({
                 number: pr.number,
