@@ -8,10 +8,6 @@ on:
         required: true
         type: string
         description: The new version being released (e.g., 5.2.15-beta.1)
-      release_type:
-        required: true
-        type: string
-        description: Release type (Alpha, Beta, or Current)
       release_branch:
         required: true
         type: string
@@ -55,7 +51,11 @@ jobs:
           script: |
             const lastReleaseDate = '${{ steps.last_commit.outputs.date }}';
             const releaseBranch = '${{ inputs.release_branch }}';
-            const releaseType = '${{ inputs.release_type }}';
+            const version = '${{ inputs.version }}';
+
+            // Determine release type from version
+            const releaseType = version.includes('-alpha') ? 'Alpha' : 
+                               version.includes('-beta') ? 'Beta' : 'Current';
 
             // Get the creation date of the release branch (when it diverged from main)
             const { data: branchInfo } = await github.rest.repos.getBranch({
@@ -115,7 +115,12 @@ jobs:
               return section + '\n';
             };
 
-            let releaseNotes = `Channels: ${{ inputs.release_type }}\n\n`;
+            // Determine release type from version
+            const version = '${{ inputs.version }}';
+            const releaseType = version.includes('-alpha') ? 'Alpha' : 
+                               version.includes('-beta') ? 'Beta' : 'Current';
+
+            let releaseNotes = `Channels: ${releaseType}\n\n`;
             releaseNotes += buildSection('🚀 New Features', features);
             releaseNotes += buildSection('🐛 Bug Fixes', fixes);
             releaseNotes += buildSection('✨ Improvements', improvements);
@@ -146,13 +151,14 @@ jobs:
       - name: Create release PR
         run: |
           NEW_VERSION="${{ inputs.version }}"
-          RELEASE_TYPE="${{ inputs.release_type }}"
 
-          # Determine base branch based on release type
-          if [[ "$RELEASE_TYPE" == "Current" ]]; then
-            BASE_BRANCH="main"
-          else
+          # Determine release type and base branch from version
+          if [[ "$NEW_VERSION" =~ -alpha ]]; then
             BASE_BRANCH="${{ inputs.release_branch }}"
+          elif [[ "$NEW_VERSION" =~ -beta ]]; then
+            BASE_BRANCH="${{ inputs.release_branch }}"
+          else
+            BASE_BRANCH="main"
           fi
 
           # Write release notes to file to avoid shell interpretation
@@ -164,4 +170,3 @@ jobs:
             --title "chore: Release $NEW_VERSION" \
             --body-file release_notes.md \
             --base "$BASE_BRANCH"
-
