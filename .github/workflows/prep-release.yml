@@ -1,0 +1,112 @@
+# Prepares release information and branch, outputs release metadata
+name: Release Preparation
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+        description: The new version being released (e.g., 5.2.15-beta.1)
+    outputs:
+      release_type:
+        description: Release type (Alpha, Beta, or Current)
+        value: ${{ jobs.prepare_release.outputs.release_type }}
+      release_branch:
+        description: Name of the release branch
+        value: ${{ jobs.prepare_release.outputs.release_branch }}
+      merged_prs:
+        description: JSON array of merged PRs
+        value: ${{ jobs.prepare_release.outputs.merged_prs }}
+
+jobs:
+  prepare_release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_type: ${{ steps.release_type.outputs.release-type }}
+      release_branch: ${{ steps.release_branch.outputs.releaseBranch }}
+      merged_prs: ${{ steps.get_prs.outputs.prs }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Get release type
+        id: release_type
+        run: |
+          NEW_VERSION="${{ inputs.version }}"
+          if [[ "$NEW_VERSION" =~ -alpha ]]; then
+            echo "release-type=Alpha" >> $GITHUB_OUTPUT
+          elif [[ "$NEW_VERSION" =~ -beta ]]; then
+            echo "release-type=Beta" >> $GITHUB_OUTPUT
+          else
+            echo "release-type=Current" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get last release commit
+        id: last_commit
+        run: |
+          CURRENT_VERSION=$(jq -r .version package.json)
+          LAST_RELEASE_DATE=$(git show -s --format=%cI "$CURRENT_VERSION")
+          echo "date=$LAST_RELEASE_DATE" >> $GITHUB_OUTPUT
+
+      - name: Release branch name
+        id: release_branch
+        run: |
+          # Omit alpha/beta version e.g. 5.2.15-beta.1 -> 5.2.15-beta
+          BRANCH_VERSION=$(echo "${{ inputs.version }}" | sed 's/\(-[a-z]*\)\.[0-9]*$/\1/')
+          echo "releaseBranch=rel/$BRANCH_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create release branch
+        run: |
+          releaseBranch="${{ steps.release_branch.outputs.releaseBranch }}"
+          releaseType="${{ steps.release_type.outputs.release-type }}"
+
+          if ! git checkout -b "$releaseBranch" 2>/dev/null; then
+            # Branch already exists
+            if [[ "$releaseType" == "Current" ]]; then
+              echo "Error: Release branch already exists for Current release"
+              exit 1
+            fi
+
+            # For Alpha/Beta, use existing branch
+            git checkout "$releaseBranch"
+          fi
+          git push -u origin "$releaseBranch"
+
+      - name: Get merged PRs
+        id: get_prs
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const lastReleaseDate = '${{ steps.last_commit.outputs.date }}';
+            const releaseBranch = '${{ steps.release_branch.outputs.releaseBranch }}';
+
+            // Get the creation date of the release branch (when it diverged from main)
+            const { data: branchInfo } = await github.rest.repos.getBranch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              branch: releaseBranch
+            });
+            const branchCreatedAt = branchInfo.commit.commit.committer.date;
+
+            // Get PRs merged to main since last release but BEFORE release branch was created
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              base: 'main',
+              per_page: 100
+            });
+
+            const mergedPrs = prs
+              .filter(pr =>
+                pr.merged_at &&
+                new Date(pr.merged_at) > new Date(lastReleaseDate) &&
+                new Date(pr.merged_at) <= new Date(branchCreatedAt)  // Only before branch creation
+              )
+              .map(pr => ({
+                number: pr.number,
+                title: pr.title,
+              }));
+            core.setOutput('prs', JSON.stringify(mergedPrs));
