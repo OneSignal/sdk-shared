@@ -1,0 +1,67 @@
+# Prepares release information and branch, outputs release metadata
+name: Release Preparation
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+        description: The new version being released (e.g., 5.2.15-beta.1)
+    outputs:
+      release_type:
+        description: Release type (Alpha, Beta, or Current)
+        value: ${{ jobs.prepare_release.outputs.release_type }}
+      release_branch:
+        description: Name of the release branch
+        value: ${{ jobs.prepare_release.outputs.release_branch }}
+      merged_prs:
+        description: JSON array of merged PRs
+        value: ${{ jobs.prepare_release.outputs.merged_prs }}
+
+jobs:
+  prepare_release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_type: ${{ steps.release_type.outputs.release-type }}
+      release_branch: ${{ steps.release_branch.outputs.releaseBranch }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Get release type
+        id: release_type
+        run: |
+          NEW_VERSION="${{ inputs.version }}"
+          if [[ "$NEW_VERSION" =~ -alpha ]]; then
+            echo "release-type=Alpha" >> $GITHUB_OUTPUT
+          elif [[ "$NEW_VERSION" =~ -beta ]]; then
+            echo "release-type=Beta" >> $GITHUB_OUTPUT
+          else
+            echo "release-type=Current" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Release branch name
+        id: release_branch
+        run: |
+          # Omit alpha/beta version e.g. 5.2.15-beta.1 -> 5.2.15-beta
+          BRANCH_VERSION=$(echo "${{ inputs.version }}" | sed 's/\(-[a-z]*\)\.[0-9]*$/\1/')
+          echo "releaseBranch=rel/$BRANCH_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create release branch
+        run: |
+          releaseBranch="${{ steps.release_branch.outputs.releaseBranch }}"
+          releaseType="${{ steps.release_type.outputs.release-type }}"
+
+          if ! git checkout -b "$releaseBranch" 2>/dev/null; then
+            # Branch already exists
+            if [[ "$releaseType" == "Current" ]]; then
+              echo "Error: Release branch already exists for Current release"
+              exit 1
+            fi
+
+            # For Alpha/Beta, use existing branch
+            git checkout "$releaseBranch"
+          fi
+          git push -u origin "$releaseBranch"
