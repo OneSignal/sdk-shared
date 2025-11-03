@@ -25,7 +25,6 @@ jobs:
     outputs:
       release_type: ${{ steps.release_type.outputs.release-type }}
       release_branch: ${{ steps.release_branch.outputs.releaseBranch }}
-      merged_prs: ${{ steps.get_prs.outputs.prs }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -42,13 +41,6 @@ jobs:
           else
             echo "release-type=Current" >> $GITHUB_OUTPUT
           fi
-
-      - name: Get last release commit
-        id: last_commit
-        run: |
-          CURRENT_VERSION=$(jq -r .version package.json)
-          LAST_RELEASE_DATE=$(git show -s --format=%cI "$CURRENT_VERSION")
-          echo "date=$LAST_RELEASE_DATE" >> $GITHUB_OUTPUT
 
       - name: Release branch name
         id: release_branch
@@ -73,44 +65,3 @@ jobs:
             git checkout "$releaseBranch"
           fi
           git push -u origin "$releaseBranch"
-
-      - name: Get merged PRs
-        id: get_prs
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const lastReleaseDate = '${{ steps.last_commit.outputs.date }}';
-            const releaseBranch = '${{ steps.release_branch.outputs.releaseBranch }}';
-            const releaseType = '${{ steps.release_type.outputs.release-type }}';
-
-            // Get the creation date of the release branch (when it diverged from main)
-            const { data: branchInfo } = await github.rest.repos.getBranch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              branch: releaseBranch
-            });
-            const branchCreatedAt = branchInfo.commit.commit.committer.date;
-
-
-            // For Current: Get PRs merged to main since last release but BEFORE release branch was created
-            // For Alpha/Beta: Use releaseBranch as base
-            const baseBranch = (releaseType === 'Alpha' || releaseType === 'Beta') ? releaseBranch : 'main';
-            const { data: prs } = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'closed',
-              base: baseBranch,
-              per_page: 100
-            });
-
-            const mergedPrs = prs
-              .filter(pr =>
-                pr.merged_at &&
-                new Date(pr.merged_at) > new Date(lastReleaseDate) &&
-                (releaseType === 'Current' ? new Date(pr.merged_at) <= new Date(branchCreatedAt) : true)
-              )
-              .map(pr => ({
-                number: pr.number,
-                title: pr.title,
-              }));
-            core.setOutput('prs', JSON.stringify(mergedPrs));
