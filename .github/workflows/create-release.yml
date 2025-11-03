@@ -1,5 +1,11 @@
 # Generates release notes and creates release PR
-name: Create Release
+# - Takes inputs for the release branch, previous and new version, and Android and iOS SDK versions
+# - Generates release notes based on the merged PRs since the last release
+# - Creates release PR w/ expected release notes
+
+# NOTE: For calls from Native SDKS, do not pass `android_from`, `android_to`, `ios_from`, or `ios_to`
+# Use `version_from` and `version_to` instead.
+name: Create SDK Release
 
 on:
   workflow_call:
@@ -20,19 +26,27 @@ on:
       android_from:
         required: false
         type: string
-        description: Android SDK version being updated from
+        description: |
+          DON'T USE FOR CALLS FROM NATIVE SDKS.
+          Android SDK version being updated from.
       android_to:
         required: false
         type: string
-        description: Android SDK version being updated to
+        description: |
+          DON'T USE FOR CALLS FROM NATIVE SDKS.
+          Android SDK version being updated to
       ios_from:
         required: false
         type: string
-        description: iOS SDK version being updated from
+        description: |
+          DON'T USE FOR CALLS FROM NATIVE SDKS.
+          iOS SDK version being updated from.
       ios_to:
         required: false
         type: string
-        description: iOS SDK version being updated to
+        description: |
+          DON'T USE FOR CALLS FROM NATIVE SDKS.
+          iOS SDK version being updated to.
 
 jobs:
   create_release:
@@ -69,7 +83,6 @@ jobs:
               branch: releaseBranch
             });
             const branchCreatedAt = branchInfo.commit.commit.committer.date;
-
 
             // For Current: Get PRs merged to main since last release but BEFORE release branch was created
             // For Alpha/Beta: Use releaseBranch as base
