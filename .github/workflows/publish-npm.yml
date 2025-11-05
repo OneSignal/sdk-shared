@@ -1,4 +1,5 @@
-name: NPM Publish
+# Given some branch e.g. main or rel/**, publishes package to NPM and creates a GitHub release
+name: Publish to NPM & Create GitHub Release
 
 on:
   workflow_call:
@@ -83,7 +84,7 @@ jobs:
             fi
           fi
 
-  create_release:
+  create_github_release:
     name: Create GitHub Release
     needs: publish
     if: needs.publish.outputs.version != ''

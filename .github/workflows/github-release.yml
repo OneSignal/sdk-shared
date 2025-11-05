@@ -1,4 +1,6 @@
-name: GitHub Release
+# Given a version, finds a merged release pr with release version in the title and uses pr body to generate release notes
+# NOTE: We expected the merged pr title to be `chore: Release ${version}` or `Release ${version}` e.g. `chore: Release 5.2.15` or `Release 5.2.15`
+name: Create GitHub Release
 
 on:
   workflow_call:
@@ -13,7 +15,6 @@ permissions:
 
 jobs:
   create_release:
-    name: Create GitHub Release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -41,7 +42,7 @@ jobs:
             });
 
             const releasePr = prs.data.find(pr =>
-              pr.merged_at && pr.title.includes(`chore: Release ${version}`)
+              pr.merged_at && pr.title.replace(/^chore:\s*/i, '').startsWith(`Release ${version}`)
             );
 
             if (releasePr) {
