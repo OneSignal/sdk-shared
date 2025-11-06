@@ -171,7 +171,9 @@ jobs:
               return ver1.prerelease.localeCompare(ver2.prerelease);
             };
 
-            // Helper function to fetch and format native SDK release notes
+            // Helper function to fetch and format native SDK release notes e.g.
+            // Update Android SDK from 5.1.33 to 5.1.34
+            // fix: ... ([OneSignal-Android-SDK#some-number](https://github.com/OneSignal/OneSignal-Android-SDK/pull/some-number))
             const fetchNativeSDKReleaseNotes = async (fromVersion, toVersion, owner, repo) => {
               try {
                 // Fetch all releases
@@ -201,6 +203,10 @@ jobs:
                     .split('\n')
                     .filter(line => /^\s*[-*]\s/.test(line))
                     .map(line => line.replace(/^\s*[-*]\s/, '').trim())
+                    .map(line => {
+                      // Convert PR references (#123) to full GitHub links
+                      return line.replace(/\(#(\d+)\)/g, `([${repo}#$1](https://github.com/${owner}/${repo}/pull/$1))`);
+                    })
                     .filter(line => line.length > 0);
                   
                   if (bullets.length > 0) {
