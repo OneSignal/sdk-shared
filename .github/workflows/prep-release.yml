@@ -8,6 +8,11 @@ on:
         required: true
         type: string
         description: The new version being released (e.g., 5.2.15-beta.1)
+      target_branch:
+        required: false
+        type: string
+        description: The branch to target for the release branch creation
+        default: main
     outputs:
       release_branch:
         description: Name of the release branch
@@ -22,6 +27,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          ref: ${{ inputs.target_branch }}
 
       - name: Release branch name
         id: release_branch
