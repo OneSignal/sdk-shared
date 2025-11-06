@@ -136,6 +136,92 @@ jobs:
               return section + '\n';
             };
 
+            // Parse version strings handling semantic versioning with prerelease tags
+            const parseVersion = (v) => {
+              // Handle versions like "5.1.36", "5.1.36-alpha", "5.1.36-beta", "5.1.36-alpha.1", etc.
+              const parts = v.split('-');
+              const baseVersion = parts[0].split('.').map(Number);
+              const prerelease = parts[1] || '';
+              
+              return { baseVersion, prerelease };
+            };
+
+            // Compare two versions considering base version and prerelease tags
+            const compareVersions = (v1, v2) => {
+              const ver1 = parseVersion(v1);
+              const ver2 = parseVersion(v2);
+              
+              // Compare base versions first
+              const base1 = ver1.baseVersion;
+              const base2 = ver2.baseVersion;
+              
+              for (let i = 0; i < Math.max(base1.length, base2.length); i++) {
+                const a = base1[i] || 0;
+                const b = base2[i] || 0;
+                if (a !== b) return a - b;
+              }
+              
+              // Base versions are equal, compare prerelease
+              // No prerelease (stable) > any prerelease
+              if (!ver1.prerelease && !ver2.prerelease) return 0;
+              if (!ver1.prerelease) return 1; // v1 is stable, v2 is prerelease
+              if (!ver2.prerelease) return -1; // v2 is stable, v1 is prerelease
+              
+              // Both have prerelease, compare them lexicographically
+              return ver1.prerelease.localeCompare(ver2.prerelease);
+            };
+
+            // Helper function to fetch and format native SDK release notes e.g.
+            // Update Android SDK from 5.1.33 to 5.1.34
+            // fix: ... ([OneSignal-Android-SDK#some-number](https://github.com/OneSignal/OneSignal-Android-SDK/pull/some-number))
+            const fetchNativeSDKReleaseNotes = async (fromVersion, toVersion, owner, repo) => {
+              try {
+                // Fetch all releases
+                const { data: allReleases } = await github.rest.repos.listReleases({
+                  owner,
+                  repo,
+                  per_page: 100
+                });
+                
+                // Filter releases between fromVersion and toVersion
+                const relevantReleases = allReleases
+                  .filter(release => {
+                    const tagVersion = release.tag_name;
+                    const cmp1 = compareVersions(tagVersion, fromVersion);
+                    const cmp2 = compareVersions(tagVersion, toVersion);
+                    // Include releases > from and <= to
+                    return cmp1 > 0 && cmp2 <= 0;
+                  })
+                  .sort((a, b) => compareVersions(b.tag_name, a.tag_name)); // Sort descending by version
+                
+                // Extract bullet points from each release
+                let notes = '';
+                relevantReleases.forEach(release => {
+                  const body = release.body || '';
+                  // Extract bullet points (lines starting with - or *)
+                  const bullets = body
+                    .split('\n')
+                    .filter(line => /^\s*[-*]\s/.test(line))
+                    .map(line => line.replace(/^\s*[-*]\s/, '').trim())
+                    .map(line => {
+                      // Convert PR references (#123) to full GitHub links
+                      return line.replace(/\(#(\d+)\)/g, `([${repo}#$1](https://github.com/${owner}/${repo}/pull/$1))`);
+                    })
+                    .filter(line => line.length > 0);
+                  
+                  if (bullets.length > 0) {
+                    bullets.forEach(bullet => {
+                      notes += `  - ${bullet}\n`;
+                    });
+                  }
+                });
+                return notes;
+              } catch (error) {
+                core.warning(`Failed to fetch ${repo} release notes: ${error.message}`);
+                return '';
+              }
+            };
+
             // Determine release type from version
             const version = '${{ inputs.version_to }}';
             const releaseType = version.includes('-alpha') ? 'Alpha' : 
@@ -158,11 +244,11 @@ jobs:
               releaseNotes += '\n### 🛠️ Native Dependency Updates\n\n';
               if (hasAndroidUpdate) {
                 releaseNotes += `- Update Android SDK from ${androidFrom} to ${androidTo}\n`;
-                releaseNotes += `  - See [release notes](https://github.com/OneSignal/OneSignal-Android-SDK/releases) for full details\n`;
+                releaseNotes += await fetchNativeSDKReleaseNotes(androidFrom, androidTo, 'OneSignal', 'OneSignal-Android-SDK');
               }
               if (hasIosUpdate) {
                 releaseNotes += `- Update iOS SDK from ${iosFrom} to ${iosTo}\n`;
-                releaseNotes += `  - See [release notes](https://github.com/OneSignal/OneSignal-iOS-SDK/releases) for full details\n`;
+                releaseNotes += await fetchNativeSDKReleaseNotes(iosFrom, iosTo, 'OneSignal', 'OneSignal-iOS-SDK');
               }
               releaseNotes += '\n';
             }
