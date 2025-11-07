@@ -4,7 +4,7 @@
 # - Creates release PR w/ expected release notes
 
 # NOTE: For calls from Native SDKS, do not pass `android_from`, `android_to`, `ios_from`, or `ios_to`
-# Use `version_from` and `version_to` instead.
+# Use `target_branch` and `release_branch` instead.
 name: Create SDK Release
 
 on:
@@ -14,14 +14,11 @@ on:
         required: true
         type: string
         description: Name of the release branch
-      version_from:
-        required: true
+      target_branch:
+        required: false
         type: string
-        description: The previous version (e.g., 5.2.14)
-      version_to:
-        required: true
-        type: string
-        description: The new version being released (e.g., 5.2.15)
+        description: The branch to target for the release PR (e.g. 5.4.0-main)
+        default: main
 
       android_from:
         required: false
@@ -56,13 +53,25 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.release_branch }}
+          ref: ${{ inputs.target_branch }}
           fetch-depth: 0
+
+      - name: Extract version_to from release_branch
+        id: release_version
+        run: |
+          # Extract version from release_branch format: rel/version_to
+          VERSION_TO="${{ inputs.release_branch }}"
+          VERSION_TO="${VERSION_TO#rel/}"
+          echo "version_to=$VERSION_TO" >> $GITHUB_OUTPUT
 
       - name: Get last release commit
         id: last_commit
         run: |
-          CURRENT_VERSION="${{ inputs.version_from }}"
+          # Get the last tag from the target branch (already checked out)
+          CURRENT_VERSION=$(git describe --tags --abbrev=0 2>/dev/null) || {
+            # Fallback to first commit if no tags
+            git rev-list --max-parents=0 HEAD
+          }
           LAST_RELEASE_DATE=$(git show -s --format=%cI "$CURRENT_VERSION")
           echo "date=$LAST_RELEASE_DATE" >> $GITHUB_OUTPUT
 
@@ -73,11 +82,8 @@ jobs:
           script: |
             const lastReleaseDate = '${{ steps.last_commit.outputs.date }}';
             const releaseBranch = '${{ inputs.release_branch }}';
-            const version = '${{ inputs.version_to }}';
-
-            // Determine release type from version
-            const releaseType = version.includes('-alpha') ? 'Alpha' : 
-                               version.includes('-beta') ? 'Beta' : 'Current';
+            const targetBranch = '${{ inputs.target_branch }}';
+            const version = '${{ steps.release_version.outputs.version_to }}';
 
             // Get the creation date of the release branch (when it diverged from main)
             const { data: branchInfo } = await github.rest.repos.getBranch({
@@ -87,22 +93,19 @@ jobs:
             });
             const branchCreatedAt = branchInfo.commit.commit.committer.date;
 
-            // For Current: Get PRs merged to main since last release but BEFORE release branch was created
-            // For Alpha/Beta: Use releaseBranch as base
-            const baseBranch = (releaseType === 'Alpha' || releaseType === 'Beta') ? releaseBranch : 'main';
+            // Get PRs merged to target branch since last release
             const { data: prs } = await github.rest.pulls.list({
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'closed',
-              base: baseBranch,
+              base: targetBranch,
               per_page: 100
             });
 
             const mergedPrs = prs
               .filter(pr =>
                 pr.merged_at &&
-                new Date(pr.merged_at) > new Date(lastReleaseDate) &&
-                (releaseType === 'Current' ? new Date(pr.merged_at) <= new Date(branchCreatedAt) : true)
+                new Date(pr.merged_at) > new Date(lastReleaseDate)
               )
               .map(pr => ({
                 number: pr.number,
@@ -223,7 +226,7 @@ jobs:
             };
 
             // Determine release type from version
-            const version = '${{ inputs.version_to }}';
+            const version = '${{ steps.release_version.outputs.version_to }}';
             const releaseType = version.includes('-alpha') ? 'Alpha' : 
                                version.includes('-beta') ? 'Beta' : 'Current';
 
@@ -257,16 +260,11 @@ jobs:
 
       - name: Create release PR
         run: |
-          NEW_VERSION="${{ inputs.version_to }}"
+          # Checkout the release branch
+          git checkout ${{ inputs.release_branch }}
 
-          # Determine release type and base branch from version
-          if [[ "$NEW_VERSION" =~ -alpha ]]; then
-            BASE_BRANCH="${{ inputs.release_branch }}"
-          elif [[ "$NEW_VERSION" =~ -beta ]]; then
-            BASE_BRANCH="${{ inputs.release_branch }}"
-          else
-            BASE_BRANCH="main"
-          fi
+          NEW_VERSION="${{ steps.release_version.outputs.version_to }}"
+          TARGET_BRANCH="${{ inputs.target_branch }}"
 
           # Write release notes to file to avoid shell interpretation
           cat > release_notes.md << 'EOF'
@@ -276,4 +274,4 @@ jobs:
           gh pr create \
             --title "chore: Release $NEW_VERSION" \
             --body-file release_notes.md \
-            --base "$BASE_BRANCH"
+            --base "$TARGET_BRANCH"
