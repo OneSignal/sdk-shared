@@ -43,8 +43,10 @@ jobs:
       flutter: ${{ steps.versions.outputs.flutter }}
       react_native: ${{ steps.versions.outputs.react-native }}
     steps:
-      - name: Install semver
-        run: npm install -g semver
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun i -g semver
 
       - name: Get latest SDK releases and close existing PRs
         id: versions
