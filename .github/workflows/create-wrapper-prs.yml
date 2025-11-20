@@ -46,7 +46,7 @@ jobs:
       - name: Install semver
         run: npm install -g semver
 
-      - name: Get latest SDK releases
+      - name: Get latest SDK releases and close existing PRs
         id: versions
         run: |
           for SDK in cordova flutter react-native; do
@@ -62,9 +62,23 @@ jobs:
                 ;;
             esac
 
+            # Get latest version
             LATEST_VERSION=$(gh release view --repo "$REPO" --exclude-pre-releases --json tagName -q '.tagName' || echo "")
             NEW_VERSION=$(semver "$LATEST_VERSION" -i patch)
             echo "$SDK=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+            # Close existing PR for this exact version if it exists
+            RELEASE_BRANCH="rel/$NEW_VERSION"
+            PR_NUMBER=$(gh pr list \
+              --repo "$REPO" \
+              --head "$RELEASE_BRANCH" \
+              --state open \
+              --json number -q '.[0].number')
+
+            if [ -n "$PR_NUMBER" ]; then
+              gh pr close "$PR_NUMBER" --repo "$REPO"
+              echo "ℹ️ Closed $SDK PR #$PR_NUMBER for branch $RELEASE_BRANCH"
+            fi
           done
         env:
           GH_TOKEN: ${{ github.token }}
@@ -92,3 +106,5 @@ jobs:
       rn_version: ${{ needs.versions.outputs.react_native }}
       android_version: ${{ inputs.android_version }}
       ios_version: ${{ inputs.ios_version }}
+
+  # TODO: Add job for unity
