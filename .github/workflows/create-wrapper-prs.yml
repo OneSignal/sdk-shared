@@ -1,0 +1,112 @@
+name: Create Wrapper PRs
+
+on:
+  workflow_dispatch: # TODO: For testing, remove me before merging
+    inputs:
+      android_version:
+        required: false
+        type: string
+        description: The Android SDK version to update to
+      ios_version:
+        required: false
+        type: string
+        description: The iOS SDK version to update to
+
+  workflow_call:
+    inputs:
+      android_version:
+        required: false
+        type: string
+        description: The Android SDK version to update to
+      ios_version:
+        required: false
+        type: string
+        description: The iOS SDK version to update to
+
+jobs:
+  validate-inputs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate at least one input provided
+        run: |
+          if [[ -z "${{ inputs.android_version }}" && -z "${{ inputs.ios_version }}" ]]; then
+            echo "❌ Error: At least one of 'android_version' or 'ios_version' must be provided"
+            exit 1
+          fi
+          echo "✓ Input validation passed"
+
+  versions:
+    needs: validate-inputs
+    runs-on: ubuntu-latest
+    outputs:
+      cordova: ${{ steps.versions.outputs.cordova }}
+      flutter: ${{ steps.versions.outputs.flutter }}
+      react_native: ${{ steps.versions.outputs.react-native }}
+    steps:
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun i -g semver
+
+      - name: Get latest SDK releases and close existing PRs
+        id: versions
+        run: |
+          for SDK in cordova flutter react-native; do
+            case $SDK in
+              cordova)
+                REPO="OneSignal/OneSignal-Cordova-SDK"
+                ;;
+              flutter)
+                REPO="OneSignal/OneSignal-Flutter-SDK"
+                ;;
+              react-native)
+                REPO="OneSignal/react-native-onesignal"
+                ;;
+            esac
+
+            # Get latest stable version (exclude pre-releases)
+            LATEST_VERSION=$(gh release list --repo "$REPO" --limit 20 --json tagName,isPrerelease | jq -r '.[] | select(.isPrerelease == false) | .tagName' | head -1 || echo "")
+            NEW_VERSION=$(semver "$LATEST_VERSION" -i patch)
+            echo "$SDK=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+            # Close existing PR for this exact version if it exists
+            RELEASE_BRANCH="rel/$NEW_VERSION"
+            PR_NUMBER=$(gh pr list \
+              --repo "$REPO" \
+              --head "$RELEASE_BRANCH" \
+              --state open \
+              --json number -q '.[0].number')
+
+            if [ -n "$PR_NUMBER" ]; then
+              gh pr close "$PR_NUMBER" --repo "$REPO"
+              echo "ℹ️ Closed $SDK PR #$PR_NUMBER for branch $RELEASE_BRANCH"
+            fi
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  cordova-release:
+    needs: [versions]
+    uses: OneSignal/OneSignal-Cordova-SDK/.github/workflows/create-release-pr.yml@main
+    with:
+      cordova_version: ${{ needs.versions.outputs.cordova }}
+      android_version: ${{ inputs.android_version }}
+      ios_version: ${{ inputs.ios_version }}
+
+  flutter-release:
+    needs: [versions]
+    uses: OneSignal/OneSignal-Flutter-SDK/.github/workflows/create-release-pr.yml@main
+    with:
+      flutter_version: ${{ needs.versions.outputs.flutter }}
+      android_version: ${{ inputs.android_version }}
+      ios_version: ${{ inputs.ios_version }}
+
+  react-native-release:
+    needs: [versions]
+    uses: OneSignal/react-native-onesignal/.github/workflows/create-release-pr.yml@main
+    with:
+      rn_version: ${{ needs.versions.outputs.react_native }}
+      android_version: ${{ inputs.android_version }}
+      ios_version: ${{ inputs.ios_version }}
+
+  # TODO: Add job for unity
