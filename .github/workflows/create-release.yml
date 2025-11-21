@@ -47,18 +47,21 @@ on:
         description: |
           DON'T USE FOR CALLS FROM NATIVE SDKS.
           iOS SDK version being updated to.
+    secrets:
+      GH_PUSH_TOKEN:
+        required: false
+        description: GitHub token with push permissions
 
 jobs:
   create_release:
     runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.target_branch }}
           fetch-depth: 0
           repository: ${{ inputs.target_repo || github.repository }}
+          token: ${{ secrets.GH_PUSH_TOKEN || github.token }}
 
       - name: Extract version_to from release_branch
         id: release_version
@@ -88,19 +91,23 @@ jobs:
             const releaseBranch = '${{ inputs.release_branch }}';
             const targetBranch = '${{ inputs.target_branch }}';
             const version = '${{ steps.release_version.outputs.version_to }}';
+            const targetRepo = '${{ inputs.target_repo || github.repository }}';
+
+            // Parse target repo to get owner and repo name
+            const [owner, repo] = targetRepo.split('/');
 
             // Get the creation date of the release branch (when it diverged from main)
             const { data: branchInfo } = await github.rest.repos.getBranch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner,
+              repo,
               branch: releaseBranch
             });
             const branchCreatedAt = branchInfo.commit.commit.committer.date;
 
             // Get PRs merged to target branch since last release
             const { data: prs } = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner,
+              repo,
               state: 'closed',
               base: targetBranch,
               per_page: 100
@@ -263,6 +270,8 @@ jobs:
             core.setOutput('notes', releaseNotes);
 
       - name: Create release PR
+        env:
+          GH_TOKEN: ${{ secrets.GH_PUSH_TOKEN || github.token }}
         run: |
           # Checkout the release branch
           git checkout ${{ inputs.release_branch }}

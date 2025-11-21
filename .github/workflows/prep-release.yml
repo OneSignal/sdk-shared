@@ -19,6 +19,11 @@ on:
         type: string
         description: FOR WRAPPERS ONLY. The repository to target for the release branch creation
 
+    secrets:
+      GH_PUSH_TOKEN:
+        required: false
+        description: GitHub token with push permissions
+
     outputs:
       release_branch:
         description: Name of the release branch
@@ -38,6 +43,7 @@ jobs:
             # To be set by callee since we have nested reusable workflows call which gets to set to the caller repo by default
             # But we need to create the release branch in the callee's repository
           repository: ${{ inputs.target_repo || github.repository }}
+          token: ${{ secrets.GH_PUSH_TOKEN || github.token }}
 
       - name: Release branch name
         id: release_branch

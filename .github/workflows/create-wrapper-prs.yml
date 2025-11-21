@@ -88,25 +88,27 @@ jobs:
   cordova-release:
     needs: [versions]
     uses: OneSignal/OneSignal-Cordova-SDK/.github/workflows/create-release-pr.yml@main
+    secrets:
+      GH_PUSH_TOKEN: ${{ secrets.GH_PUSH_TOKEN }}
     with:
       cordova_version: ${{ needs.versions.outputs.cordova }}
       android_version: ${{ inputs.android_version }}
       ios_version: ${{ inputs.ios_version }}
 
-  flutter-release:
-    needs: [versions]
-    uses: OneSignal/OneSignal-Flutter-SDK/.github/workflows/create-release-pr.yml@main
-    with:
-      flutter_version: ${{ needs.versions.outputs.flutter }}
-      android_version: ${{ inputs.android_version }}
-      ios_version: ${{ inputs.ios_version }}
+  # flutter-release:
+  #   needs: [versions]
+  #   uses: OneSignal/OneSignal-Flutter-SDK/.github/workflows/create-release-pr.yml@main
+  #   with:
+  #     flutter_version: ${{ needs.versions.outputs.flutter }}
+  #     android_version: ${{ inputs.android_version }}
+  #     ios_version: ${{ inputs.ios_version }}
 
-  react-native-release:
-    needs: [versions]
-    uses: OneSignal/react-native-onesignal/.github/workflows/create-release-pr.yml@main
-    with:
-      rn_version: ${{ needs.versions.outputs.react_native }}
-      android_version: ${{ inputs.android_version }}
-      ios_version: ${{ inputs.ios_version }}
+  # react-native-release:
+  #   needs: [versions]
+  #   uses: OneSignal/react-native-onesignal/.github/workflows/create-release-pr.yml@main
+  #   with:
+  #     rn_version: ${{ needs.versions.outputs.react_native }}
+  #     android_version: ${{ inputs.android_version }}
+  #     ios_version: ${{ inputs.ios_version }}
 
   # TODO: Add job for unity
