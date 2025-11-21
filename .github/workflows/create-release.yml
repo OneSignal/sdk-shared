@@ -19,7 +19,10 @@ on:
         type: string
         description: The branch to target for the release PR (e.g. 5.4.0-main)
         default: main
-
+      target_repo:
+        required: false
+        type: string
+        description: FOR WRAPPERS ONLY. The repository to target for the release PR
       android_from:
         required: false
         type: string
@@ -55,6 +58,7 @@ jobs:
         with:
           ref: ${{ inputs.target_branch }}
           fetch-depth: 0
+          repository: ${{ inputs.target_repo || github.repository }}
 
       - name: Extract version_to from release_branch
         id: release_version
@@ -145,7 +149,7 @@ jobs:
               const parts = v.split('-');
               const baseVersion = parts[0].split('.').map(Number);
               const prerelease = parts[1] || '';
-              
+
               return { baseVersion, prerelease };
             };
 
@@ -153,23 +157,23 @@ jobs:
             const compareVersions = (v1, v2) => {
               const ver1 = parseVersion(v1);
               const ver2 = parseVersion(v2);
-              
+
               // Compare base versions first
               const base1 = ver1.baseVersion;
               const base2 = ver2.baseVersion;
-              
+
               for (let i = 0; i < Math.max(base1.length, base2.length); i++) {
                 const a = base1[i] || 0;
                 const b = base2[i] || 0;
                 if (a !== b) return a - b;
               }
-              
+
               // Base versions are equal, compare prerelease
               // No prerelease (stable) > any prerelease
               if (!ver1.prerelease && !ver2.prerelease) return 0;
               if (!ver1.prerelease) return 1; // v1 is stable, v2 is prerelease
               if (!ver2.prerelease) return -1; // v2 is stable, v1 is prerelease
-              
+
               // Both have prerelease, compare them lexicographically
               return ver1.prerelease.localeCompare(ver2.prerelease);
             };
@@ -185,7 +189,7 @@ jobs:
                   repo,
                   per_page: 100
                 });
-                
+
                 // Filter releases between fromVersion and toVersion
                 const relevantReleases = allReleases
                   .filter(release => {
@@ -196,7 +200,7 @@ jobs:
                     return cmp1 > 0 && cmp2 <= 0;
                   })
                   .sort((a, b) => compareVersions(b.tag_name, a.tag_name)); // Sort descending by version
-                
+
                 // Extract bullet points from each release
                 let notes = '';
                 relevantReleases.forEach(release => {
@@ -211,7 +215,7 @@ jobs:
                       return line.replace(/\(#(\d+)\)/g, `([${repo}#$1](https://github.com/${owner}/${repo}/pull/$1))`);
                     })
                     .filter(line => line.length > 0);
-                  
+
                   if (bullets.length > 0) {
                     bullets.forEach(bullet => {
                       notes += `  - ${bullet}\n`;
@@ -227,7 +231,7 @@ jobs:
 
             // Determine release type from version
             const version = '${{ steps.release_version.outputs.version_to }}';
-            const releaseType = version.includes('-alpha') ? 'Alpha' : 
+            const releaseType = version.includes('-alpha') ? 'Alpha' :
                                version.includes('-beta') ? 'Beta' : 'Current';
 
             let releaseNotes = `Channels: ${releaseType}\n\n`;
