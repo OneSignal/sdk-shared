@@ -1,4 +1,4 @@
-# Given some branch e.g. main or rel/**, publishes package to NPM and creates a GitHub release
+# Given some branch e.g. main or rel/**, publishes package(s) to NPM and creates a GitHub release
 name: Publish to NPM & Create GitHub Release
 
 on:
@@ -9,6 +9,13 @@ on:
         type: string
         description: Branch to checkout (main or rel/**)
         default: main
+      packages:
+        required: false
+        type: string
+        description: |
+          JSON array of package scopes/names to publish (e.g., '["com.onesignal.unity.core", "com.onesignal.unity.android"]')
+          If empty, publishes the root package.json
+        default: "[]"
 
 permissions:
   id-token: write # Required for OIDC
@@ -70,18 +77,38 @@ jobs:
       - name: Publish
         run: |
           VERSION='${{ steps.get_version.outputs.version }}'
-          PACKAGE_NAME='${{ steps.get_version.outputs.package_name }}'
-          # Check if version already exists on npm
-          if npm view ${PACKAGE_NAME}@${VERSION} > /dev/null 2>&1; then
-            echo "Version $VERSION already published, skipping publish"
-          else
-            if [[ $VERSION =~ alpha ]]; then
-              npm publish --tag alpha
-            elif [[ $VERSION =~ beta ]]; then
-              npm publish --tag beta
+          PACKAGES='${{ inputs.packages }}'
+
+          if [ "$PACKAGES" = "[]" ] || [ -z "$PACKAGES" ]; then
+            # Publish root package
+            PACKAGE_NAME='${{ steps.get_version.outputs.package_name }}'
+            if npm view ${PACKAGE_NAME}@${VERSION} > /dev/null 2>&1; then
+              echo "Version $VERSION already published, skipping publish"
             else
-              npm publish
+              if [[ $VERSION =~ alpha ]]; then
+                npm publish --tag alpha
+              elif [[ $VERSION =~ beta ]]; then
+                npm publish --tag beta
+              else
+                npm publish
+              fi
             fi
+          else
+            # Publish multiple packages
+            echo "$PACKAGES" | jq -r '.[]' | while read PACKAGE_NAME; do
+              if npm view ${PACKAGE_NAME}@${VERSION} > /dev/null 2>&1; then
+                echo "Version $VERSION already published for $PACKAGE_NAME, skipping"
+              else
+                echo "Publishing $PACKAGE_NAME@$VERSION"
+                if [[ $VERSION =~ alpha ]]; then
+                  npm publish $PACKAGE_NAME --tag alpha --access public
+                elif [[ $VERSION =~ beta ]]; then
+                  npm publish $PACKAGE_NAME --tag beta --access public
+                else
+                  npm publish $PACKAGE_NAME --access public
+                fi
+              fi
+            done
           fi
 
   create_github_release:
