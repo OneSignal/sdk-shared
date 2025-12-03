@@ -52,21 +52,16 @@ jobs:
       - name: Get latest SDK releases and close existing PRs
         id: versions
         run: |
-          for SDK in cordova flutter react-native; do
-            case $SDK in
-              cordova)
-                REPO="OneSignal/OneSignal-Cordova-SDK"
-                ;;
-              flutter)
-                REPO="OneSignal/OneSignal-Flutter-SDK"
-                ;;
-              react-native)
-                REPO="OneSignal/react-native-onesignal"
-                ;;
-              unity)
-                REPO="OneSignal/OneSignal-Unity-SDK"
-                ;;
-            esac
+          # Define SDK to repo mapping
+          declare -A SDK_REPOS=(
+            ["cordova"]="OneSignal/OneSignal-Cordova-SDK"
+            ["flutter"]="OneSignal/OneSignal-Flutter-SDK"
+            ["react-native"]="OneSignal/react-native-onesignal"
+            ["unity"]="OneSignal/OneSignal-Unity-SDK"
+          )
+
+          for SDK in "${!SDK_REPOS[@]}"; do
+            REPO="${SDK_REPOS[$SDK]}"
 
             # Get latest stable version (exclude pre-releases)
             LATEST_VERSION=$(gh release list --repo "$REPO" --limit 20 --json tagName,isPrerelease | jq -r '.[] | select(.isPrerelease == false) | .tagName' | head -1 || echo "")
