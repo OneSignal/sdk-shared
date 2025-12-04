@@ -68,17 +68,25 @@ jobs:
             NEW_VERSION=$(semver "$LATEST_VERSION" -i patch)
             echo "$SDK=$NEW_VERSION" >> $GITHUB_OUTPUT
 
-            # Close existing PR for this exact version if it exists
+            # Close existing PR for this exact version if it exists (unless it has protected labels)
             RELEASE_BRANCH="rel/$NEW_VERSION"
-            PR_NUMBER=$(gh pr list \
+            PR_INFO=$(gh pr list \
               --repo "$REPO" \
               --head "$RELEASE_BRANCH" \
               --state open \
-              --json number -q '.[0].number')
+              --json number,labels -q '.[0]')
 
-            if [ -n "$PR_NUMBER" ]; then
-              gh pr close "$PR_NUMBER" --repo "$REPO"
-              echo "ℹ️ Closed $SDK PR #$PR_NUMBER for branch $RELEASE_BRANCH"
+            if [ -n "$PR_INFO" ] && [ "$PR_INFO" != "null" ]; then
+              PR_NUMBER=$(echo "$PR_INFO" | jq -r '.number')
+              PROTECTED_LABELS="do-not-close,in-review,blocked"
+              HAS_PROTECTED_LABEL=$(echo "$PR_INFO" | jq -r --arg labels "$PROTECTED_LABELS" '.labels[].name | select(. as $l | $labels | split(",") | index($l))')
+
+              if [ -n "$HAS_PROTECTED_LABEL" ]; then
+                echo "⚠️ Skipping close of $SDK PR #$PR_NUMBER (has protected label: $HAS_PROTECTED_LABEL)"
+              else
+                gh pr close "$PR_NUMBER" --repo "$REPO"
+                echo "ℹ️ Closed $SDK PR #$PR_NUMBER for branch $RELEASE_BRANCH"
+              fi
             fi
           done
         env:
