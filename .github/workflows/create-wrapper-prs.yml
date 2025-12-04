@@ -88,13 +88,17 @@ jobs:
               if [ -n "$HAS_PROTECTED_LABEL" ]; then
                 echo "⚠️ Skipping close of $SDK PR #$PR_NUMBER (has protected label: $HAS_PROTECTED_LABEL)"
               else
-                gh pr close "$PR_NUMBER" --repo "$REPO"
-                echo "ℹ️ Closed $SDK PR #$PR_NUMBER for branch $RELEASE_BRANCH"
+                # Attempt to close PR, but don't fail if permission denied
+                if gh pr close "$PR_NUMBER" --repo "$REPO" 2>&1; then
+                  echo "ℹ️ Closed $SDK PR #$PR_NUMBER for branch $RELEASE_BRANCH"
+                else
+                  echo "⚠️ Warning: Could not close $SDK PR #$PR_NUMBER (may lack permissions)"
+                fi
               fi
             fi
           done
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PUSH_TOKEN || github.token }}
 
   cordova-release:
     needs: [versions]
