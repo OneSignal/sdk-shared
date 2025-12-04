@@ -22,6 +22,10 @@ on:
         required: false
         type: string
         description: The iOS SDK version to update to
+    secrets:
+      GH_PUSH_TOKEN:
+        required: false
+        description: GitHub token with push permissions
 
 jobs:
   validate-inputs:
