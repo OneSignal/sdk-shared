@@ -54,16 +54,12 @@ jobs:
       - name: Create release branch
         run: |
           releaseBranch="${{ steps.release_branch.outputs.releaseBranch }}"
-          NEW_VERSION="${{ inputs.version }}"
 
-          if ! git checkout -b "$releaseBranch" 2>/dev/null; then
-            # Branch already exists
-            if [[ ! "$NEW_VERSION" =~ -alpha ]] && [[ ! "$NEW_VERSION" =~ -beta ]]; then
-              echo "Error: Release branch already exists for Current release"
-              exit 1
-            fi
-
-            # For Alpha/Beta, use existing branch
-            git checkout "$releaseBranch"
+          # Check if branch already exists on remote
+          if git ls-remote --heads origin "$releaseBranch" | grep -q "$releaseBranch"; then
+            echo "ℹ️ Branch $releaseBranch already exists on remote, skipping creation"
+          else
+            # Create branch and push
+            git checkout -b "$releaseBranch"
+            git push -u origin "$releaseBranch"
           fi
-          git push -u origin "$releaseBranch"
