@@ -29,20 +29,8 @@ jobs:
           java-version: ${{ inputs.java_version }}
           distribution: "temurin"
 
-      - name: Setup Homebrew
-        uses: Homebrew/actions/setup-homebrew@main
-
       - name: Setup Clang
-        uses: tecolicom/actions-use-homebrew-tools@v1
-        with:
-          tools: clang-format
-          cache: yes
-
-      - name: Link clang-format
-        run: |
-          brew link --overwrite --force clang-format >/dev/null
-          export PATH="/home/linuxbrew/.linuxbrew/bin:$PATH"
-          clang-format --version
+        uses: ./.github/actions/setup-clang
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
