@@ -30,7 +30,7 @@ jobs:
           distribution: "temurin"
 
       - name: Setup Clang
-        uses: ./.github/actions/setup-clang
+        uses: OneSignal/actions/.github/actions/setup-clang@main
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
