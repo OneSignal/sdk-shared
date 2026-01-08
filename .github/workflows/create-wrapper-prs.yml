@@ -1,7 +1,7 @@
 name: Create Wrapper PRs
 
 on:
-  workflow_dispatch: # TODO: For testing, remove me before merging
+  workflow_dispatch: # For testing, try to avoid using this
     inputs:
       android_version:
         required: false
@@ -38,6 +38,23 @@ jobs:
             exit 1
           fi
           echo "✓ Input validation passed"
+
+      - name: Skip pre-release versions
+        run: |
+          ANDROID="${{ inputs.android_version }}"
+          IOS="${{ inputs.ios_version }}"
+
+          if [[ "$ANDROID" =~ (alpha|beta) ]]; then
+            echo "⏭️ Skipping: Android version '$ANDROID' is a pre-release"
+            exit 1
+          fi
+
+          if [[ "$IOS" =~ (alpha|beta) ]]; then
+            echo "⏭️ Skipping: iOS version '$IOS' is a pre-release"
+            exit 1
+          fi
+
+          echo "✓ No pre-release versions detected"
 
   versions:
     needs: validate-inputs
