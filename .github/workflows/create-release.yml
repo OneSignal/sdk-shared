@@ -272,20 +272,94 @@ jobs:
 
             core.setOutput('notes', releaseNotes);
 
-      - name: Create release PR
+      - name: Check for existing PR
+        id: check_pr
         run: |
-          # Checkout the release branch
           git checkout ${{ inputs.release_branch }}
+          EXISTING_PR=$(gh pr list --head "${{ inputs.release_branch }}" --base "${{ inputs.target_branch }}" --json number,body --jq '.[0]')
+          if [ -n "$EXISTING_PR" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "number=$(echo "$EXISTING_PR" | jq -r '.number')" >> $GITHUB_OUTPUT
+            # Write existing body to file to preserve it
+            echo "$EXISTING_PR" | jq -r '.body' > existing_body.md
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
 
+      - name: Merge release notes with existing PR
+        id: merged_notes
+        if: steps.check_pr.outputs.exists == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const existingBody = fs.readFileSync('existing_body.md', 'utf8');
+            const newNotes = `${{ steps.release_notes.outputs.notes }}`;
+
+            // Extract native dependency section from existing body
+            const nativeDepRegex = /### 🛠️ Native Dependency Updates\n\n([\s\S]*?)(?=\n###|\n*$)/;
+            const existingNativeMatch = existingBody.match(nativeDepRegex);
+            const newNativeMatch = newNotes.match(nativeDepRegex);
+
+            let mergedNotes = newNotes;
+
+            if (existingNativeMatch && newNativeMatch) {
+              // Both have native deps - merge them
+              const existingNativeDeps = existingNativeMatch[1].trim();
+              const newNativeDeps = newNativeMatch[1].trim();
+
+              // Check if existing has Android/iOS that new doesn't have
+              const existingHasAndroid = existingNativeDeps.includes('Update Android SDK');
+              const existingHasIos = existingNativeDeps.includes('Update iOS SDK');
+              const newHasAndroid = newNativeDeps.includes('Update Android SDK');
+              const newHasIos = newNativeDeps.includes('Update iOS SDK');
+
+              let combinedDeps = '';
+              if (existingHasAndroid && !newHasAndroid) {
+                // Preserve Android from existing
+                const androidSection = existingNativeDeps.match(/- Update Android SDK[\s\S]*?(?=- Update iOS|$)/);
+                if (androidSection) combinedDeps += androidSection[0].trim() + '\n';
+              }
+              if (newHasAndroid) {
+                const androidSection = newNativeDeps.match(/- Update Android SDK[\s\S]*?(?=- Update iOS|$)/);
+                if (androidSection) combinedDeps += androidSection[0].trim() + '\n';
+              }
+              if (existingHasIos && !newHasIos) {
+                // Preserve iOS from existing
+                const iosSection = existingNativeDeps.match(/- Update iOS SDK[\s\S]*/);
+                if (iosSection) combinedDeps += iosSection[0].trim() + '\n';
+              }
+              if (newHasIos) {
+                const iosSection = newNativeDeps.match(/- Update iOS SDK[\s\S]*/);
+                if (iosSection) combinedDeps += iosSection[0].trim() + '\n';
+              }
+
+              // Replace native deps section in new notes with combined
+              mergedNotes = newNotes.replace(nativeDepRegex, `### 🛠️ Native Dependency Updates\n\n${combinedDeps}\n`);
+            } else if (existingNativeMatch && !newNativeMatch) {
+              // Only existing has native deps - append them to new notes
+              mergedNotes = newNotes.trimEnd() + '\n\n### 🛠️ Native Dependency Updates\n\n' + existingNativeMatch[1];
+            }
+
+            fs.writeFileSync('release_notes.md', mergedNotes);
+            core.setOutput('notes', mergedNotes);
+
+      - name: Create or update release PR
+        run: |
           NEW_VERSION="${{ steps.release_version.outputs.version_to }}"
           TARGET_BRANCH="${{ inputs.target_branch }}"
 
-          # Write release notes to file to avoid shell interpretation
-          cat > release_notes.md << 'EOF'
+          if [ "${{ steps.check_pr.outputs.exists }}" == "true" ]; then
+            # Update existing PR
+            gh pr edit "${{ steps.check_pr.outputs.number }}" --body-file release_notes.md
+          else
+            # Write release notes to file to avoid shell interpretation
+            cat > release_notes.md << 'EOF'
           ${{ steps.release_notes.outputs.notes }}
           EOF
 
-          gh pr create \
-            --title "chore: Release $NEW_VERSION" \
-            --body-file release_notes.md \
-            --base "$TARGET_BRANCH"
+            gh pr create \
+              --title "chore: Release $NEW_VERSION" \
+              --body-file release_notes.md \
+              --base "$TARGET_BRANCH"
+          fi
