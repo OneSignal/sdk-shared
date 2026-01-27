@@ -296,49 +296,41 @@ jobs:
             const existingBody = fs.readFileSync('existing_body.md', 'utf8');
             const newNotes = `${{ steps.release_notes.outputs.notes }}`;
 
-            // Extract native dependency section from existing body
-            const nativeDepRegex = /### 🛠️ Native Dependency Updates\n\n([\s\S]*?)(?=\n###|\n*$)/;
-            const existingNativeMatch = existingBody.match(nativeDepRegex);
-            const newNativeMatch = newNotes.match(nativeDepRegex);
+            // Regex to extract a single SDK update entry (main bullet + sub-bullets)
+            // Matches: "- Update {SDK} from X to Y\n" followed by any "  - " sub-bullets
+            const extractSDKSection = (text, sdk) => {
+              const regex = new RegExp(`- Update ${sdk} SDK from [^\\n]+\\n(?:  - [^\\n]+\\n)*`, 'g');
+              const match = text.match(regex);
+              return match ? match[0] : null;
+            };
+
+            // Extract Android and iOS sections from both existing and new
+            const existingAndroid = extractSDKSection(existingBody, 'Android');
+            const existingIos = extractSDKSection(existingBody, 'iOS');
+            const newAndroid = extractSDKSection(newNotes, 'Android');
+            const newIos = extractSDKSection(newNotes, 'iOS');
+
+            // Determine what to include (prefer new over existing for same platform)
+            const finalAndroid = newAndroid || existingAndroid;
+            const finalIos = newIos || existingIos;
+
+            // Build combined native deps section
+            let combinedDeps = '';
+            if (finalAndroid) combinedDeps += finalAndroid;
+            if (finalIos) combinedDeps += finalIos;
 
             let mergedNotes = newNotes;
 
-            if (existingNativeMatch && newNativeMatch) {
-              // Both have native deps - merge them
-              const existingNativeDeps = existingNativeMatch[1].trim();
-              const newNativeDeps = newNativeMatch[1].trim();
-
-              // Check if existing has Android/iOS that new doesn't have
-              const existingHasAndroid = existingNativeDeps.includes('Update Android SDK');
-              const existingHasIos = existingNativeDeps.includes('Update iOS SDK');
-              const newHasAndroid = newNativeDeps.includes('Update Android SDK');
-              const newHasIos = newNativeDeps.includes('Update iOS SDK');
-
-              let combinedDeps = '';
-              if (existingHasAndroid && !newHasAndroid) {
-                // Preserve Android from existing
-                const androidSection = existingNativeDeps.match(/- Update Android SDK[\s\S]*?(?=- Update iOS|$)/);
-                if (androidSection) combinedDeps += androidSection[0].trim() + '\n';
+            if (combinedDeps) {
+              // Check if new notes already have native deps section
+              const nativeDepHeaderRegex = /\n*### 🛠️ Native Dependency Updates\n\n[\s\S]*$/;
+              if (nativeDepHeaderRegex.test(newNotes)) {
+                // Replace existing section in new notes
+                mergedNotes = newNotes.replace(nativeDepHeaderRegex, `\n\n### 🛠️ Native Dependency Updates\n\n${combinedDeps}`);
+              } else {
+                // Append section to new notes
+                mergedNotes = newNotes.trimEnd() + `\n\n### 🛠️ Native Dependency Updates\n\n${combinedDeps}`;
               }
-              if (newHasAndroid) {
-                const androidSection = newNativeDeps.match(/- Update Android SDK[\s\S]*?(?=- Update iOS|$)/);
-                if (androidSection) combinedDeps += androidSection[0].trim() + '\n';
-              }
-              if (existingHasIos && !newHasIos) {
-                // Preserve iOS from existing
-                const iosSection = existingNativeDeps.match(/- Update iOS SDK[\s\S]*/);
-                if (iosSection) combinedDeps += iosSection[0].trim() + '\n';
-              }
-              if (newHasIos) {
-                const iosSection = newNativeDeps.match(/- Update iOS SDK[\s\S]*/);
-                if (iosSection) combinedDeps += iosSection[0].trim() + '\n';
-              }
-
-              // Replace native deps section in new notes with combined
-              mergedNotes = newNotes.replace(nativeDepRegex, `### 🛠️ Native Dependency Updates\n\n${combinedDeps}\n`);
-            } else if (existingNativeMatch && !newNativeMatch) {
-              // Only existing has native deps - append them to new notes
-              mergedNotes = newNotes.trimEnd() + '\n\n### 🛠️ Native Dependency Updates\n\n' + existingNativeMatch[1];
             }
 
             fs.writeFileSync('release_notes.md', mergedNotes);
