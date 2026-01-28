@@ -38,6 +38,26 @@ on:
         required: false
         type: string
         description: The iOS SDK version to update to
+      cordova:
+        type: boolean
+        required: false
+        default: true
+        description: Update Cordova SDK
+      flutter:
+        type: boolean
+        required: false
+        default: true
+        description: Update Flutter SDK
+      react_native:
+        type: boolean
+        required: false
+        default: true
+        description: Update React Native SDK
+      unity:
+        type: boolean
+        required: false
+        default: true
+        description: Update Unity SDK
     secrets:
       GH_PUSH_TOKEN:
         required: false
