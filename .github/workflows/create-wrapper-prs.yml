@@ -1,5 +1,8 @@
 name: Create Wrapper PRs
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch: # For testing, try to avoid using this
     inputs:
