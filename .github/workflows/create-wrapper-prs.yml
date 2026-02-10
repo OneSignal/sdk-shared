@@ -1,5 +1,8 @@
 name: Create Wrapper PRs
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch: # For testing, try to avoid using this
     inputs:
@@ -34,6 +37,10 @@ on:
         type: boolean
         default: true
         description: Update Unity SDK
+      dotnet:
+        type: boolean
+        default: true
+        description: Update .NET SDK
 
   workflow_call:
     inputs:
@@ -65,6 +72,11 @@ on:
         required: false
         default: true
         description: Update Unity SDK
+      dotnet:
+        type: boolean
+        required: false
+        default: true
+        description: Update .NET SDK
       version_bump:
         type: string
         required: false
@@ -112,6 +124,7 @@ jobs:
       flutter: ${{ steps.versions.outputs.flutter }}
       react_native: ${{ steps.versions.outputs.react-native }}
       unity: ${{ steps.versions.outputs.unity }}
+      dotnet: ${{ steps.versions.outputs.dotnet }}
     steps:
       - uses: oven-sh/setup-bun@v2
         with:
@@ -127,6 +140,7 @@ jobs:
             ["flutter"]="OneSignal/OneSignal-Flutter-SDK"
             ["react-native"]="OneSignal/react-native-onesignal"
             ["unity"]="OneSignal/OneSignal-Unity-SDK"
+            ["dotnet"]="OneSignal/OneSignal-DotNet-SDK"
           )
 
           for SDK in "${!SDK_REPOS[@]}"; do
@@ -181,5 +195,16 @@ jobs:
       GH_PUSH_TOKEN: ${{ secrets.GH_PUSH_TOKEN }}
     with:
       unity_version: ${{ needs.versions.outputs.unity }}
+      android_version: ${{ inputs.android_version }}
+      ios_version: ${{ inputs.ios_version }}
+
+  dotnet-release:
+    needs: [versions]
+    if: inputs.dotnet != false
+    uses: OneSignal/OneSignal-DotNet-SDK/.github/workflows/create-release-pr.yml@main
+    secrets:
+      GH_PUSH_TOKEN: ${{ secrets.GH_PUSH_TOKEN }}
+    with:
+      dotnet_version: ${{ needs.versions.outputs.dotnet }}
       android_version: ${{ inputs.android_version }}
       ios_version: ${{ inputs.ios_version }}
