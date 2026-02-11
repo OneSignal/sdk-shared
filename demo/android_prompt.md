@@ -193,7 +193,7 @@ Send Push Notification Section (placed right after Push Section):
 - Section title: "Send Push Notification" with info icon for tooltip
 - Three buttons in a card:
   1. SIMPLE - sends basic notification with title/body
-  2. WITH IMAGE - sends notification with big picture
+  2. WITH IMAGE - sends notification with big picture (use https://media.onesignal.com/automated_push_templates/ratings_template.png)
   3. CUSTOM - opens dialog for custom title and body
 
 Tooltip should explain each button type.
@@ -265,7 +265,7 @@ Emails Section:
 SMS Section:
 - Section title: "SMSs" with info icon for tooltip
 - RecyclerView showing phone numbers
-- Each item shows phone number with long-press to delete
+- Each item shows phone number with X button to delete
 - "No SMSs Added" text when empty
 - ADD SMS button → dialog with empty SMS field
 - Collapse behavior when >5 items (same as Emails)
