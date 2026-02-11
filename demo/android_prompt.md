@@ -1,4 +1,4 @@
-# OneSignal Sample App V2 - Build Guide
+# OneSignal Sample App - Build Guide
 
 This document contains all the prompts and requirements needed to build the OneSignal Sample App V2 from scratch. Give these prompts to an AI assistant or follow them manually to recreate the app.
 
@@ -405,7 +405,7 @@ Create app/src/main/assets/tooltip_content.json:
     "description": "Aliases are alternative identifiers for the user. Use them to reference users by your own IDs (e.g., database ID, username)."
   },
   "push": {
-    "title": "Push Subscription", 
+    "title": "Push Subscription",
     "description": "The push subscription ID for this device. Used to send targeted push notifications."
   },
   "emails": {
@@ -470,24 +470,24 @@ Create TooltipHelper.kt:
 object TooltipHelper {
     private var tooltips: Map<String, TooltipData> = emptyMap()
     private var initialized = false
-    
+
     fun init(context: Context) {
         if (initialized) return
-        
+
         // IMPORTANT: Load on background thread to avoid blocking app startup
         CoroutineScope(Dispatchers.IO).launch {
             // Load tooltip_content.json from assets
             // Parse JSON into tooltips map
-            
+
             withContext(Dispatchers.Main) {
                 // Update tooltips map on main thread
                 initialized = true
             }
         }
     }
-    
+
     fun getTooltip(key: String): TooltipData?
-    
+
     fun showTooltip(context: Context, key: String) {
         // Show AlertDialog with tooltip title, description, and options if present
     }
@@ -515,7 +515,7 @@ For each section header in activity_main.xml:
 Example layout for section header:
 <LinearLayout orientation="horizontal">
     <TextView text="@string/aliases" />
-    <ImageButton 
+    <ImageButton
         android:id="@+id/btn_info_aliases"
         android:src="@drawable/ic_info"
         android:background="?selectableItemBackgroundBorderless" />
@@ -585,7 +585,7 @@ The test automation framework (Appium) will enter these values:
 ## Key Files Structure
 
 ```
-Examples/OneSignalDemoV2/
+Examples/OneSignalDemo/
 ├── buildSrc/
 │   └── src/main/kotlin/
 │       ├── Versions.kt          # Version constants
@@ -661,6 +661,7 @@ Note: REST API key is NOT required for the fetchUser endpoint.
 ### Package Name
 
 The package name MUST be `com.onesignal.sdktest` to work with the existing:
+
 - `google-services.json` (Firebase configuration)
 - `agconnect-services.json` (Huawei configuration)
 
@@ -698,6 +699,7 @@ Notification permission is automatically requested when MainActivity loads:
 ## Summary
 
 This app demonstrates all OneSignal Android SDK features:
+
 - User management (login/logout, aliases)
 - Push notifications (subscription, sending, auto-permission prompt)
 - Email and SMS subscriptions
@@ -710,6 +712,7 @@ This app demonstrates all OneSignal Android SDK features:
 - Privacy consent management
 
 The app is designed to be:
+
 1. **Testable** - Empty dialogs for Appium automation
 2. **Comprehensive** - All SDK features demonstrated
 3. **Clean** - MVVM architecture with centralized OneSignal code
