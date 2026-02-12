@@ -29,6 +29,7 @@ User operations:
 
 Alias operations:
 - addAlias(label: String, id: String)
+- addAliases(aliases: Map<String, String>)
 - removeAlias(label: String)
 - removeAliases(labels: Collection<String>)
 
@@ -42,11 +43,14 @@ SMS operations:
 
 Tag operations:
 - addTag(key: String, value: String)
+- addTags(tags: Map<String, String>)
 - removeTag(key: String)
+- removeTags(keys: Collection<String>)
 - getTags(): Map<String, String>
 
 Trigger operations:
 - addTrigger(key: String, value: String)
+- addTriggers(triggers: Map<String, String>)
 - removeTrigger(key: String)
 - clearTriggers(keys: Collection<String>)
 
@@ -73,8 +77,8 @@ Location:
 - promptLocation()
 
 Privacy consent:
-- setConsentGiven(given: Boolean)
-- isConsentGiven(): Boolean
+- setPrivacyConsent(granted: Boolean)
+- getPrivacyConsent(): Boolean
 
 Notification sending (via REST API, delegated to OneSignalService):
 - sendNotification(type: NotificationType): Boolean
@@ -133,7 +137,7 @@ In MainViewModel.kt, implement observers:
 3. **Send Push Notification Section** (Simple, With Image, Custom buttons)
 4. **In-App Messaging Section** (Pause toggle)
 5. **Send In-App Message Section** (Top Banner, Bottom Banner, Center Modal, Full Screen)
-6. **Aliases Section** (RecyclerView with Add/Remove All)
+6. **Aliases Section** (RecyclerView with Add/Remove)
 7. **Emails Section** (RecyclerView with Add, collapsible >5 items)
 8. **SMS Section** (RecyclerView with Add, collapsible >5 items)
 9. **Tags Section** (RecyclerView with Add, individual remove only)
@@ -245,10 +249,6 @@ Aliases Section (placed after Send In-App Message):
 - REMOVE ALIASES button → opens checkbox dialog (see Reusable Remove Multi Dialog below)
   - Only visible when at least one alias exists
   - Red background color
-- REMOVE ALL ALIASES button:
-  - Only visible when at least one alias exists
-  - Red background color
-  - Removes all displayed aliases at once
 ```
 
 ### Prompt 2.7 - Emails Section
