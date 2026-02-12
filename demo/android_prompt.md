@@ -237,7 +237,8 @@ Aliases Section (placed after Send In-App Message):
 - Each item shows: Label | ID with X button to delete
 - Filter out "external_id" and "onesignal_id" from display (these are special)
 - "No Aliases Added" text when empty
-- ADD ALIAS button → dialog with empty Key and Value fields
+- ADD ALIAS button → dialog with empty Key and Value fields (single add)
+- ADD ALIASES button → opens multi-pair dialog (see Reusable Multi-Pair Dialog below)
 - REMOVE ALL ALIASES button:
   - Only visible when at least one alias exists
   - Red background color
@@ -279,7 +280,8 @@ Tags Section:
 - RecyclerView showing key-value pairs
 - Each item shows: Key | Value with X button to delete individually
 - "No Tags Added" text when empty
-- ADD TAG button → dialog with empty Key and Value fields
+- ADD TAG button → dialog with empty Key and Value fields (single add)
+- ADD TAGS button → opens multi-pair dialog (see Reusable Multi-Pair Dialog below)
 - NO "Remove All" button - tags are removed individually only
 ```
 
@@ -302,7 +304,8 @@ Triggers Section:
 - RecyclerView showing key-value pairs
 - Each item shows: Key | Value with X button to delete individually
 - "No Triggers Added" text when empty
-- ADD TRIGGER button → dialog with empty Key and Value fields
+- ADD TRIGGER button → dialog with empty Key and Value fields (single add)
+- ADD TRIGGERS button → opens multi-pair dialog (see Reusable Multi-Pair Dialog below)
 - CLEAR TRIGGERS button:
   - Only visible when at least 1 trigger exists
   - Red background color
@@ -517,14 +520,49 @@ All dialog input fields should be EMPTY by default.
 The test automation framework (Appium) will enter these values:
 
 - Login Dialog: External User Id = "test"
-- Add Alias Dialog: Key = "Test", Value = "Value"
+- Add Aliases Dialog: Key = "Test", Value = "Value" (first row; supports multiple rows)
 - Add Email Dialog: Email = "test@onesignal.com"
 - Add SMS Dialog: SMS = "123-456-5678"
-- Add Tag Dialog: Key = "Test", Value = "Value"
-- Add Trigger Dialog: Key = "trigger_key", Value = "trigger_value"
+- Add Tags Dialog: Key = "Test", Value = "Value" (first row; supports multiple rows)
+- Add Triggers Dialog: Key = "trigger_key", Value = "trigger_value" (first row; supports multiple rows)
 - Outcome Dialog: Name = "test_outcome", Value = "1.5"
 - Track Event Dialog: Name = "test_event", Value = "test_value"
 - Custom Notification Dialog: Title = "Test Title", Body = "Test Body"
+```
+
+---
+
+## Reusable Multi-Pair Dialog
+
+```
+Tags, Aliases, and Triggers all share a reusable multi-pair dialog for adding multiple
+key-value pairs at once.
+
+Dialog layout (dialog_add_multi_pair.xml):
+- ScrollView containing a vertical LinearLayout (rows_container) for dynamic rows
+- "+ ADD ROW" button below the scroll area (borderless, primary color text)
+
+Row layout (item_dialog_pair_row.xml):
+- Horizontal LinearLayout with:
+  - Key EditText (weight 1, empty hint for Appium)
+  - Value EditText (weight 1, empty hint for Appium)
+  - Remove row ImageButton (hidden when only one row exists)
+
+Behavior:
+- Dialog opens with one empty key-value row
+- "+ ADD ROW" adds another row to the container
+- Remove button uses ic_close drawable with colorPrimary tint (same as list item remove buttons)
+- Remove button appears on all rows when more than one row exists
+- Remove button is hidden when only one row remains (cannot remove the last row)
+- ADD button is disabled until ALL key and value fields in every row are filled (both required)
+- Validation runs on every text change and after row add/remove
+- On "ADD" press, all rows are collected and submitted as a batch
+- Batch operations use SDK bulk APIs (addAliases, addTags, addTriggers)
+
+Used by:
+- ADD ALIASES button (Aliases section) → calls viewModel.addAliases(pairs)
+- ADD TAGS button (Tags section) → calls viewModel.addTags(pairs)
+- ADD TRIGGERS button (Triggers section) → calls viewModel.addTriggers(pairs)
 ```
 
 ---
@@ -571,9 +609,11 @@ Examples/OneSignalDemo/
 │   │       │   ├── activity_main.xml
 │   │       │   ├── dialog_login.xml
 │   │       │   ├── dialog_add_pair.xml
+│   │       │   ├── dialog_add_multi_pair.xml
 │   │       │   ├── dialog_single_input.xml
 │   │       │   ├── dialog_outcome.xml
 │   │       │   ├── dialog_track_event.xml
+│   │       │   ├── item_dialog_pair_row.xml
 │   │       │   ├── item_pair.xml
 │   │       │   ├── item_single.xml
 │   │       │   └── item_iam_button.xml
