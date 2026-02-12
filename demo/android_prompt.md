@@ -332,9 +332,12 @@ IMPORTANT: Triggers are stored IN MEMORY ONLY during the app session.
 ```
 Track Event Section:
 - Section title: "Track Event" with info icon for tooltip
-- TRACK EVENT button → opens dialog with:
-  - Event Name field (required)
-  - Event Value field (optional)
+- TRACK EVENT button → opens dialog (reuses dialog_add_pair.xml with relabeled fields):
+  - "Event Name" label + empty input field (required, shows "Required" error if empty on submit)
+  - "Properties (optional, JSON)" label + input field with placeholder hint {"ABC":123}
+    - If non-empty and not valid JSON, shows "Invalid JSON" error on the field and dialog stays open
+    - If valid JSON, parsed via JSONObject and converted to Map<String, Any?> for the SDK call
+    - If empty, passes null
 - Calls OneSignal.User.trackEvent(name, properties)
 ```
 
@@ -535,7 +538,7 @@ The test automation framework (Appium) will enter these values:
 - Add Tags Dialog: Key = "Test", Value = "Value" (first row; supports multiple rows)
 - Add Triggers Dialog: Key = "trigger_key", Value = "trigger_value" (first row; supports multiple rows)
 - Outcome Dialog: Name = "test_outcome", Value = "1.5"
-- Track Event Dialog: Name = "test_event", Value = "test_value"
+- Track Event Dialog: Name = "test_event", Properties = "{\"key\": \"value\"}"
 - Custom Notification Dialog: Title = "Test Title", Body = "Test Body"
 ```
 
