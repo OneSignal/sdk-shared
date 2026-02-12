@@ -239,6 +239,9 @@ Aliases Section (placed after Send In-App Message):
 - "No Aliases Added" text when empty
 - ADD ALIAS button → dialog with empty Key and Value fields (single add)
 - ADD ALIASES button → opens multi-pair dialog (see Reusable Multi-Pair Dialog below)
+- REMOVE ALIASES button → opens checkbox dialog (see Reusable Remove Multi Dialog below)
+  - Only visible when at least one alias exists
+  - Red background color
 - REMOVE ALL ALIASES button:
   - Only visible when at least one alias exists
   - Red background color
@@ -282,6 +285,9 @@ Tags Section:
 - "No Tags Added" text when empty
 - ADD TAG button → dialog with empty Key and Value fields (single add)
 - ADD TAGS button → opens multi-pair dialog (see Reusable Multi-Pair Dialog below)
+- REMOVE TAGS button → opens checkbox dialog (see Reusable Remove Multi Dialog below)
+  - Only visible when at least one tag exists
+  - Red background color
 - NO "Remove All" button - tags are removed individually only
 ```
 
@@ -306,6 +312,9 @@ Triggers Section:
 - "No Triggers Added" text when empty
 - ADD TRIGGER button → dialog with empty Key and Value fields (single add)
 - ADD TRIGGERS button → opens multi-pair dialog (see Reusable Multi-Pair Dialog below)
+- REMOVE TRIGGERS button → opens checkbox dialog (see Reusable Remove Multi Dialog below)
+  - Only visible when at least 1 trigger exists
+  - Red background color
 - CLEAR TRIGGERS button:
   - Only visible when at least 1 trigger exists
   - Red background color
@@ -567,6 +576,33 @@ Used by:
 
 ---
 
+## Reusable Remove Multi Dialog
+
+```
+Aliases, Tags, and Triggers share a reusable checkbox dialog for selectively removing
+items from the current list.
+
+Dialog layout (dialog_remove_multi.xml):
+- ScrollView containing a vertical LinearLayout (checkboxes_container)
+
+Row layout (item_dialog_checkbox_row.xml):
+- Single CheckBox with text label formatted as "key: value"
+
+Behavior:
+- Accepts the current list of items as List<Pair<String, String>>
+- Renders one checkbox per item with label "key: value"
+- User can check 0, 1, or more items
+- On REMOVE press, checked items' keys are collected as Collection<String> and passed to the callback
+- If nothing is checked, nothing happens (dialog closes silently)
+
+Used by:
+- REMOVE ALIASES button (Aliases section) → calls viewModel.removeSelectedAliases(keys)
+- REMOVE TAGS button (Tags section) → calls viewModel.removeSelectedTags(keys)
+- REMOVE TRIGGERS button (Triggers section) → calls viewModel.removeSelectedTriggers(keys)
+```
+
+---
+
 ## Key Files Structure
 
 ```
@@ -610,10 +646,12 @@ Examples/OneSignalDemo/
 │   │       │   ├── dialog_login.xml
 │   │       │   ├── dialog_add_pair.xml
 │   │       │   ├── dialog_add_multi_pair.xml
+│   │       │   ├── dialog_remove_multi.xml
 │   │       │   ├── dialog_single_input.xml
 │   │       │   ├── dialog_outcome.xml
 │   │       │   ├── dialog_track_event.xml
 │   │       │   ├── item_dialog_pair_row.xml
+│   │       │   ├── item_dialog_checkbox_row.xml
 │   │       │   ├── item_pair.xml
 │   │       │   ├── item_single.xml
 │   │       │   └── item_iam_button.xml
