@@ -1,62 +1,59 @@
 # Demo App Style Reference
 
-Design spec for OneSignal SDK demo/sample apps. Values use platform-independent units (px). Adapt to the equivalent on each platform (dp on Android, pt on iOS, px in CSS, etc.).
+Design spec for OneSignal SDK demo/sample apps. Values use platform-independent units (px). Adapt to the equivalent on each platform (dp on Android, pt on iOS, px in CSS, etc.). Token names use camelCase; convert to kebab-case (e.g. `os-primary`) for CSS/USS platforms.
 
 ## Colors
 
-| Token             | Value               | Usage                          |
-| ----------------- | ------------------- | ------------------------------ |
-| oneSignalRed      | `#E54B4D`           | Header, primary buttons        |
-| oneSignalGreen    | `#34A853`           | Logged-in / success status     |
-| lightBackground   | `#F8F9FA`           | Page background                |
-| cardBackground    | `#FFFFFF`           | Card surfaces                  |
-| dividerColor      | `#E8EAED`           | Dividers                       |
-| warningBackground | `#FFF8E1`           | Guidance / warning banner card |
-| overlayScrim      | `rgba(0,0,0,0.26)`  | Loading overlay background     |
-| sectionHeaderText | `#616161`           | Section header label and icon  |
-| subtleText        | `#757575`           | Toggle descriptions, secondary text |
-| logBackground     | `#1A1B1E`           | Logs view background               |
+| Token               | Value                | Usage                               |
+| ------------------- | -------------------- | ----------------------------------- |
+| osPrimary           | `#E54B4D`            | Header, primary buttons             |
+| osSuccess           | `#34A853`            | Logged-in / success status          |
+| osGrey700           | `#616161`            | Section headers                     |
+| osGrey600           | `#757575`            | Toggle descriptions, secondary text |
+| osGrey500           | `#9E9E9E`            | Icons                               |
+| osLightBackground   | `#F8F9FA`            | Page background                     |
+| osCardBackground    | `#FFFFFF`            | Card surfaces                       |
+| osCardBorder        | `rgba(0, 0, 0, 0.1)` | Card border                         |
+| osDivider           | `#E8EAED`            | Dividers                            |
+| osWarningBackground | `#FFF8E1`            | Guidance / warning banner card      |
+| osBackdrop          | `rgba(0,0,0,0.54)`   | Dialog / overlay backdrop           |
+| osLogBackground     | `#1A1B1E`            | Logs view background                |
+| osLogDebug          | `#82AAFF`            | Log level: Debug                    |
+| osLogInfo           | `#C3E88D`            | Log level: Info                     |
+| osLogWarn           | `#FFCB6B`            | Log level: Warn                     |
+| osLogError          | `#FF5370`            | Log level: Error                    |
+| osLogTimestamp      | `#676E7B`            | Log timestamp text                  |
 
 ## Spacing
 
-| Token                       | Value                          | Usage                                                       |
-| --------------------------- | ------------------------------ | ----------------------------------------------------------- |
-| gap                         | 8                              | Gap between elements inside a section                       |
-| Section spacing             | 24 vertical, 16 horizontal     | Gap between sections. CSS platforms can use `gap: 24` on the list container instead of per-section padding |
+| Token           | Value                      | Usage                                                                                                      |
+| --------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| gap             | 8                          | Gap between elements inside a section                                                                      |
+| Section spacing | 24 vertical, 16 horizontal | Gap between sections. CSS platforms can use `gap: 24` on the list container instead of per-section padding |
 
 ## Cards
 
-| Property        | Value                      |
-| --------------- | -------------------------- |
-| Background      | cardBackground (`#FFFFFF`) |
-| Corner radius   | 12                         |
-| Inner padding   | 12 horizontal, 12 vertical |
-| Outer margin    | 0 (parent section handles spacing) |
-
-### Card Shadow
-
-Use the platform's standard light shadow (elevation 1 on Android/Flutter, a subtle `box-shadow` in CSS). No header/toolbar shadow. Also applies to the warning/guidance banner.
-
-For CSS-based platforms, the equivalent shadow layers are:
-
-| Layer    | Offset  | Blur | Spread | Color              |
-| -------- | ------- | ---- | ------ | ------------------ |
-| Umbra    | 0, 2    | 1    | -1     | `rgba(0,0,0,0.20)` |
-| Penumbra | 0, 1    | 1    | 0      | `rgba(0,0,0,0.14)` |
-| Ambient  | 0, 1    | 3    | 0      | `rgba(0,0,0,0.12)` |
+| Property      | Value                                         |
+| ------------- | --------------------------------------------- |
+| Background    | osCardBackground (`#FFFFFF`)                  |
+| Corner radius | 12                                            |
+| Border        | osCardBorder (`2px solid rgba(0, 0, 0, 0.1)`) |
+| Shadow        | none (elevation 0)                            |
+| Inner padding | 12 horizontal, 12 vertical                    |
+| Outer margin  | 0 (parent section handles spacing)            |
 
 ## Typography
 
-All sizes in sp/px. Use the platform's default system font unless otherwise noted.
+All sizes in sp/px. Use the platform's default system font unless otherwise noted. Default text color is black unless a specific color is listed.
 
 ### Text Scale Reference
 
-| Name        | Size | Weight     | Usage                                        |
-| ----------- | ---- | ---------- | -------------------------------------------- |
-| bodyLarge   | 16   | normal/400 | Radio button labels (dialogs)                |
-| bodyMedium  | 14   | normal/400 | Card row labels, toggle labels, unstacked list items, list empty state |
-| bodyMedium  | 14   | medium/500 | Stacked list key, collapsible "N more" link  |
-| bodySmall   | 12   | normal/400 | Card row values, toggle descriptions, section headers, stacked list value |
+| Name       | Size | Weight     | Usage                                                                                    |
+| ---------- | ---- | ---------- | ---------------------------------------------------------------------------------------- |
+| bodyLarge  | 16   | normal/400 | Radio button labels (dialogs)                                                            |
+| bodyMedium | 14   | normal/400 | Card row labels, toggle labels, unstacked list items, list empty state, stacked list key |
+| bodySmall  | 12   | normal/400 | Card row values, toggle descriptions, section headers, stacked list value                |
+| labelSmall | 11   | medium/500 | Log entry text (timestamp, level, message)                                               |
 
 ### Header Bar
 
@@ -68,11 +65,11 @@ All sizes in sp/px. Use the platform's default system font unless otherwise note
 
 - Size: bodySmall (12)
 - Weight: bold
-- Color: sectionHeaderText
+- Color: osGrey700
 - Letter spacing: 0.5
 - Transform: uppercase
 - Bottom padding: 8 (gap)
-- Info icon: 18, color sectionHeaderText
+- Info icon: 18, color osGrey500
 
 ### Card Row Labels
 
@@ -81,12 +78,12 @@ All sizes in sp/px. Use the platform's default system font unless otherwise note
 ### Card Row Values
 
 - Style: bodySmall (12)
-- Font: monospace
+- Font: monospace (applies to ID values like App ID, Push Subscription ID, External ID, and status text)
 
 ### Toggle Row
 
 - Label: bodyMedium (14)
-- Description: bodySmall (12), color subtleText
+- Description: bodySmall (12), color osGrey600
 
 ### Radio Button Labels (Dialogs)
 
@@ -97,16 +94,19 @@ All sizes in sp/px. Use the platform's default system font unless otherwise note
 ### Primary Button
 
 - Full width
-- Background: oneSignalRed
+- Background: osPrimary
 - Text color: white
+- Font weight: semibold/600
 - Height: 48
 - Corner radius: 8
+- Leading icon (when present): size 18, 8 gap before label
 
 ### Destructive / Outlined Button
 
 - Full width
 - Background: transparent
-- Border + text color: oneSignalRed
+- Border + text color: osPrimary
+- Font weight: semibold/600
 - Height: 48
 - Corner radius: 8
 
@@ -117,8 +117,16 @@ All sizes in sp/px. Use the platform's default system font unless otherwise note
 
 ## Dialogs
 
+- Backdrop: osBackdrop (`rgba(0,0,0,0.54)`)
+- Background: osCardBackground (`#FFFFFF`)
+- Corner radius: 28
 - Horizontal inset from screen edge: 16
 - Vertical inset: 24
+- Title: size 24, weight normal/400
+- Action buttons (cancel, confirm, delete): size 14, weight medium/500, color osPrimary, padding 12 horizontal 8 vertical
+- Action buttons disabled color: osGrey500
+- Actions gap: 8
+- Actions area padding: 24 left, 24 right, 24 bottom
 
 ## Dividers
 
@@ -128,50 +136,53 @@ All sizes in sp/px. Use the platform's default system font unless otherwise note
 
 - Corner radius: 8
 - Content padding: 12 horizontal, 14 vertical
+- Border: 1px solid osGrey700
+- Focused border: 2px solid osPrimary (must not cause layout shift)
+- Placeholder color: osGrey600
 
 ## Warning Banner
 
-- Uses card styling (shadow, corner radius) with warningBackground color
+- Uses card styling with osWarningBackground color
 - Text: bodySmall (12)
-- Link: bodySmall (12), color oneSignalRed, weight semibold/600, no underline, no gap above
+- Link: bodySmall (12), color osPrimary, weight semibold/600, no underline, no gap above
 
 ## List Items
 
 Items displayed inside cards (e.g. tags, aliases, emails, SMS numbers). The list sits inside a card with standard card padding (12 horizontal, 12 vertical).
 
-| Property       | Value                                                          |
-| -------------- | -------------------------------------------------------------- |
-| Item padding   | 4 vertical, 4 horizontal                                      |
-| Divider        | height 1 between items                                        |
-| Delete icon    | close/X, size 18, color sectionHeaderText (`#616161`), trailing |
+| Property     | Value                                       |
+| ------------ | ------------------------------------------- |
+| Item padding | 4 vertical, 4 horizontal                    |
+| Divider      | height 1 between items                      |
+| Delete icon  | close/X, size 18, color osPrimary, trailing |
 
 ### Stacked (key-value pairs)
 
 Two lines vertically stacked. Used for paired data like tags or labeled aliases.
 
-| Line  | Style                                  |
-| ----- | -------------------------------------- |
-| Key   | bodyMedium (14), weight medium/500     |
-| Value | bodySmall (12), color subtleText       |
+| Line  | Style                           |
+| ----- | ------------------------------- |
+| Key   | bodyMedium (14)                 |
+| Value | bodySmall (12), color osGrey600 |
 
 ### Unstacked (single value)
 
 Single line. Used for simple string lists like emails or SMS numbers.
 
-| Line | Style              |
-| ---- | ------------------ |
-| Text | bodyMedium (14)    |
+| Line | Style           |
+| ---- | --------------- |
+| Text | bodyMedium (14) |
 
 ### Empty State
 
-- Text: bodyMedium (14), color subtleText
+- Text: bodyMedium (14), color osGrey600
 - Centered, 12 vertical padding
 
 ### Collapsible Overflow
 
 When a list exceeds `maxVisible` items (default 5), the overflow is hidden behind a "N more" link.
 
-- Text: bodyMedium (14), color oneSignalRed, weight medium/500
+- Text: bodyMedium (14), color osPrimary, weight medium/500
 - Padding: 4 vertical
 
 ## Scrollable List
@@ -184,59 +195,59 @@ Sticky dark panel at the top of the scrollable content, always visible. Full wid
 
 ### Layout
 
-| Property        | Value                          |
-| --------------- | ------------------------------ |
-| Background      | logBackground (`#1A1B1E`)      |
-| Corner radius   | 0                              |
-| Height          | 100 (fixed, content scrolls)   |
-| Margin          | 0 (touches header bar on top, content below) |
-| Default state   | Expanded                       |
+| Property      | Value                                        |
+| ------------- | -------------------------------------------- |
+| Background    | osLogBackground (`#1A1B1E`)                  |
+| Corner radius | 0                                            |
+| Height        | 100 (fixed, content scrolls)                 |
+| Margin        | 0 (touches header bar on top, content below) |
+| Default state | Expanded                                     |
 
 ### Header Row
 
-| Property        | Value                          |
-| --------------- | ------------------------------ |
-| Padding         | 16 horizontal, 12 vertical     |
-| Title text      | "LOGS", bold, white            |
-| Count text      | "(N)" where N = log count, grey 400 |
-| Clear icon      | Trash/delete, size 18, grey 400 |
-| Expand/collapse | Chevron icon, size 20, grey 400 |
-| Spacing         | 8 between title and count      |
+| Property        | Value                                                 |
+| --------------- | ----------------------------------------------------- |
+| Padding         | 16 horizontal, 12 vertical                            |
+| Title text      | "LOGS", labelSmall (11), bold, white                  |
+| Count text      | "(N)" where N = log count, labelSmall (11), osGrey500 |
+| Clear icon      | Trash/delete, size 18, osGrey500                      |
+| Expand/collapse | Chevron icon, size 18, osGrey500                      |
+| Spacing         | 8 between title and count                             |
 
 Tapping the header row toggles expand/collapse.
 
 ### Log Entry Row
 
-| Property        | Value                          |
-| --------------- | ------------------------------ |
-| Vertical padding | 1                             |
-| List padding    | 12 horizontal                  |
+| Property         | Value         |
+| ---------------- | ------------- |
+| Vertical padding | 1             |
+| List padding     | 12 horizontal |
 
 Each row contains three inline elements separated by 4px gaps:
 
-| Element   | Size | Font      | Color            | Format              |
-| --------- | ---- | --------- | ---------------- | ------------------- |
-| Timestamp | 11   | monospace | grey 500         | `HH:mm:ss`         |
-| Level     | 11   | monospace, bold | level color (see below) | Single letter: D, I, W, E |
-| Message   | 11   | monospace | white 70% opacity | `tag: message`     |
+| Element   | Style                            | Color                   | Format                    |
+| --------- | -------------------------------- | ----------------------- | ------------------------- |
+| Timestamp | labelSmall (11), monospace       | osLogTimestamp          | `HH:mm:ss`                |
+| Level     | labelSmall (11), monospace, bold | level color (see below) | Single letter: D, I, W, E |
+| Message   | labelSmall (11), monospace       | white                   | `tag: message`            |
 
 ### Log Level Colors
 
-| Level | Label | Color   |
-| ----- | ----- | ------- |
-| Debug | D     | Blue    |
-| Info  | I     | Green   |
-| Warn  | W     | Amber   |
-| Error | E     | Red     |
+| Level | Label | Color |
+| ----- | ----- | ----- |
+| Debug | D     | Blue  |
+| Info  | I     | Green |
+| Warn  | W     | Amber |
+| Error | E     | Red   |
 
 ### Behavior
 
-- Auto-scrolls to the newest entry when a log is added
-- Empty state: centered "No logs yet" text, grey 500
+- Newest entries at the top
+- Empty state: centered "No logs yet" text, osGrey500
 - Horizontal scroll on the entire list (not per row), no text truncation
 
 ## Loading Overlay
 
 - Full-screen scrim over content
-- Background: overlayScrim (`rgba(0,0,0,0.26)`)
+- Background: osBackdrop (`rgba(0,0,0,0.54)`)
 - Centered spinner using the platform's native progress indicator
