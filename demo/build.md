@@ -13,71 +13,75 @@ reference OneSignal demo app installed. These screenshots are the source
 of truth for the UI you are building. Do NOT proceed to Phase 1 without them.
 
 Check for connected emulators:
-  adb devices
+adb devices
 
 If no device is listed, stop and ask the user to start one.
 
 Identify which emulator has com.onesignal.sdktest installed by checking each listed device, e.g.:
-  adb -s emulator-5554 shell pm list packages 2>/dev/null | grep -i onesignal
-  adb -s emulator-5556 shell pm list packages 2>/dev/null | grep -i onesignal
+adb -s emulator-5554 shell pm list packages 2>/dev/null | grep -i onesignal
+adb -s emulator-5556 shell pm list packages 2>/dev/null | grep -i onesignal
 
 Use that emulator's serial (e.g. emulator-5556) for all subsequent adb commands via the -s flag.
 
 Launch the reference app:
-  adb -s <emulator-serial> shell am start -n com.onesignal.sdktest/.ui.main.MainActivity
+adb -s <emulator-serial> shell am start -n com.onesignal.sdktest/.ui.main.MainActivity
 
 Dismiss any in-app messages that appear on launch. Tap the X or
 click-through button on each IAM until the main UI is fully visible
 with no overlays.
 
 Create an output directory:
-  mkdir -p /tmp/onesignal_reference
+mkdir -p /tmp/onesignal_reference
 
 Capture screenshots by scrolling through the full UI:
+
 1. Take a screenshot from the top of the screen:
-     adb shell screencap -p /sdcard/ref_01.png && adb pull /sdcard/ref_01.png /tmp/onesignal_reference/ref_01.png
+   adb shell screencap -p /sdcard/ref_01.png && adb pull /sdcard/ref_01.png /tmp/onesignal_reference/ref_01.png
 2. Scroll down by roughly one viewport height:
-     adb shell input swipe 500 1500 500 500
+   adb shell input swipe 500 1500 500 500
 3. Take the next screenshot (ref_02.png, ref_03.png, etc.)
 4. Repeat until you've reached the bottom of the scrollable content
 
 You MUST read each captured screenshot image so you can see the actual UI.
 These images define the visual target for every section you build later.
 Pay close attention to:
-  - Section header style and casing
-  - Card vs non-card content grouping
-  - Button placement (inside vs outside cards)
-  - List item layout (stacked vs inline key-value)
-  - Icon choices (delete, close, info, etc.)
-  - Typography, spacing, and colors
+
+- Section header style and casing
+- Card vs non-card content grouping
+- Button placement (inside vs outside cards)
+- List item layout (stacked vs inline key-value)
+- Icon choices (delete, close, info, etc.)
+- Typography, spacing, and colors
 
 You can also interact with the reference app to observe specific flows:
 
 Dump the UI hierarchy to find elements by resource-id, text, or content-desc:
-  adb shell uiautomator dump /sdcard/ui.xml && adb pull /sdcard/ui.xml /tmp/onesignal_reference/ui.xml
+adb shell uiautomator dump /sdcard/ui.xml && adb pull /sdcard/ui.xml /tmp/onesignal_reference/ui.xml
 
 Parse the XML to find an element's bounds, then tap it:
-  adb shell input tap <centerX> <centerY>
+adb shell input tap <centerX> <centerY>
 
 Type into a focused text field:
-  adb shell input text "test"
+adb shell input text "test"
 
 Example flow to observe "Add Tag" behavior:
-  1. Dump UI -> find the ADD button bounds -> tap it
-  2. Dump UI -> find the Key and Value fields -> tap and type into them
-  3. Tap the confirm button -> screenshot the result
-  4. Compare the tag list state before and after
+
+1. Dump UI -> find the ADD button bounds -> tap it
+2. Dump UI -> find the Key and Value fields -> tap and type into them
+3. Tap the confirm button -> screenshot the result
+4. Compare the tag list state before and after
 
 Also capture screenshots of key dialogs to match their layout:
-  - Add Alias (single pair input)
-  - Add Multiple Aliases/Tags (dynamic rows with add/remove)
-  - Remove Selected Tags (checkbox multi-select)
-  - Login User
-  - Send Outcome (radio options)
-  - Track Event (with JSON properties field)
-  - Custom Notification (title + body)
-These dialog screenshots are important for matching field layout,
-button placement, spacing, and validation behavior.
+
+- Add Alias (single pair input)
+- Add Multiple Aliases/Tags (dynamic rows with add/remove)
+- Remove Selected Tags (checkbox multi-select)
+- Login User
+- Send Outcome (radio options)
+- Track Event (with JSON properties field)
+- Custom Notification (title + body)
+  These dialog screenshots are important for matching field layout,
+  button placement, spacing, and validation behavior.
 
 Refer back to these screenshots throughout all remaining phases whenever
 you need to decide on layout, spacing, section order, dialog flows, or
@@ -92,6 +96,7 @@ overall look and feel.
 Create a new {{PLATFORM}} project at examples/demo/ (relative to the SDK repo root).
 
 Build the app with:
+
 - Clean architecture: repository pattern with platform-idiomatic state management
 - App name: "OneSignal Demo"
 - Top app bar: centered title with OneSignal logo SVG + "{{PLATFORM}}" text
@@ -102,11 +107,11 @@ Build the app with:
 - Separate widget/component files per section to keep files focused and readable
 
 Download the app bar logo SVG from:
-  https://raw.githubusercontent.com/OneSignal/sdk-shared/refs/heads/main/assets/onesignal_logo.svg
+https://raw.githubusercontent.com/OneSignal/sdk-shared/refs/heads/main/assets/onesignal_logo.svg
 Save it to the demo project assets directory and render it in the app bar/header.
 
 Download the padded app icon PNG from:
-  https://raw.githubusercontent.com/OneSignal/sdk-shared/refs/heads/main/assets/onesignal_logo_icon_padded.png
+https://raw.githubusercontent.com/OneSignal/sdk-shared/refs/heads/main/assets/onesignal_logo_icon_padded.png
 Save it to the project assets, generate all platform app icons, then delete the downloaded file.
 
 Reference the OneSignal SDK from the parent repo using a local path/file dependency.
@@ -114,6 +119,7 @@ Reference the OneSignal SDK from the parent repo using a local path/file depende
 ### Prompt 1.2 - Dependencies
 
 Add appropriate dependencies for:
+
 - OneSignal SDK (local path reference)
 - State management (platform-idiomatic)
 - Local persistence (SharedPreferences / AsyncStorage / localStorage)
@@ -128,22 +134,27 @@ Create a OneSignalRepository class that centralizes all OneSignal SDK calls.
 This is a plain class (not tied to a UI framework) injected into the state management layer.
 
 User operations:
+
 - loginUser(externalUserId) -> async
 - logoutUser() -> async
 
 Alias operations:
+
 - addAlias(label, id)
 - addAliases(aliases: map of label->id)
 
 Email operations:
+
 - addEmail(email)
 - removeEmail(email)
 
 SMS operations:
+
 - addSms(smsNumber)
 - removeSms(smsNumber)
 
 Tag operations:
+
 - addTag(key, value)
 - addTags(tags: map of key->value)
 - removeTag(key) (if SDK supports single remove)
@@ -151,6 +162,7 @@ Tag operations:
 - getTags() -> async map of key->value (if SDK supports)
 
 Trigger operations (via OneSignal.InAppMessages):
+
 - addTrigger(key, value)
 - addTriggers(triggers: map of key->value)
 - removeTrigger(key) (if SDK supports single remove)
@@ -158,39 +170,48 @@ Trigger operations (via OneSignal.InAppMessages):
 - clearTriggers()
 
 Outcome operations (via OneSignal.Session):
+
 - sendOutcome(name)
 - sendUniqueOutcome(name)
 - sendOutcomeWithValue(name, value: number)
 
 Track Event:
+
 - trackEvent(name, properties?: map)
 
 Push subscription:
+
 - getPushSubscriptionId() -> nullable string
 - isPushOptedIn() -> nullable boolean
 - optInPush()
 - optOutPush()
 
 Notifications:
+
 - hasPermission() -> boolean
 - requestPermission(fallbackToSettings: boolean) -> async boolean
 
 In-App Messages:
+
 - setPaused(paused: boolean)
 
 Location:
+
 - setLocationShared(shared: boolean)
 - requestLocationPermission()
 
 Privacy consent:
+
 - setConsentRequired(required: boolean)
 - setConsentGiven(granted: boolean)
 
 User IDs:
+
 - getExternalId() -> nullable string
 - getOnesignalId() -> nullable string
 
 Notification sending (via REST API, delegated to OneSignalApiService):
+
 - sendNotification(type: NotificationType) -> async boolean
 - sendCustomNotification(title, body) -> async boolean
 - fetchUser(onesignalId) -> async nullable UserData
@@ -200,9 +221,11 @@ Notification sending (via REST API, delegated to OneSignalApiService):
 Create OneSignalApiService class for REST API calls:
 
 Properties:
-- _appId: string (set during initialization)
+
+- \_appId: string (set during initialization)
 
 Methods:
+
 - setAppId(appId)
 - getAppId() -> string
 - sendNotification(type: NotificationType, subscriptionId) -> async boolean
@@ -210,6 +233,7 @@ Methods:
 - fetchUser(onesignalId) -> async nullable UserData
 
 sendNotification endpoint:
+
 - POST https://onesignal.com/api/v1/notifications
 - Accept header: "application/vnd.onesignal.v1+json"
 - Uses include_subscription_ids (not include_player_ids)
@@ -217,6 +241,7 @@ sendNotification endpoint:
 - Includes ios_attachments for iOS image notifications (needed for the NSE to download and attach images)
 
 fetchUser endpoint:
+
 - GET https://api.onesignal.com/apps/{app_id}/users/by/onesignal_id/{onesignal_id}
 - NO Authorization header needed (public endpoint)
 - Returns UserData with aliases, tags, emails, smsNumbers, externalId
@@ -231,14 +256,17 @@ OneSignal.consentGiven(cachedPrivacyConsent)
 OneSignal.initialize(appId)
 
 Then register listeners:
+
 - InAppMessages: willDisplay, didDisplay, willDismiss, didDismiss, click
 - Notifications: click, foregroundWillDisplay
 
 After initialization, restore cached SDK states from local persistence:
+
 - InAppMessages paused status
 - Location shared status
 
 Register observers in the state management layer:
+
 - Push subscription change -> react to push subscription changes
 - Notification permission change -> react to permission changes
 - User state change -> call fetchUserDataFromApi() when user changes
@@ -280,14 +308,14 @@ App Section layout:
 
 3. Consent card with up to two toggles:
    a. "Consent Required" toggle (always visible):
-      - Label: "Consent Required"
-      - Description: "Require consent before SDK processes data"
-      - Calls OneSignal.consentRequired(value)
-   b. "Privacy Consent" toggle (only visible when Consent Required is ON):
-      - Label: "Privacy Consent"
-      - Description: "Consent given for data collection"
-      - Calls OneSignal.consentGiven(value)
-      - Separated from the above toggle by a horizontal divider
+   - Label: "Consent Required"
+   - Description: "Require consent before SDK processes data"
+   - Calls OneSignal.consentRequired(value)
+     b. "Privacy Consent" toggle (only visible when Consent Required is ON):
+   - Label: "Privacy Consent"
+   - Description: "Consent given for data collection"
+   - Calls OneSignal.consentGiven(value)
+   - Separated from the above toggle by a horizontal divider
    - NOT a blocking overlay - user can interact with app regardless of state
 
 ### Prompt 2.1b - User Section
@@ -315,6 +343,7 @@ User Section layout (separate SectionCard titled "User", placed after App Sectio
 ### Prompt 2.2 - Push Section
 
 Push Section:
+
 - Section title: "Push" with info icon for tooltip
 - Push Subscription ID display (readonly)
 - Enabled toggle switch (controls optIn/optOut)
@@ -328,19 +357,22 @@ Push Section:
 ### Prompt 2.3 - Send Push Notification Section
 
 Send Push Notification Section (placed right after Push Section):
+
 - Section title: "Send Push Notification" with info icon for tooltip
-- Three buttons:
+- Four buttons:
   1. SIMPLE - title: "Simple Notification", body: "This is a simple push notification"
   2. WITH IMAGE - title: "Image Notification", body: "This notification includes an image"
      big_picture (Android): https://media.onesignal.com/automated_push_templates/ratings_template.png
      ios_attachments (iOS): {"image": "https://media.onesignal.com/automated_push_templates/ratings_template.png"}
   3. CUSTOM - opens dialog for custom title and body
+  4. CLEAR ALL - calls OneSignal.Notifications.clearAllNotificaitons() to remove all delivered notifications
 
 Tooltip should explain each button type.
 
 ### Prompt 2.4 - In-App Messaging Section
 
 In-App Messaging Section (placed right after Send Push):
+
 - Section title: "In-App Messaging" with info icon for tooltip
 - Pause In-App Messages toggle switch:
   - Label: "Pause In-App Messages"
@@ -349,6 +381,7 @@ In-App Messaging Section (placed right after Send Push):
 ### Prompt 2.5 - Send In-App Message Section
 
 Send In-App Message Section (placed right after In-App Messaging):
+
 - Section title: "Send In-App Message" with info icon for tooltip
 - Four FULL-WIDTH buttons (not a grid):
   1. TOP BANNER - vertical-align-top icon, trigger: "iam_type" = "top_banner"
@@ -365,6 +398,7 @@ Tooltip should explain each IAM type.
 ### Prompt 2.6 - Aliases Section
 
 Aliases Section (placed after Send In-App Message):
+
 - Section title: "Aliases" with info icon for tooltip
 - Stacked key-value list (read-only, no delete icons)
 - Each item shows Label on top, ID below (see styles.md "Stacked" list layout)
@@ -377,6 +411,7 @@ Aliases Section (placed after Send In-App Message):
 ### Prompt 2.7 - Emails Section
 
 Emails Section:
+
 - Section title: "Emails" with info icon for tooltip
 - List showing email addresses
 - Each item shows email with an X icon (remove action)
@@ -390,6 +425,7 @@ Emails Section:
 ### Prompt 2.8 - SMS Section
 
 SMS Section:
+
 - Section title: "SMS" with info icon for tooltip
 - List showing phone numbers
 - Each item shows phone number with an X icon (remove action)
@@ -400,6 +436,7 @@ SMS Section:
 ### Prompt 2.9 - Tags Section
 
 Tags Section:
+
 - Section title: "Tags" with info icon for tooltip
 - List showing key-value pairs
 - Each item shows key above value (stacked layout) with an X icon on the right (remove action)
@@ -413,6 +450,7 @@ Tags Section:
 ### Prompt 2.10 - Outcome Events Section
 
 Outcome Events Section:
+
 - Section title: "Outcome Events" with info icon for tooltip
 - SEND OUTCOME button -> opens dialog with 3 radio options:
   1. Normal Outcome -> shows name input field
@@ -422,6 +460,7 @@ Outcome Events Section:
 ### Prompt 2.11 - Triggers Section (IN MEMORY ONLY)
 
 Triggers Section:
+
 - Section title: "Triggers" with info icon for tooltip
 - List showing key-value pairs
 - Each item shows key above value (stacked layout) with an X icon on the right (remove action)
@@ -433,6 +472,7 @@ Triggers Section:
   - CLEAR ALL -> Removes all triggers at once
 
 IMPORTANT: Triggers are stored IN MEMORY ONLY during the app session.
+
 - triggersList is an in-memory list of key-value pairs in the state layer
 - Sending an IAM button also updates the same list by setting `iam_type`
 - Triggers are NOT persisted to local storage
@@ -442,6 +482,7 @@ IMPORTANT: Triggers are stored IN MEMORY ONLY during the app session.
 ### Prompt 2.12 - Track Event Section
 
 Track Event Section:
+
 - Section title: "Track Event" with info icon for tooltip
 - TRACK EVENT button -> opens TrackEventDialog with:
   - "Event Name" label + empty input field (required, shows error if empty on submit)
@@ -455,6 +496,7 @@ Track Event Section:
 ### Prompt 2.13 - Location Section
 
 Location Section:
+
 - Section title: "Location" with info icon for tooltip
 - Location Shared toggle switch:
   - Label: "Location Shared"
@@ -464,6 +506,7 @@ Location Section:
 ### Prompt 2.14 - Secondary Screen
 
 Secondary Screen (launched by "Next Activity" button at bottom of main screen):
+
 - Screen title: "Secondary Activity"
 - Screen content: centered text "Secondary Activity" using a large headline style
 - Simple screen, no additional functionality needed
@@ -475,6 +518,7 @@ Secondary Screen (launched by "Next Activity" button at bottom of main screen):
 ### Prompt 3.1 - Data Loading Flow
 
 Loading indicator overlay:
+
 - Full-screen semi-transparent overlay with centered spinner
 - isLoading flag in app state
 - Show/hide based on isLoading state
@@ -482,11 +526,13 @@ Loading indicator overlay:
   - This ensures UI has time to render
 
 On cold start:
+
 - Check if OneSignal onesignalId is not null
 - If exists: show loading -> call fetchUserDataFromApi() -> populate UI -> delay 100ms -> hide loading
 - If null: just show empty state (no loading indicator)
 
 On login (LOGIN USER / SWITCH USER):
+
 - Show loading indicator immediately
 - Call OneSignal.login(externalUserId)
 - Clear old user data (aliases, emails, sms, triggers)
@@ -495,12 +541,14 @@ On login (LOGIN USER / SWITCH USER):
 - fetchUserDataFromApi() populates UI, delays 100ms, then hides loading
 
 On logout:
+
 - Show loading indicator
 - Call OneSignal.logout()
 - Clear local lists (aliases, emails, sms, triggers)
 - Hide loading indicator
 
 On onUserStateChange callback:
+
 - Call fetchUserDataFromApi() to sync with server state
 - Update UI with new data (aliases, tags, emails, sms)
 
@@ -509,13 +557,13 @@ Note: REST API key is NOT required for fetchUser endpoint.
 ### Prompt 3.2 - UserData Model
 
 UserData:
-  aliases: map of string->string    // From identity object (filter out external_id, onesignal_id)
-  tags: map of string->string       // From properties.tags object
-  emails: list of strings           // From subscriptions where type=="Email" -> token
-  smsNumbers: list of strings       // From subscriptions where type=="SMS" -> token
-  externalId: nullable string       // From identity.external_id
+aliases: map of string->string // From identity object (filter out external_id, onesignal_id)
+tags: map of string->string // From properties.tags object
+emails: list of strings // From subscriptions where type=="Email" -> token
+smsNumbers: list of strings // From subscriptions where type=="SMS" -> token
+externalId: nullable string // From identity.external_id
 
-  fromJson(json) -> UserData        // Factory/parser method
+fromJson(json) -> UserData // Factory/parser method
 
 ---
 
@@ -540,17 +588,18 @@ Create TooltipHelper as a singleton:
 - getTooltip(key) returns the tooltip data or null
 
 TooltipData:
-  title: string
-  description: string
-  options: optional list of TooltipOption
+title: string
+description: string
+options: optional list of TooltipOption
 
 TooltipOption:
-  name: string
-  description: string
+name: string
+description: string
 
 ### Prompt 4.3 - Tooltip UI Integration
 
 For each section, pass an onInfoTap callback to SectionCard:
+
 - SectionCard has an optional info icon that calls onInfoTap when tapped
 - In the home screen, wire onInfoTap to show a TooltipDialog
 - TooltipDialog displays title, description, and options (if present)
@@ -562,6 +611,7 @@ For each section, pass an onInfoTap callback to SectionCard:
 ### What IS Persisted (local storage)
 
 PreferencesService stores:
+
 - OneSignal App ID
 - Consent required status
 - Privacy consent status
@@ -577,10 +627,10 @@ On app startup, state is restored in two layers:
    - OneSignal.consentRequired(cachedConsentRequired)
    - OneSignal.consentGiven(cachedPrivacyConsent)
    - OneSignal.initialize(appId)
-   Then AFTER initialize, restore remaining SDK state:
+     Then AFTER initialize, restore remaining SDK state:
    - OneSignal.InAppMessages.paused(cachedPausedStatus)
    - OneSignal.Location.setShared(cachedLocationShared)
-   This ensures consent settings are in place before the SDK initializes.
+     This ensures consent settings are in place before the SDK initializes.
 
 2. State management layer reads UI state from the SDK (not cached preferences):
    - consentRequired from cached prefs (no SDK getter)
@@ -591,6 +641,7 @@ On app startup, state is restored in two layers:
    - appId from PreferencesService (app-level config)
 
 This two-layer approach ensures:
+
 - The SDK is configured with the user's last preferences before anything else runs
 - The UI reads the SDK's actual state as the source of truth
 - The UI always reflects what the SDK reports, not stale cache values
@@ -598,6 +649,7 @@ This two-layer approach ensures:
 ### What is NOT Persisted (In-Memory Only)
 
 App state holds in memory:
+
 - triggersList:
   - Triggers are session-only
   - Cleared on app restart
@@ -655,6 +707,7 @@ Aliases are managed with a hybrid approach:
 ### Notification Permission
 
 Notification permission is automatically requested when the home screen loads:
+
 - Call promptPush() in the home screen's init/mount lifecycle
 - This ensures prompt appears after user sees the app UI
 - PROMPT PUSH button remains as fallback if user initially denied
@@ -668,6 +721,7 @@ Notification permission is automatically requested when the home screen loads:
 ### Prompt 8.1 - State Management
 
 Use platform-idiomatic state management:
+
 - A single state container at the root of the app
 - Holds all UI state with public getters/selectors
 - Exposes action methods that update state and notify the UI
@@ -681,21 +735,25 @@ Use platform-idiomatic state management:
 Create reusable UI components:
 
 SectionCard:
+
 - Card with title text and optional info icon button
 - Content/children slot
 - onInfoTap callback for tooltips
 - Consistent padding and styling per styles.md
 
 ToggleRow:
+
 - Label, optional description, toggle/switch control
 - Row layout with content spaced to edges
 
 ActionButton:
+
 - PrimaryButton (filled) and DestructiveButton (outlined)
 - Full-width buttons
 - Styling per styles.md
 
 ListWidgets:
+
 - PairItem (key-value with optional delete icon button)
 - SingleItem (single value with delete icon button)
 - EmptyState (centered "No items" text)
@@ -703,10 +761,12 @@ ListWidgets:
 - PairList (simple list of key-value pairs)
 
 LoadingOverlay:
+
 - Full-screen overlay with centered spinner (styling per styles.md)
 - Shown via isLoading state
 
 Dialogs/Modals:
+
 - All dialogs use full-width layout with consistent padding
 - SingleInputDialog (one text field)
 - PairInputDialog (key-value text fields on the same row, single pair)
@@ -721,6 +781,7 @@ Tags, Aliases, and Triggers all share a reusable MultiPairInputDialog
 for adding multiple key-value pairs at once.
 
 Behavior:
+
 - Dialog opens full-width with horizontal padding
 - Starts with one empty key-value row (Key and Value fields side by side)
 - "Add Row" button below the rows adds another empty row
@@ -732,6 +793,7 @@ Behavior:
 - Batch operations use SDK bulk APIs (addAliases, addTags, addTriggers)
 
 Used by:
+
 - ADD MULTIPLE button (Aliases section) -> calls addAliases(pairs)
 - ADD MULTIPLE button (Tags section) -> calls addTags(pairs)
 - ADD MULTIPLE button (Triggers section) -> calls addTriggers(pairs)
@@ -742,6 +804,7 @@ Tags and Triggers share a reusable MultiSelectRemoveDialog
 for selectively removing items from the current list.
 
 Behavior:
+
 - Accepts the current list of items as key-value pairs
 - Renders one checkbox per item on the left with just the key as the label (not "key: value")
 - User can check 0, 1, or more items
@@ -749,6 +812,7 @@ Behavior:
 - On confirm, checked items' keys are collected as a list and passed to the callback
 
 Used by:
+
 - REMOVE SELECTED button (Tags section) -> calls removeSelectedTags(keys)
 - REMOVE SELECTED button (Triggers section) -> calls removeSelectedTriggers(keys)
 
@@ -756,7 +820,7 @@ Used by:
 
 All colors, spacing, typography, button styles, card styles, and component
 specs are defined in the shared style reference:
-  https://raw.githubusercontent.com/OneSignal/sdk-shared/refs/heads/main/demo/styles.md
+https://raw.githubusercontent.com/OneSignal/sdk-shared/refs/heads/main/demo/styles.md
 
 Implement theme constants/tokens that map the style reference values to
 the platform's theming system. Define color and spacing constants for use
@@ -767,29 +831,31 @@ throughout the app.
 Add collapsible log view at top of screen for debugging and Appium testing.
 
 LogManager Features:
+
 - Singleton with reactive notification mechanism for UI updates
 - API: d(tag, message), i(), w(), e() for debug/info/warn/error levels
 - Also prints to console/debugPrint for development
 
 LogView Features:
+
 - Refer to the Logs View section of the shared style reference for layout, colors, and typography
 - Header sits above the list; 100dp height applies to the list area only
 - Newest entries at the top (reverse order at render time)
 - Trash icon only visible when entries exist
 
 Appium Accessibility Labels/IDs:
-| Label/ID                  | Description                      |
+| Label/ID | Description |
 |---------------------------|----------------------------------|
-| log_view_container        | Main container                   |
-| log_view_header           | Tappable expand/collapse         |
-| log_view_count            | Shows "(N)" log count            |
-| log_view_clear_button     | Clear all logs                   |
-| log_view_list             | Scrollable list view             |
-| log_view_empty            | "No logs yet" state              |
-| log_entry_{N}             | Each log row (N=index)           |
-| log_entry_{N}_timestamp   | Timestamp text                   |
-| log_entry_{N}_level       | D/I/W/E indicator                |
-| log_entry_{N}_message     | Log message content              |
+| log*view_container | Main container |
+| log_view_header | Tappable expand/collapse |
+| log_view_count | Shows "(N)" log count |
+| log_view_clear_button | Clear all logs |
+| log_view_list | Scrollable list view |
+| log_view_empty | "No logs yet" state |
+| log_entry*{N} | Each log row (N=index) |
+| log*entry*{N}_timestamp | Timestamp text |
+| log_entry_{N}_level | D/I/W/E indicator |
+| log_entry_{N}\_message | Log message content |
 
 Use the platform's accessibility/test ID mechanism (Semantics label, testID, data-testid, etc.).
 
@@ -810,6 +876,7 @@ All user actions should display brief feedback messages:
 - Push: "Push enabled/disabled"
 
 Implementation:
+
 - Use the platform's standard transient message component (SnackBar, Toast, IonToast, etc.)
 - Show at a consistent position (bottom recommended)
 - Clear previous message before showing a new one
@@ -828,6 +895,7 @@ Note: REST API key is NOT required for the fetchUser endpoint.
 ### Package / Bundle Identifier
 
 The identifiers MUST be `com.onesignal.example` to work with the existing:
+
 - `google-services.json` (Firebase configuration)
 - `agconnect-services.json` (Huawei configuration)
 
@@ -838,6 +906,7 @@ If you change the identifier, you must also update these files with your own Fir
 ## Summary
 
 This app demonstrates all OneSignal SDK features:
+
 - User management (login/logout, aliases with batch add)
 - Push notifications (subscription, sending with images, auto-permission prompt)
 - Email and SMS subscriptions
@@ -850,6 +919,7 @@ This app demonstrates all OneSignal SDK features:
 - Privacy consent management
 
 The app is designed to be:
+
 1. **Testable** - Empty dialogs with accessibility labels for Appium automation
 2. **Comprehensive** - All SDK features demonstrated
 3. **Clean** - Repository pattern with platform-idiomatic state management
