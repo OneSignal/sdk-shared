@@ -222,7 +222,7 @@ Create OneSignalApiService class for REST API calls:
 
 Properties:
 
-- \_appId: string (set during initialization)
+- _appId: string (set during initialization)
 
 Methods:
 
@@ -844,18 +844,18 @@ LogView Features:
 - Trash icon only visible when entries exist
 
 Appium Accessibility Labels/IDs:
-| Label/ID | Description |
+| Label/ID                  | Description                      |
 |---------------------------|----------------------------------|
-| log*view_container | Main container |
-| log_view_header | Tappable expand/collapse |
-| log_view_count | Shows "(N)" log count |
-| log_view_clear_button | Clear all logs |
-| log_view_list | Scrollable list view |
-| log_view_empty | "No logs yet" state |
-| log_entry*{N} | Each log row (N=index) |
-| log*entry*{N}_timestamp | Timestamp text |
-| log_entry_{N}_level | D/I/W/E indicator |
-| log_entry_{N}\_message | Log message content |
+| log_view_container        | Main container                   |
+| log_view_header           | Tappable expand/collapse         |
+| log_view_count            | Shows "(N)" log count            |
+| log_view_clear_button     | Clear all logs                   |
+| log_view_list             | Scrollable list view             |
+| log_view_empty            | "No logs yet" state              |
+| log_entry_{N}             | Each log row (N=index)           |
+| log_entry_{N}_timestamp   | Timestamp text                   |
+| log_entry_{N}_level       | D/I/W/E indicator                |
+| log_entry_{N}_message     | Log message content              |
 
 Use the platform's accessibility/test ID mechanism (Semantics label, testID, data-testid, etc.).
 
