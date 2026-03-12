@@ -143,6 +143,7 @@ jobs:
             const features = prs.filter(pr => /^feat/i.test(pr.title));
             const fixes = prs.filter(pr => /^fix/i.test(pr.title));
             const improvements = prs.filter(pr => /^(perf|refactor)/i.test(pr.title));
+            const breaking = prs.filter(pr => /^breaking/i.test(pr.title) || /!\s*:/i.test(pr.title));
 
             // Helper function to build section
             const buildSection = (title, prs) => {
@@ -246,6 +247,7 @@ jobs:
                                version.includes('-beta') ? 'Beta' : 'Current';
 
             let releaseNotes = `Channels: ${releaseType}\n\n`;
+            releaseNotes += buildSection('⚠️ Breaking Changes', breaking);
             releaseNotes += buildSection('🚀 New Features', features);
             releaseNotes += buildSection('🐛 Bug Fixes', fixes);
             releaseNotes += buildSection('✨ Improvements', improvements);
