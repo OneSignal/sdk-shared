@@ -11,7 +11,7 @@ on:
         type: string
         default: 'SDK'
     secrets:
-      LINEAR_API_KEY:
+      LINEAR_GITHUB_API_KEY:
         required: true
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
     steps:
       - name: Update Linear tickets to Deployed
         env:
-          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          LINEAR_GITHUB_API_KEY: ${{ secrets.LINEAR_GITHUB_API_KEY }}
           TEAM_KEY: ${{ inputs.team_key }}
         run: |
           RELEASE_BODY=$(cat <<'EOF'
@@ -36,7 +36,7 @@ jobs:
           fi
 
           STATE_ID=$(curl -s -X POST https://api.linear.app/graphql \
-            -H "Authorization: $LINEAR_API_KEY" \
+            -H "Authorization: $LINEAR_GITHUB_API_KEY" \
             -H "Content-Type: application/json" \
             -d "{\"query\": \"{ workflowStates(filter: { name: { eq: \\\"Deployed\\\" }, team: { key: { eq: \\\"$TEAM_KEY\\\" } } }) { nodes { id } } }\"}" \
             | jq -r '.data.workflowStates.nodes[0].id')
@@ -48,7 +48,7 @@ jobs:
             echo "Processing $TICKET..."
 
             ISSUE_ID=$(curl -s -X POST https://api.linear.app/graphql \
-              -H "Authorization: $LINEAR_API_KEY" \
+              -H "Authorization: $LINEAR_GITHUB_API_KEY" \
               -H "Content-Type: application/json" \
               -d "{\"query\": \"{ issueSearch(filter: { number: { eq: $NUM }, team: { key: { eq: \\\"$TEAM_KEY\\\" } } }) { nodes { id title } } }\"}" \
               | jq -r '.data.issueSearch.nodes[0].id // empty')
@@ -59,7 +59,7 @@ jobs:
             fi
 
             RESULT=$(curl -s -X POST https://api.linear.app/graphql \
-              -H "Authorization: $LINEAR_API_KEY" \
+              -H "Authorization: $LINEAR_GITHUB_API_KEY" \
               -H "Content-Type: application/json" \
               -d "{\"query\": \"mutation { issueUpdate(id: \\\"$ISSUE_ID\\\", input: { stateId: \\\"$STATE_ID\\\" }) { success issue { identifier title } } }\"}")
 
