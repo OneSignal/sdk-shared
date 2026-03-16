@@ -1,0 +1,67 @@
+name: Move Linear tickets to Deployed
+
+on:
+  workflow_call:
+    inputs:
+      release_body:
+        required: true
+        type: string
+      team_key:
+        required: false
+        type: string
+        default: 'SDK'
+    secrets:
+      LINEAR_API_KEY:
+        required: true
+
+jobs:
+  update-linear:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update Linear tickets to Deployed
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          TEAM_KEY: ${{ inputs.team_key }}
+        run: |
+          RELEASE_BODY=$(cat <<'EOF'
+          ${{ inputs.release_body }}
+          EOF
+          )
+
+          TICKETS=$(echo "$RELEASE_BODY" | grep -oE 'SDK-[0-9]+' | sort -u)
+
+          if [ -z "$TICKETS" ]; then
+            echo "No SDK tickets found in release notes"
+            exit 0
+          fi
+
+          STATE_ID=$(curl -s -X POST https://api.linear.app/graphql \
+            -H "Authorization: $LINEAR_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": \"{ workflowStates(filter: { name: { eq: \\\"Deployed\\\" }, team: { key: { eq: \\\"$TEAM_KEY\\\" } } }) { nodes { id } } }\"}" \
+            | jq -r '.data.workflowStates.nodes[0].id')
+
+          echo "Deployed state ID: $STATE_ID"
+
+          for TICKET in $TICKETS; do
+            NUM=$(echo "$TICKET" | grep -oE '[0-9]+')
+            echo "Processing $TICKET..."
+
+            ISSUE_ID=$(curl -s -X POST https://api.linear.app/graphql \
+              -H "Authorization: $LINEAR_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"query\": \"{ issueSearch(filter: { number: { eq: $NUM }, team: { key: { eq: \\\"$TEAM_KEY\\\" } } }) { nodes { id title } } }\"}" \
+              | jq -r '.data.issueSearch.nodes[0].id // empty')
+
+            if [ -z "$ISSUE_ID" ]; then
+              echo "  ⚠️  $TICKET not found in Linear"
+              continue
+            fi
+
+            RESULT=$(curl -s -X POST https://api.linear.app/graphql \
+              -H "Authorization: $LINEAR_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"query\": \"mutation { issueUpdate(id: \\\"$ISSUE_ID\\\", input: { stateId: \\\"$STATE_ID\\\" }) { success issue { identifier title } } }\"}")
+
+            echo "  ✅ $TICKET → Deployed"
+          done
