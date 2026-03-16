@@ -1,0 +1,135 @@
+name: Move Linear tickets to Deployed
+
+on:
+  workflow_call:
+    inputs:
+      release_body:
+        required: true
+        type: string
+      team_key:
+        required: false
+        type: string
+        default: 'SDK'
+    secrets:
+      LINEAR_GITHUB_API_KEY:
+        required: true
+
+jobs:
+  update-linear:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update Linear tickets to Deployed
+        env:
+          LINEAR_GITHUB_API_KEY: ${{ secrets.LINEAR_GITHUB_API_KEY }}
+          TEAM_KEY: ${{ inputs.team_key }}
+        run: |
+          set -euo pipefail
+
+          RELEASE_BODY=$(cat <<'EOF'
+          ${{ inputs.release_body }}
+          EOF
+          )
+
+          TICKETS=$(echo "$RELEASE_BODY" | grep -oE "${TEAM_KEY}-[0-9]+" | sort -u)
+
+          if [ -z "$TICKETS" ]; then
+            echo "No ${TEAM_KEY} tickets found in release notes"
+            exit 0
+          fi
+
+          linear_query() {
+            local query="$1"
+            local payload
+            local response
+
+            payload=$(jq -cn --arg query "$query" '{query: $query}')
+            response=$(curl -sS -X POST https://api.linear.app/graphql \
+              -H "Authorization: $LINEAR_GITHUB_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "$payload")
+
+            if [ "$(echo "$response" | jq '.errors | length > 0')" = "true" ]; then
+              echo "Linear GraphQL query failed:" >&2
+              echo "$response" | jq '.errors' >&2
+              return 1
+            fi
+
+            echo "$response"
+          }
+
+          STATE_RESPONSE=$(linear_query '{
+            workflowStates(filter: { name: { eq: "Deployed" } }) {
+              nodes {
+                id
+                name
+                team {
+                  key
+                }
+              }
+            }
+          }')
+
+          STATE_ID=$(echo "$STATE_RESPONSE" | jq -r --arg team_key "$TEAM_KEY" '
+            [.data.workflowStates.nodes[] | select(.team.key == $team_key)][0].id // empty
+          ')
+
+          if [ -z "$STATE_ID" ]; then
+            echo "Unable to find a Deployed workflow state for team $TEAM_KEY" >&2
+            echo "Available Deployed states:" >&2
+            echo "$STATE_RESPONSE" | jq -r '
+              .data.workflowStates.nodes[]
+              | "- \(.team.key): \(.id)"
+            ' >&2
+            exit 1
+          fi
+
+          echo "Deployed state ID: $STATE_ID"
+
+          for TICKET in $TICKETS; do
+            echo "Processing $TICKET..."
+
+            ISSUE_RESPONSE=$(linear_query "{
+              issue(id: \"$TICKET\") {
+                id
+                title
+                team {
+                  key
+                }
+              }
+            }")
+
+            ISSUE_ID=$(echo "$ISSUE_RESPONSE" | jq -r --arg team_key "$TEAM_KEY" '
+              if .data.issue and .data.issue.team.key == $team_key then
+                .data.issue.id
+              else
+                empty
+              end
+            ')
+
+            if [ -z "$ISSUE_ID" ]; then
+              echo "  ⚠️  $TICKET not found in Linear team $TEAM_KEY"
+              continue
+            fi
+
+            UPDATE_RESPONSE=$(linear_query "mutation {
+              issueUpdate(id: \"$ISSUE_ID\", input: { stateId: \"$STATE_ID\" }) {
+                success
+                issue {
+                  identifier
+                  title
+                  state {
+                    name
+                  }
+                }
+              }
+            }")
+
+            if [ "$(echo "$UPDATE_RESPONSE" | jq -r '.data.issueUpdate.success')" != "true" ]; then
+              echo "  ❌ Failed to move $TICKET to Deployed" >&2
+              echo "$UPDATE_RESPONSE" | jq '.data.issueUpdate' >&2
+              exit 1
+            fi
+
+            ISSUE_STATE=$(echo "$UPDATE_RESPONSE" | jq -r '.data.issueUpdate.issue.state.name')
+            echo "  ✅ $TICKET → $ISSUE_STATE"
+          done

@@ -16,6 +16,10 @@ on:
           JSON array of package scopes/names to publish (e.g., '["com.onesignal.unity.core", "com.onesignal.unity.android"]')
           If empty, publishes the root package.json
         default: "[]"
+    secrets:
+      GH_PUSH_TOKEN:
+        required: false
+        description: GitHub token with push permissions for release creation
 
 permissions:
   id-token: write # Required for OIDC
@@ -110,5 +114,7 @@ jobs:
     needs: publish
     if: needs.publish.outputs.version != ''
     uses: ./.github/workflows/github-release.yml
+    secrets:
+      GH_PUSH_TOKEN: ${{ secrets.GH_PUSH_TOKEN }}
     with:
       version: ${{ needs.publish.outputs.version }}
