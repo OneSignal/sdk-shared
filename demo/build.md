@@ -164,7 +164,7 @@ Separate SectionCard titled "User":
   2. WITH IMAGE - title: "Image Notification", body: "This notification includes an image"
      big_picture/ios_attachments: `https://media.onesignal.com/automated_push_templates/ratings_template.png`
   3. WITH SOUND - title: "Sound Notification", body: "This notification plays a custom sound"
-     ios_sound: "vine_boon.wav", android_sound: "vine_boon"
+     ios_sound: "vine_boom.wav", android_channel_id: "b3b015d9-c050-4042-8548-dcc34aa44aa4"
      Sound file: download `vine_boon.wav` from https://github.com/OneSignal/sdk-shared/blob/main/assets/vine_boon.wav and place in local assets
   4. CUSTOM - dialog for custom title and body
   5. CLEAR ALL - destructive/outlined style, calls OneSignal.Notifications.clearAll()
