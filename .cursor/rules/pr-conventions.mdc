@@ -16,7 +16,13 @@ Use semantic/conventional commit prefixes in PR titles:
 - `docs:` for documentation-only changes
 - `test:` for test-only changes
 
-Example: `fix: resolve notification grouping on Android 14`
+If the current branch name contains a Linear ticket (e.g. `fadi/sdk-1234-something`), include the uppercase ticket ID in the title.
+
+Format: `<prefix>: [<TICKET>] <description>`
+
+Examples:
+- `fix: [SDK-1234] resolve notification grouping on Android 14`
+- `feat: add push subscription support` (no ticket in branch)
 
 ## PR Body
 
