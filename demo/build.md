@@ -110,7 +110,7 @@ Clean up listeners on teardown (if platform requires it).
 1. **App Section** (App ID, Guidance Banner, Consent Toggle)
 2. **User Section** (Status, External ID, Login/Logout)
 3. **Push Section** (Push ID, Enabled Toggle, Auto-prompts on load)
-4. **Send Push Notification Section** (Simple, With Image, Custom, Clear All)
+4. **Send Push Notification Section** (Simple, With Image, With Sound, Custom, Clear All)
 5. **In-App Messaging Section** (Pause toggle)
 6. **Send In-App Message Section** (Top Banner, Bottom Banner, Center Modal, Full Screen)
 7. **Aliases Section** (Add/Add Multiple, read-only list)
@@ -159,12 +159,15 @@ Separate SectionCard titled "User":
 ### Prompt 2.3 - Send Push Notification Section
 
 - Title: "Send Push Notification" with info icon
-- Four buttons:
+- Five buttons:
   1. SIMPLE - title: "Simple Notification", body: "This is a simple push notification"
   2. WITH IMAGE - title: "Image Notification", body: "This notification includes an image"
      big_picture/ios_attachments: `https://media.onesignal.com/automated_push_templates/ratings_template.png`
-  3. CUSTOM - dialog for custom title and body
-  4. CLEAR ALL - destructive/outlined style, calls OneSignal.Notifications.clearAll()
+  3. WITH SOUND - title: "Sound Notification", body: "This notification plays a custom sound"
+     ios_sound: "vine_boon.wav", android_sound: "vine_boon"
+     Sound file: download `vine_boon.wav` from https://github.com/OneSignal/sdk-shared/blob/main/assets/vine_boon.wav and place in local assets
+  4. CUSTOM - dialog for custom title and body
+  5. CLEAR ALL - destructive/outlined style, calls OneSignal.Notifications.clearAll()
 
 ### Prompt 2.4 - In-App Messaging Section
 
