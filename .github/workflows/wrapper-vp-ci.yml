@@ -29,12 +29,12 @@ jobs:
 
       - name: Set up Vite+
         uses: voidzero-dev/setup-vp@v1
-
-      - name: Install
-        run: vp install --frozen-lockfile
+        with:
+          cache: yes
+          run-install: true
 
       - name: Linting
         run: vp run lint
 
       - name: Tests
-        run: vp run test:coverage
+        run: vp run test
