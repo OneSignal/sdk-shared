@@ -16,6 +16,11 @@ on:
           JSON array of package scopes/names to publish (e.g., '["com.onesignal.unity.core", "com.onesignal.unity.android"]')
           If empty, publishes the root package.json
         default: "[]"
+      runtime:
+        required: false
+        type: string
+        description: Runtime to use for install & build ("bun" or "vp")
+        default: bun
     secrets:
       GH_PUSH_TOKEN:
         required: false
@@ -39,19 +44,29 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ inputs.branch }}
 
-        # Bun for installing dependencies and building
       - name: Setup Bun
+        if: inputs.runtime == 'bun'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
-      - name: Install & Build
+      - name: Setup Vite+
+        if: inputs.runtime == 'vp'
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          cache: yes
+          run-install: true
+
+      - name: Install & Build (Bun)
+        if: inputs.runtime == 'bun'
         run: |
           bun install --frozen-lockfile
           bun run build
 
-        # Can't use Bun yet for publishing to NPM via OIDC, so we use Node.js
-        # for publishing
+      - name: Build (Vite+)
+        if: inputs.runtime == 'vp'
+        run: vp pack
+
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
@@ -61,8 +76,8 @@ jobs:
       - name: Get version
         id: get_version
         run: |
-          CURRENT_VERSION=$(bun -e "console.log(require('./package.json').version)")
-          PACKAGE_NAME=$(bun -e "console.log(require('./package.json').name)")
+          CURRENT_VERSION=$(node -e "console.log(require('./package.json').version)")
+          PACKAGE_NAME=$(node -e "console.log(require('./package.json').name)")
           if git rev-parse "$CURRENT_VERSION" >/dev/null 2>&1; then
             echo "Tag $CURRENT_VERSION already exists, nothing to do"
             exit 0
