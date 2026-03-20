@@ -1,5 +1,5 @@
 # CI workflow for JavaScript-based wrapper SDKs (Cordova-Ionic/React Native)
-# Sets up JDK, Homebrew, Clang, Bun, then runs lint and tests
+# Sets up JDK, Clang, and either Bun or Vite+ (vp), then runs lint and tests
 name: Wrapper JS CI
 
 on:
@@ -10,10 +10,15 @@ on:
         type: string
         description: Java version to use
         default: "17"
+      runtime:
+        required: false
+        type: string
+        description: Runtime to use for install, lint & test ("bun" or "vp")
+        default: bun
       bun_version:
         required: false
         type: string
-        description: Bun version to use
+        description: Bun version to use (only when runtime is "bun")
         default: latest
 
 jobs:
@@ -21,9 +26,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
-      - name: Set up JDK 17
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           java-version: ${{ inputs.java_version }}
@@ -33,15 +38,24 @@ jobs:
         uses: OneSignal/actions/.github/actions/setup-clang@main
 
       - name: Set up Bun
+        if: inputs.runtime == 'bun'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ inputs.bun_version }}
 
-      - name: Install
+      - name: Install (Bun)
+        if: inputs.runtime == 'bun'
         run: bun install --frozen-lockfile
 
+      - name: Set up Vite+
+        if: inputs.runtime == 'vp'
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          cache: yes
+          run-install: true
+
       - name: Linting
-        run: bun run lint
+        run: ${{ inputs.runtime == 'vp' && 'vp' || 'bun' }} run lint
 
       - name: Tests
-        run: bun run test:coverage
+        run: ${{ inputs.runtime == 'vp' && 'vp' || 'bun' }} run test${{ inputs.runtime == 'bun' && ':coverage' || '' }}
