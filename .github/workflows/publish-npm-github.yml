@@ -16,10 +16,10 @@ on:
           JSON array of package scopes/names to publish (e.g., '["com.onesignal.unity.core", "com.onesignal.unity.android"]')
           If empty, publishes the root package.json
         default: "[]"
-      runtime:
+      toolchain:
         required: false
         type: string
-        description: Runtime to use for install & build ("bun" or "vp")
+        description: Toolchain to use for install & build ("bun" or "vite-plus")
         default: bun
     secrets:
       GH_PUSH_TOKEN:
@@ -45,26 +45,26 @@ jobs:
           ref: ${{ inputs.branch }}
 
       - name: Setup Bun
-        if: inputs.runtime == 'bun'
+        if: inputs.toolchain == 'bun'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
       - name: Setup Vite+
-        if: inputs.runtime == 'vp'
+        if: inputs.toolchain == 'vite-plus'
         uses: voidzero-dev/setup-vp@v1
         with:
           cache: yes
           run-install: true
 
       - name: Install & Build (Bun)
-        if: inputs.runtime == 'bun'
+        if: inputs.toolchain == 'bun'
         run: |
           bun install --frozen-lockfile
           bun run build
 
       - name: Build (Vite+)
-        if: inputs.runtime == 'vp'
+        if: inputs.toolchain == 'vite-plus'
         run: vp pack
 
       - name: Setup Node
