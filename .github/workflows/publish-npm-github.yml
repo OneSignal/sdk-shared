@@ -54,7 +54,7 @@ jobs:
         if: inputs.toolchain == 'vite-plus'
         uses: voidzero-dev/setup-vp@v1
         with:
-          cache: yes
+          cache: true
           run-install: true
 
       - name: Install & Build (Bun)
