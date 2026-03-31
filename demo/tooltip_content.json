@@ -78,5 +78,27 @@
         "description": "Takes over the entire screen. Best for onboarding, promotions, or rich media content."
       }
     ]
+  },
+  "liveActivities": {
+    "title": "Live Activities",
+    "description": "Display real-time updates on the iOS Lock Screen and Dynamic Island. Uses the DefaultLiveActivityAttributes type provided by the OneSignal SDK.",
+    "options": [
+      {
+        "name": "Start",
+        "description": "Launch a new Live Activity with an activity ID and initial content using the SDK's startDefault method."
+      },
+      {
+        "name": "Update",
+        "description": "Update the Live Activity's content state via the REST API."
+      },
+      {
+        "name": "End",
+        "description": "Terminate the Live Activity via the REST API with immediate dismissal."
+      },
+      {
+        "name": "Stop Updating",
+        "description": "Call the SDK's exit method to unsubscribe this device from future updates for the given activity ID."
+      }
+    ]
   }
 }
