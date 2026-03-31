@@ -167,7 +167,7 @@ Separate SectionCard titled "User":
    - Logged out: Status = "Anonymous", External ID = "–"
    - Logged in: Status = "Logged In" (success/green), External ID = actual value
 2. LOGIN USER button ("SWITCH USER" when logged in) -> dialog with empty "External User Id" field
-3. LOGOUT USER button (only when logged in, destructive/outlined style)
+3. LOGOUT USER button (only when logged in, outlined style)
 
 ### Prompt 2.2 - Push Section
 
@@ -188,7 +188,7 @@ Separate SectionCard titled "User":
      ios_sound: "vine_boom.wav", android_channel_id: "b3b015d9-c050-4042-8548-dcc34aa44aa4"
      Sound file: copy `vine_boom.wav` from https://github.com/OneSignal/sdk-shared/tree/main/assets and add to each platform's native sound/resource directory (e.g. iOS app bundle, Android `res/raw/`)
   4. CUSTOM - dialog for custom title and body
-  5. CLEAR ALL - destructive/outlined style, calls OneSignal.Notifications.clearAll()
+  5. CLEAR ALL - outlined style, calls OneSignal.Notifications.clearAll()
 
 ### Prompt 2.4 - In-App Messaging Section
 
@@ -286,7 +286,7 @@ Only shown on iOS. Requires an iOS Widget Extension target with a Live Activity 
   1. START LIVE ACTIVITY — calls `OneSignal.LiveActivities.startDefault(activityId, attributes, content)` with initial order status. Disabled when Activity ID is empty.
   2. UPDATE → {NEXT STATUS} — cycles through order statuses via REST API (`event: "update"`). Label dynamically shows the next status (e.g. "UPDATE → ON THE WAY"). Disabled when Activity ID is empty, while updating, or when no API key is configured.
   3. STOP UPDATING LIVE ACTIVITY — calls `OneSignal.LiveActivities.exitDefault(activityId)` to unsubscribe from remote updates. Outlined style. Disabled when Activity ID is empty.
-  4. END LIVE ACTIVITY — ends the activity via REST API (`event: "end"`) with `dismissal_date`. Destructive style. Disabled when Activity ID is empty or when no API key is configured.
+  4. END LIVE ACTIVITY — ends the activity via REST API (`event: "end"`) with `dismissal_date`. Outlined style. Disabled when Activity ID is empty or when no API key is configured.
 
 Order status cycle (content state fields: `status`, `message`, `estimatedTime`):
 
@@ -436,7 +436,7 @@ Single state container at app root. Holds all UI state with public getters. Expo
 
 - **SectionCard**: card with title, optional info icon, content slot, onInfoTap callback
 - **ToggleRow**: label, optional description, toggle control
-- **ActionButton**: PrimaryButton (filled) and DestructiveButton (outlined), full-width, per styles.md
+- **ActionButton**: PrimaryButton (filled) and OutlinedButton (for secondary/destructive actions), full-width, per styles.md
 - **ListWidgets**: PairItem (key-value + optional delete), SingleItem (value + delete), EmptyState, CollapsibleList (5 items then expandable), PairList
 - **LoadingOverlay**: full-screen spinner overlay per styles.md
 - **Dialogs**: all full-width with consistent padding

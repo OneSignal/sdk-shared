@@ -101,7 +101,9 @@ All sizes in sp/px. Use the platform's default system font unless otherwise note
 - Corner radius: 8
 - Leading icon (when present): size 18, 8 gap before label
 
-### Destructive / Outlined Button
+### Outlined Button
+
+Used for secondary and destructive actions. "Destructive" and "outlined" refer to the same visual style — there is only one non-primary button variant.
 
 - Full width
 - Background: transparent
