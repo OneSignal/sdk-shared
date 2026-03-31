@@ -301,6 +301,7 @@ Widget extension requirements:
 - Lock Screen banner: order number (from attributes), status icon, status label, message, ETA, progress bar
 - Dynamic Island: expanded (icon, status, ETA, message), compact (icon + status label), minimal (icon)
 - Status-based theming: preparing (orange), on_the_way (blue), delivered (green)
+- If the file `examples/demo/ios/OneSignalWidget/OneSignalWidgetLiveActivity.swift` already exists, replace its contents with the shared reference implementation at `https://raw.githubusercontent.com/OneSignal/sdk-shared/main/demo/LiveActivity.swift`
 
 API key setup:
 - Store REST API key in `.env` file (e.g. `ONESIGNAL_API_KEY=your_rest_api_key`)
