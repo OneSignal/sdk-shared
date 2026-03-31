@@ -53,13 +53,14 @@ Plain class (not tied to UI framework) injected into the state management layer.
 - **Location**: setLocationShared(bool), requestLocationPermission()
 - **Privacy consent**: setConsentRequired(bool), setConsentGiven(bool)
 - **User IDs**: getExternalId() -> nullable, getOnesignalId() -> nullable
-- **REST API** (delegated to OneSignalApiService): sendNotification(type) -> async bool, sendCustomNotification(title, body) -> async bool, fetchUser(onesignalId) -> async nullable UserData
+- **Live Activities** (iOS only): startDefaultLiveActivity(activityId, attributes, content), exitLiveActivity(activityId)
+- **REST API** (delegated to OneSignalApiService): sendNotification(type) -> async bool, sendCustomNotification(title, body) -> async bool, fetchUser(onesignalId) -> async nullable UserData, updateLiveActivity(activityId, event, eventUpdates?) -> async bool
 
 ### Prompt 1.4 - OneSignalApiService (REST API Client)
 
 Properties: \_appId (set during initialization)
 
-Methods: setAppId(), getAppId(), sendNotification(type, subscriptionId), sendCustomNotification(title, body, subscriptionId), fetchUser(onesignalId)
+Methods: setAppId(), getAppId(), hasApiKey(), sendNotification(type, subscriptionId), sendCustomNotification(title, body, subscriptionId), fetchUser(onesignalId), updateLiveActivity(activityId, event, eventUpdates?)
 
 sendNotification:
 
@@ -75,6 +76,19 @@ fetchUser:
 - NO Authorization header (public endpoint)
 - Returns UserData with aliases, tags, emails, smsNumbers, externalId
 
+updateLiveActivity (iOS only):
+
+- POST `https://api.onesignal.com/apps/{app_id}/live_activities/{activity_id}/notifications`
+- Authorization: `Key {ONESIGNAL_API_KEY}` (requires REST API key)
+- Body: `{ event: "update"|"end", event_updates, name, priority: 10 }`
+- For end events: add `dismissal_date` (current unix timestamp), send `{ data: {} }` as `event_updates` if none provided
+- Returns bool success
+
+hasApiKey:
+
+- Returns true if `ONESIGNAL_API_KEY` is set and not the placeholder default value
+- Used to disable update/end buttons when no API key is configured
+
 ### Prompt 1.5 - SDK Observers
 
 Initialize before UI renders:
@@ -84,6 +98,12 @@ OneSignal.Debug.setLogLevel(verbose)
 OneSignal.consentRequired(cachedConsentRequired)
 OneSignal.consentGiven(cachedPrivacyConsent)
 OneSignal.initialize(appId)
+
+// iOS only
+OneSignal.LiveActivities.setupDefault({
+  enablePushToStart: true,
+  enablePushToUpdate: true,
+})
 ```
 
 Register listeners:
@@ -121,7 +141,8 @@ Clean up listeners on teardown (if platform requires it).
 12. **Triggers Section** (Add/Add Multiple/Remove Selected/Clear All - IN MEMORY ONLY)
 13. **Track Event Section** (JSON validation)
 14. **Location Section** (Shared toggle, Prompt button)
-15. **Next Page Button**
+15. **Live Activities Section** (iOS only - Start, Update, Stop Updating, End)
+16. **Next Page Button**
 
 ### Prompt 2.1a - App Section
 
@@ -253,7 +274,41 @@ Separate SectionCard titled "User":
 - Toggle: "Location Shared" / "Share device location with OneSignal"
 - PROMPT LOCATION button
 
-### Prompt 2.14 - Secondary Screen
+### Prompt 2.14 - Live Activities Section (iOS Only)
+
+Only shown on iOS. Requires an iOS Widget Extension target with a Live Activity using `DefaultLiveActivityAttributes` from the OneSignal SDK.
+
+- Title: "Live Activities" with info icon
+- Input card with two editable fields (pre-filled, not empty):
+  - "Activity ID" (default: "order-1") — identifies the Live Activity for all operations
+  - "Order #" (default: "ORD-1234") — attribute set at start, immutable after
+- Four buttons:
+  1. START LIVE ACTIVITY — calls `OneSignal.LiveActivities.startDefault(activityId, attributes, content)` with initial order status. Disabled when Activity ID is empty.
+  2. UPDATE → {NEXT STATUS} — cycles through order statuses via REST API (`event: "update"`). Label dynamically shows the next status (e.g. "UPDATE → ON THE WAY"). Disabled when Activity ID is empty, while updating, or when no API key is configured.
+  3. STOP UPDATING LIVE ACTIVITY — calls `OneSignal.LiveActivities.exitDefault(activityId)` to unsubscribe from remote updates. Outlined style. Disabled when Activity ID is empty.
+  4. END LIVE ACTIVITY — ends the activity via REST API (`event: "end"`) with `dismissal_date`. Destructive style. Disabled when Activity ID is empty or when no API key is configured.
+
+Order status cycle (content state fields: `status`, `message`, `estimatedTime`):
+
+| Status    | Message                        | ETA    |
+| --------- | ------------------------------ | ------ |
+| preparing | Your order is being prepared   | 15 min |
+| on_the_way| Driver is heading your way     | 10 min |
+| delivered | Order delivered!               |        |
+
+Widget extension requirements:
+- Uses `DefaultLiveActivityAttributes` from `OneSignalLiveActivities`
+- Lock Screen banner: order number (from attributes), status icon, status label, message, ETA, progress bar
+- Dynamic Island: expanded (icon, status, ETA, message), compact (icon + status label), minimal (icon)
+- Status-based theming: preparing (orange), on_the_way (blue), delivered (green)
+
+API key setup:
+- Store REST API key in `.env` file (e.g. `ONESIGNAL_API_KEY=your_rest_api_key`)
+- Provide `.env.example` with placeholder value
+- Add `.env` to `.gitignore`
+- `hasApiKey()` on the API service checks that the key is present and not the placeholder
+
+### Prompt 2.15 - Secondary Screen
 
 Launched by "Next Activity" button at bottom of main screen:
 
@@ -431,6 +486,7 @@ All actions show brief feedback via platform's transient message (SnackBar/Toast
 - IAM: "Sent In-App Message: {type}"
 - Outcomes: "Outcome sent: {name}"
 - Events: "Event tracked: {name}"
+- Live Activities: "Started Live Activity: {activityId}", "Updated Live Activity: {activityId}", "Ended Live Activity: {activityId}", "Exited Live Activity: {activityId}" / "Failed to update Live Activity" / "Failed to end Live Activity"
 
 Clear previous message before showing new. All messages also logged via LogManager.i().
 
@@ -441,5 +497,7 @@ Clear previous message before showing new. All messages also logged via LogManag
 Default app id: `77e32082-ea27-42e3-a898-c72e141824ef`
 
 REST API key is NOT required for the fetchUser endpoint.
+
+REST API key IS required for Live Activity update/end operations. Store in `.env` as `ONESIGNAL_API_KEY`. Disable update/end buttons when not configured.
 
 Identifiers MUST be `com.onesignal.example` to work with existing `google-services.json` and `agconnect-services.json`.
