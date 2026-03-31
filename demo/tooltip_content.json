@@ -89,7 +89,7 @@
       },
       {
         "name": "Update",
-        "description": "Update the Live Activity's content state via the REST API. Cycles through order statuses: preparing → on the way → delivered."
+        "description": "Update the Live Activity's content state via the REST API."
       },
       {
         "name": "End",
