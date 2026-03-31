@@ -290,13 +290,14 @@ Only shown on iOS. Requires an iOS Widget Extension target with a Live Activity 
 
 Order status cycle (content state fields: `status`, `message`, `estimatedTime`):
 
-| Status    | Message                        | ETA    |
-| --------- | ------------------------------ | ------ |
-| preparing | Your order is being prepared   | 15 min |
-| on_the_way| Driver is heading your way     | 10 min |
-| delivered | Order delivered!               |        |
+| Status     | Message                      | ETA    |
+| ---------- | ---------------------------- | ------ |
+| preparing  | Your order is being prepared | 15 min |
+| on_the_way | Driver is heading your way   | 10 min |
+| delivered  | Order delivered!             |        |
 
 Widget extension requirements:
+
 - Uses `DefaultLiveActivityAttributes` from `OneSignalLiveActivities`
 - Lock Screen banner: order number (from attributes), status icon, status label, message, ETA, progress bar
 - Dynamic Island: expanded (icon, status, ETA, message), compact (icon + status label), minimal (icon)
@@ -304,6 +305,7 @@ Widget extension requirements:
 - If the file `examples/demo/ios/OneSignalWidget/OneSignalWidgetLiveActivity.swift` already exists, replace its contents with the shared reference implementation at `https://raw.githubusercontent.com/OneSignal/sdk-shared/main/demo/LiveActivity.swift`
 
 API key setup:
+
 - Store REST API key in `.env` file (e.g. `ONESIGNAL_API_KEY=your_rest_api_key`)
 - Provide `.env.example` with placeholder value
 - Add `.env` to `.gitignore`
@@ -311,10 +313,10 @@ API key setup:
 
 ### Prompt 2.15 - Secondary Screen
 
-Launched by "Next Activity" button at bottom of main screen:
+Launched by "Next Screen" button at bottom of main screen:
 
-- Title: "Secondary Activity"
-- Centered large headline text "Secondary Activity"
+- Title: "Secondary Screen"
+- Centered large headline text "Secondary Screen"
 
 ---
 
