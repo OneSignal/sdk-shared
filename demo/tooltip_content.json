@@ -94,10 +94,6 @@
       {
         "name": "End",
         "description": "Terminate the Live Activity via the REST API with immediate dismissal."
-      },
-      {
-        "name": "Stop Updating",
-        "description": "Call the SDK's exit method to unsubscribe this device from future updates for the given activity ID."
       }
     ]
   }

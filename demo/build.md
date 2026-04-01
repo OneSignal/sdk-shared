@@ -283,10 +283,10 @@ Only shown on iOS. Requires an iOS Widget Extension target with a Live Activity 
 - Input card with two editable fields (pre-filled, not empty), using Inline Input Row styling per styles.md:
   - "Activity ID" (default: "order-1") — identifies the Live Activity for all operations
   - "Order #" (default: "ORD-1234") — attribute set at start, immutable after
-- Four buttons:
+- Three buttons:
   1. START LIVE ACTIVITY — calls `OneSignal.LiveActivities.startDefault(activityId, attributes, content)` with initial order status. Disabled when Activity ID is empty.
   2. UPDATE → {NEXT STATUS} — cycles through order statuses via REST API (`event: "update"`). Label dynamically shows the next status (e.g. "UPDATE → ON THE WAY"). Disabled when Activity ID is empty, while updating, or when no API key is configured.
-  3. END LIVE ACTIVITY — ends the activity via REST API (`event: "end"`) with `dismissal_date`. Outlined style. Disabled when Activity ID is empty or when no API key is configured.
+  3. END LIVE ACTIVITY — ends the activity via REST API (`event: "end"`) with `dismissal_date`. Destructive style. Disabled when Activity ID is empty or when no API key is configured.
 
 Order status cycle (content state fields: `status`, `message`, `estimatedTime`):
 
@@ -489,7 +489,7 @@ All actions show brief feedback via platform's transient message (SnackBar/Toast
 - IAM: "Sent In-App Message: {type}"
 - Outcomes: "Outcome sent: {name}"
 - Events: "Event tracked: {name}"
-- Live Activities: "Started Live Activity: {activityId}", "Updated Live Activity: {activityId}", "Ended Live Activity: {activityId}", "Exited Live Activity: {activityId}" / "Failed to update Live Activity" / "Failed to end Live Activity"
+- Live Activities: "Started Live Activity: {activityId}", "Updated Live Activity: {activityId}", "Ended Live Activity: {activityId}" / "Failed to update Live Activity" / "Failed to end Live Activity"
 
 Clear previous message before showing new. All messages also logged via LogManager.i().
 
