@@ -136,11 +136,27 @@ Used for secondary and destructive actions. "Destructive" and "outlined" refer t
 
 ## Text Input Fields
 
+Standalone bordered inputs used in dialogs.
+
 - Corner radius: 8
 - Content padding: 12 horizontal, 14 vertical
 - Border: 1px solid osGrey700
 - Focused border: 2px solid osPrimary (must not cause layout shift)
 - Placeholder color: osGrey600
+
+### Inline Input Row
+
+Borderless label + input pairs displayed inside a card (e.g. Live Activity fields). The card provides the outer border; individual inputs have no border.
+
+| Property        | Value                                |
+| --------------- | ------------------------------------ |
+| Layout          | Horizontal row (label left, input right) |
+| Row spacing     | 4 vertical between rows              |
+| Label style     | bodyMedium (14), color osGrey600     |
+| Label min-width | 80                                   |
+| Input style     | bodyMedium (14), default text color  |
+| Input alignment | Right-aligned, flex fill             |
+| Input border    | None                                 |
 
 ## Warning Banner
 

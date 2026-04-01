@@ -53,7 +53,7 @@ Plain class (not tied to UI framework) injected into the state management layer.
 - **Location**: setLocationShared(bool), requestLocationPermission()
 - **Privacy consent**: setConsentRequired(bool), setConsentGiven(bool)
 - **User IDs**: getExternalId() -> nullable, getOnesignalId() -> nullable
-- **Live Activities** (iOS only): startDefaultLiveActivity(activityId, attributes, content), exitLiveActivity(activityId)
+- **Live Activities** (iOS only): startDefaultLiveActivity(activityId, attributes, content)
 - **REST API** (delegated to OneSignalApiService): sendNotification(type) -> async bool, sendCustomNotification(title, body) -> async bool, fetchUser(onesignalId) -> async nullable UserData, updateLiveActivity(activityId, event, eventUpdates?) -> async bool
 
 ### Prompt 1.4 - OneSignalApiService (REST API Client)
@@ -81,8 +81,9 @@ updateLiveActivity (iOS only):
 - POST `https://api.onesignal.com/apps/{app_id}/live_activities/{activity_id}/notifications`
 - Authorization: `Key {ONESIGNAL_API_KEY}` (requires REST API key)
 - Body: `{ event: "update"|"end", event_updates, name, priority: 10 }`
-- For end events: add `dismissal_date` (current unix timestamp), send `{ data: {} }` as `event_updates` if none provided
-- Returns bool success
+- For update events: wrap content state in `{ data: { status, message, estimatedTime } }` as `event_updates`
+- For end events: add `dismissal_date` (current unix timestamp), send `{ message: "Ended" }` as `event_updates`
+- Check `response.ok` (2xx) for success, not just 200 (API returns 201)
 
 hasApiKey:
 
@@ -141,7 +142,7 @@ Clean up listeners on teardown (if platform requires it).
 12. **Triggers Section** (Add/Add Multiple/Remove Selected/Clear All - IN MEMORY ONLY)
 13. **Track Event Section** (JSON validation)
 14. **Location Section** (Shared toggle, Prompt button)
-15. **Live Activities Section** (iOS only - Start, Update, Stop Updating, End)
+15. **Live Activities Section** (iOS only - Start, Update, End)
 16. **Next Page Button**
 
 ### Prompt 2.1a - App Section
@@ -279,14 +280,13 @@ Separate SectionCard titled "User":
 Only shown on iOS. Requires an iOS Widget Extension target with a Live Activity using `DefaultLiveActivityAttributes` from the OneSignal SDK.
 
 - Title: "Live Activities" with info icon
-- Input card with two editable fields (pre-filled, not empty):
+- Input card with two editable fields (pre-filled, not empty), using Inline Input Row styling per styles.md:
   - "Activity ID" (default: "order-1") — identifies the Live Activity for all operations
   - "Order #" (default: "ORD-1234") — attribute set at start, immutable after
 - Four buttons:
   1. START LIVE ACTIVITY — calls `OneSignal.LiveActivities.startDefault(activityId, attributes, content)` with initial order status. Disabled when Activity ID is empty.
   2. UPDATE → {NEXT STATUS} — cycles through order statuses via REST API (`event: "update"`). Label dynamically shows the next status (e.g. "UPDATE → ON THE WAY"). Disabled when Activity ID is empty, while updating, or when no API key is configured.
-  3. STOP UPDATING LIVE ACTIVITY — calls `OneSignal.LiveActivities.exitDefault(activityId)` to unsubscribe from remote updates. Outlined style. Disabled when Activity ID is empty.
-  4. END LIVE ACTIVITY — ends the activity via REST API (`event: "end"`) with `dismissal_date`. Outlined style. Disabled when Activity ID is empty or when no API key is configured.
+  3. END LIVE ACTIVITY — ends the activity via REST API (`event: "end"`) with `dismissal_date`. Outlined style. Disabled when Activity ID is empty or when no API key is configured.
 
 Order status cycle (content state fields: `status`, `message`, `estimatedTime`):
 
