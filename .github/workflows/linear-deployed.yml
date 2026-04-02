@@ -30,7 +30,7 @@ jobs:
           EOF
           )
 
-          TICKETS=$(echo "$RELEASE_BODY" | grep -oE "${TEAM_KEY}-[0-9]+" | sort -u)
+          TICKETS=$(echo "$RELEASE_BODY" | grep -oE "${TEAM_KEY}-[0-9]+" | sort -u || true)
 
           if [ -z "$TICKETS" ]; then
             echo "No ${TEAM_KEY} tickets found in release notes"
