@@ -28,7 +28,7 @@ inputs:
     required: false
     default: 'tests/specs/**/*.spec.ts'
   onesignal-app-id:
-    description: 'OneSignal App ID for SDK init'
+    description: 'OneSignal App ID dedicated to E2E tests'
     required: false
   build-name:
     description: 'Label for the BrowserStack session'
