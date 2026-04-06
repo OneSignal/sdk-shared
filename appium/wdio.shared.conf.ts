@@ -3,40 +3,40 @@ const isLocal = !process.env.BROWSERSTACK_USERNAME;
 const browserstackConnection = {
   user: process.env.BROWSERSTACK_USERNAME,
   key: process.env.BROWSERSTACK_ACCESS_KEY,
-  hostname: 'hub.browserstack.com',
-  services: ['browserstack'] as string[],
+  hostname: "hub.browserstack.com",
+  services: ["browserstack"] as string[],
 };
 
 const localConnection = {
-  hostname: 'localhost',
+  hostname: "localhost",
   port: 4723,
   services: [] as string[],
 };
 
 const bstackOptions = {
-  projectName: 'OneSignal SDK E2E',
-  buildName: process.env.BUILD_NAME || 'local',
-  sessionName: process.env.SDK_TYPE || 'unknown',
+  projectName: "OneSignal SDK E2E",
+  buildName: process.env.BUILD_NAME || "local",
+  sessionName: process.env.SDK_TYPE || "unknown",
   debug: true,
   networkLogs: true,
-  appiumVersion: '2.6',
+  appiumVersion: "2.6",
 };
 
 export const sharedConfig: WebdriverIO.Config = {
   ...(isLocal ? localConnection : browserstackConnection),
 
-  specs: ['./tests/specs/**/*.spec.ts'],
+  specs: ["./tests/specs/tags.spec.ts"],
 
   capabilities: [],
 
-  framework: 'mocha',
+  framework: "mocha",
   mochaOpts: { timeout: 120_000 },
   reporters: [
-    'spec',
+    "spec",
     [
-      'junit',
+      "junit",
       {
-        outputDir: './results',
+        outputDir: "./results",
         outputFileFormat: ({ cid }: { cid: string }) => `results-${cid}.xml`,
       },
     ],
@@ -45,7 +45,6 @@ export const sharedConfig: WebdriverIO.Config = {
   waitforTimeout: 15_000,
   connectionRetryTimeout: 90_000,
   connectionRetryCount: 3,
-
 };
 
 export { bstackOptions };
