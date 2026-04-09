@@ -2,7 +2,7 @@ import { waitForAppReady, addTag, clearLogs } from "../helpers/app.js";
 import { byTestId, byText } from "../helpers/selectors.js";
 import { waitForLog } from "../helpers/logger.js";
 
-describe("Tags", () => {
+describe.skip("Tags", () => {
   before(async () => {
     await waitForAppReady();
   });

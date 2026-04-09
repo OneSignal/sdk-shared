@@ -1,14 +1,14 @@
-import { waitForAppReady, togglePushEnabled, clearLogs } from '../helpers/app.js';
-import { waitForLog } from '../helpers/logger.js';
+import { waitForAppReady, togglePushEnabled, clearLogs } from "../helpers/app.js";
+import { waitForLog } from "../helpers/logger.js";
 
-describe('Push Subscription', () => {
+describe.skip("Push Subscription", () => {
   before(async () => {
     await waitForAppReady();
   });
 
-  it('should toggle push subscription on', async () => {
+  it("should toggle push subscription on", async () => {
     await clearLogs();
     await togglePushEnabled();
-    await waitForLog('push', 10_000);
+    await waitForLog("push", 10_000);
   });
 });

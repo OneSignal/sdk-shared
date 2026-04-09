@@ -14,7 +14,7 @@ export const config: WebdriverIO.Config = {
       'appium:platformVersion': process.env.OS_VERSION || '18',
       'appium:automationName': 'XCUITest',
       'appium:autoAcceptAlerts': true,
-      'appium:fullReset': true,
+      'appium:noReset': true,
       ...(isLocal ? {} : { 'bstack:options': bstackOptions }),
     },
   ],

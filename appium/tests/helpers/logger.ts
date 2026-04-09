@@ -6,7 +6,8 @@ import { byTestId } from './selectors.js';
 export async function getLogCount(): Promise<number> {
   const countEl = await byTestId('log_view_count');
   const text = await countEl.getText();
-  return parseInt(text, 10) || 0;
+  const match = text.match(/\d+/);
+  return match ? parseInt(match[0], 10) : 0;
 }
 
 /**
@@ -54,7 +55,7 @@ export async function waitForLog(
     if (await hasLogContaining(substring)) {
       return;
     }
-    await browser.pause(pollMs);
+    await driver.pause(pollMs);
   }
   throw new Error(
     `Timed out waiting for log containing "${substring}" after ${timeoutMs}ms`,
