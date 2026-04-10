@@ -1,22 +1,22 @@
 type SdkType =
-  | "react-native"
-  | "flutter"
+  | "android"
   | "capacitor"
-  | "unity"
   | "cordova"
   | "dotnet"
+  | "flutter"
   | "ios"
-  | "android";
+  | "react-native"
+  | "unity";
 
 const VALID_SDK_TYPES = new Set<string>([
-  "react-native",
-  "flutter",
+  "android",
   "capacitor",
-  "unity",
   "cordova",
   "dotnet",
+  "flutter",
   "ios",
-  "android",
+  "react-native",
+  "unity",
 ]);
 
 type Platform = "ios" | "android";

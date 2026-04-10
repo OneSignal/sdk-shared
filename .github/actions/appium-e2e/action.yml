@@ -28,10 +28,10 @@ inputs:
     required: false
     default: 'tests/specs/**/*.spec.ts'
   onesignal-app-id:
-    description: 'OneSignal App ID dedicated to E2E tests'
+    description: 'OneSignal App ID for E2E tests (org var: APPIUM_ONESIGNAL_APP_ID)'
     required: false
   onesignal-api-key:
-    description: 'OneSignal API key dedicated to E2E tests'
+    description: 'OneSignal API key for E2E tests (org secret: APPIUM_ONESIGNAL_API_KEY)'
     required: false
   build-name:
     description: 'Label for the BrowserStack session'
