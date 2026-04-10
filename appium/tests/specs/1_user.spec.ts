@@ -1,4 +1,4 @@
-import { waitForAppReady, loginUser, logoutUser, clearLogs } from "../helpers/app.js";
+import { waitForAppReady, loginUser, logoutUser } from "../helpers/app.js";
 import { waitForLog } from "../helpers/logger.js";
 import { byTestId } from "../helpers/selectors.js";
 
@@ -37,10 +37,10 @@ describe("User", () => {
     await waitForLog("Logout user");
 
     const statusEl = await byTestId("user_status_value");
-    await statusEl.waitUntil(
-      async () => (await statusEl.getText()) === "Anonymous",
-      { timeout: 5_000, timeoutMsg: 'Expected status to be "Anonymous"' },
-    );
+    await statusEl.waitUntil(async () => (await statusEl.getText()) === "Anonymous", {
+      timeout: 5_000,
+      timeoutMsg: 'Expected status to be "Anonymous"',
+    });
 
     const externalIdEl = await byTestId("user_external_id_value");
     const externalId = await externalIdEl.getText();
