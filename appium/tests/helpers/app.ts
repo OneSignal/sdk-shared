@@ -1,4 +1,5 @@
-import { byTestId, getTestExternalId } from "./selectors.js";
+import { waitForLog } from "./logger.js";
+import { byTestId, getPlatform, getTestExternalId } from "./selectors.js";
 
 /**
  * Wait for the app to fully launch and the home screen to be visible.
@@ -72,4 +73,61 @@ export async function addTag(key: string, value: string) {
 export async function clearLogs() {
   const clearButton = await byTestId("log_view_clear_button");
   await clearButton.click();
+}
+
+/**
+ * Wait for a notification to be received.
+ *
+ * Android: opens the notification shade, verifies the title (and optionally
+ * body) are visible, then closes the shade.
+ *
+ * iOS: XCUITest can't access the notification center, so we verify receipt
+ * via the foreground notification handler log instead.
+ */
+export async function waitForNotification(
+  title: string,
+  body?: string,
+  timeoutMs = 15_000,
+) {
+  const platform = getPlatform();
+
+  if (platform === "android") {
+    await driver.pause(3_000);
+    await driver.execute("mobile: openNotifications", {});
+
+    const titleEl = await $(`//*[@text="${title}"]`);
+    await titleEl.waitForDisplayed({ timeout: timeoutMs });
+
+    if (body) {
+      const bodyEl = await $(`//*[@text="${body}"]`);
+      await bodyEl.waitForDisplayed({ timeout: 5_000 });
+    }
+
+    await driver.pressKeyCode(4);
+  } else {
+    await driver.pause(3_000);
+
+    const caps = driver.capabilities as Record<string, unknown>;
+    const bundleId = caps["bundleId"] ?? caps["appium:bundleId"];
+
+    // switch driver context to springboard so gestures target the system UI
+    await driver.updateSettings({
+      defaultActiveApplication: "com.apple.springboard",
+    });
+
+    await driver.execute("mobile: swipe", { direction: "down" });
+    await driver.pause(1_000);
+
+    const predicate = body
+      ? `label CONTAINS "${title}" AND label CONTAINS "${body}"`
+      : `label CONTAINS "${title}"`;
+    const notification = await $(`-ios predicate string:${predicate}`);
+    await notification.waitForDisplayed({ timeout: timeoutMs });
+
+    // switch back to the app
+    await driver.updateSettings({
+      defaultActiveApplication: bundleId as string,
+    });
+    await driver.execute("mobile: activateApp", { bundleId });
+  }
 }

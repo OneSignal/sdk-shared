@@ -21,7 +21,7 @@ const VALID_SDK_TYPES = new Set<string>([
 
 type Platform = "ios" | "android";
 
-function getPlatform(): Platform {
+export function getPlatform(): Platform {
   const name = (driver.capabilities.platformName ?? "").toLowerCase();
   if (name === "ios") return "ios";
   if (name === "android") return "android";
