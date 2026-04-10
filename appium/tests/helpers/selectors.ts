@@ -13,7 +13,20 @@ const VALID_SDK_TYPES = new Set<string>([
   'android-native',
 ]);
 
-function getSdkType(): SdkType {
+type Platform = 'ios' | 'android';
+
+function getPlatform(): Platform {
+  const name = (driver.capabilities.platformName ?? '').toLowerCase();
+  if (name === 'ios') return 'ios';
+  if (name === 'android') return 'android';
+  throw new Error(`Unexpected platformName: ${name}`);
+}
+
+export function getTestExternalId(): string {
+  return `appium-${getSdkType()}-${getPlatform()}`;
+}
+
+export function getSdkType(): SdkType {
   const sdkType = process.env.SDK_TYPE;
   if (sdkType && VALID_SDK_TYPES.has(sdkType)) {
     return sdkType as SdkType;

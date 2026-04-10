@@ -25,7 +25,7 @@ const bstackOptions = {
 export const sharedConfig: WebdriverIO.Config = {
   ...(isLocal ? localConnection : browserstackConnection),
 
-  maxInstances: isLocal ? 1 : 5,
+  maxInstances: 1,
   logLevel: isLocal ? "warn" : "info",
 
   specs: ["./tests/specs/tags.spec.ts"],

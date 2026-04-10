@@ -1,12 +1,15 @@
 import { waitForAppReady, loginUser, logoutUser } from "../helpers/app.js";
 import { waitForLog } from "../helpers/logger.js";
-import { byTestId } from "../helpers/selectors.js";
-
-const TEST_USER_ID = "appium-flutter-ios";
+import { byTestId, getTestExternalId } from "../helpers/selectors.js";
 
 describe("User", () => {
   before(async () => {
     await waitForAppReady();
+  });
+
+  after(async () => {
+    // reset back to logged in
+    await loginUser(getTestExternalId());
   });
 
   it("should start as anonymous", async () => {
@@ -20,8 +23,9 @@ describe("User", () => {
   });
 
   it("can login", async () => {
-    await loginUser(TEST_USER_ID);
-    await waitForLog(`Login user: ${TEST_USER_ID}`);
+    const userId = getTestExternalId();
+    await loginUser(userId);
+    await waitForLog(`Login user: ${userId}`);
 
     const statusEl = await byTestId("user_status_value");
     const status = await statusEl.getText();
@@ -29,10 +33,11 @@ describe("User", () => {
 
     const externalIdEl = await byTestId("user_external_id_value");
     const externalId = await externalIdEl.getText();
-    expect(externalId).toBe(TEST_USER_ID);
+    expect(externalId).toBe(getTestExternalId());
   });
 
   it("can logout", async () => {
+    const userId = getTestExternalId();
     await logoutUser();
     await waitForLog("Logout user");
 
