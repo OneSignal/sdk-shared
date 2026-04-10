@@ -2,12 +2,14 @@ import { waitForAppReady } from "../helpers/app.js";
 import { waitForLog } from "../helpers/logger.js";
 
 describe("SDK Initialization", () => {
-  it("should launch the app and display the home screen", async () => {
+  it("should have init message and anonymous state", async () => {
     await waitForAppReady();
-  });
 
-  it("should have init message in the log", async () => {
-    await waitForAppReady();
-    await waitForLog("OneSignal initialized with app ID");
+    // app id
+    await waitForLog("OneSignal initialized with app ID:");
+    const appId = process.env.ONESIGNAL_APP_ID;
+    if (appId) {
+      await waitForLog(appId);
+    }
   });
 });

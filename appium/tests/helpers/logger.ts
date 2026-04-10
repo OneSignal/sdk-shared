@@ -1,10 +1,10 @@
-import { byTestId } from './selectors.js';
+import { byTestId } from "./selectors.js";
 
 /**
  * Get the current log entry count shown in the header badge.
  */
 export async function getLogCount(): Promise<number> {
-  const countEl = await byTestId('log_view_count');
+  const countEl = await byTestId("log_view_count");
   const text = await countEl.getText();
   const match = text.match(/\d+/);
   return match ? parseInt(match[0], 10) : 0;
@@ -47,7 +47,7 @@ export async function hasLogContaining(substring: string): Promise<boolean> {
  */
 export async function waitForLog(
   substring: string,
-  timeoutMs = 15_000,
+  timeoutMs = driver.options.waitforTimeout ?? 15_000,
   pollMs = 1_000,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -57,7 +57,5 @@ export async function waitForLog(
     }
     await driver.pause(pollMs);
   }
-  throw new Error(
-    `Timed out waiting for log containing "${substring}" after ${timeoutMs}ms`,
-  );
+  throw new Error(`Timed out waiting for log containing "${substring}" after ${timeoutMs}ms`);
 }

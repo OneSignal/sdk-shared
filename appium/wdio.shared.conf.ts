@@ -45,7 +45,7 @@ export const sharedConfig: WebdriverIO.Config = {
     ],
   ],
 
-  waitforTimeout: 15_000,
+  waitforTimeout: isLocal ? 3_000 : 15_000,
   connectionRetryTimeout: 90_000,
   connectionRetryCount: 3,
 };
