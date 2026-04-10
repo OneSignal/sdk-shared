@@ -1,5 +1,60 @@
-import { waitForLog } from "./logger.js";
 import { byTestId, getPlatform, getTestExternalId } from "./selectors.js";
+
+/**
+ * Swipe the main content area (below the log view) in the given direction.
+ * Uses W3C touch actions at specific coordinates to avoid scrolling
+ * the wrong scrollable container (e.g. the log view's inner list).
+ */
+async function swipeMainContent(direction: "up" | "down") {
+  const { width, height } = await driver.getWindowSize();
+  const centerX = Math.round(width / 2);
+  const startY = Math.round(direction === "up" ? height * 0.7 : height * 0.3);
+  const endY = Math.round(direction === "up" ? height * 0.3 : height * 0.7);
+
+  await driver.performActions([
+    {
+      type: "pointer",
+      id: "finger1",
+      parameters: { pointerType: "touch" },
+      actions: [
+        { type: "pointerMove", duration: 0, x: centerX, y: startY },
+        { type: "pointerDown", button: 0 },
+        { type: "pause", duration: 100 },
+        { type: "pointerMove", duration: 300, x: centerX, y: endY },
+        { type: "pointerUp", button: 0 },
+      ],
+    },
+  ]);
+  await driver.releaseActions();
+}
+
+/**
+ * Scroll until a test-ID element appears in the accessibility tree, then
+ * return it. Needed for Flutter where off-screen elements aren't in the
+ * tree until scrolled into view.
+ *
+ * Scrolls to the top first, then searches downward.
+ */
+export async function scrollTo(testId: string, maxScrolls = 10) {
+  for (let i = 0; i < maxScrolls; i++) {
+    const el = await byTestId(testId);
+    if (await el.isExisting()) {
+      return el;
+    }
+    await swipeMainContent("down");
+    await driver.pause(300);
+  }
+
+  for (let i = 0; i < maxScrolls; i++) {
+    const el = await byTestId(testId);
+    if (await el.isExisting()) {
+      return el;
+    }
+    await swipeMainContent("up");
+    await driver.pause(500);
+  }
+  throw new Error(`Element "${testId}" not found after ${maxScrolls} scrolls`);
+}
 
 /**
  * Wait for the app to fully launch and the home screen to be visible.
@@ -76,24 +131,34 @@ export async function clearLogs() {
 }
 
 /**
+ * Clear all notifications.
+ * Android: uses the native clearAllNotifications command.
+ * iOS: taps the app's "CLEAR ALL" button since XCUITest has no equivalent.
+ */
+export async function clearAllNotifications() {
+  if (getPlatform() === "android") {
+    await driver.execute("mobile: clearAllNotifications", {});
+  } else {
+    const clearButton = await scrollTo("clear_all_button");
+    await clearButton.click();
+  }
+}
+
+/**
  * Wait for a notification to be received.
  *
  * Android: opens the notification shade, verifies the title (and optionally
  * body) are visible, then closes the shade.
  *
- * iOS: XCUITest can't access the notification center, so we verify receipt
- * via the foreground notification handler log instead.
+ * iOS: goes to the home screen, switches to the SpringBoard context, then
+ * uses W3C touch actions (viewport origin) to swipe down and open the
+ * notification center. After verifying the notification, it returns to the app.
  */
-export async function waitForNotification(
-  title: string,
-  body?: string,
-  timeoutMs = 15_000,
-) {
+export async function waitForNotification(title: string, body?: string, timeoutMs = 15_000) {
   const platform = getPlatform();
 
   if (platform === "android") {
-    await driver.pause(3_000);
-    await driver.execute("mobile: openNotifications", {});
+    await driver.openNotifications();
 
     const titleEl = await $(`//*[@text="${title}"]`);
     await titleEl.waitForDisplayed({ timeout: timeoutMs });
@@ -104,30 +169,69 @@ export async function waitForNotification(
     }
 
     await driver.pressKeyCode(4);
-  } else {
-    await driver.pause(3_000);
 
     const caps = driver.capabilities as Record<string, unknown>;
-    const bundleId = caps["bundleId"] ?? caps["appium:bundleId"];
-
-    // switch driver context to springboard so gestures target the system UI
-    await driver.updateSettings({
-      defaultActiveApplication: "com.apple.springboard",
-    });
-
-    await driver.execute("mobile: swipe", { direction: "down" });
-    await driver.pause(1_000);
-
-    const predicate = body
-      ? `label CONTAINS "${title}" AND label CONTAINS "${body}"`
-      : `label CONTAINS "${title}"`;
-    const notification = await $(`-ios predicate string:${predicate}`);
-    await notification.waitForDisplayed({ timeout: timeoutMs });
-
-    // switch back to the app
-    await driver.updateSettings({
-      defaultActiveApplication: bundleId as string,
-    });
-    await driver.execute("mobile: activateApp", { bundleId });
+    const appId = (caps["appPackage"] ?? caps["appium:appPackage"]) as string;
+    if (appId) {
+      await driver.execute("mobile: activateApp", { appId });
+    }
+    return;
   }
+
+  // iOS: swipe down from the top-left of the screen to open notification center
+  // (top-right opens Control Center on iOS 16+)
+  const caps = driver.capabilities as Record<string, unknown>;
+  const bundleId = (caps["bundleId"] ?? caps["appium:bundleId"]) as string;
+
+  await driver.execute("mobile: pressButton", { name: "home" });
+  await driver.pause(1_000);
+
+  await driver.updateSettings({
+    defaultActiveApplication: "com.apple.springboard",
+  });
+  await driver.pause(500);
+
+  const { width, height } = await driver.getWindowSize();
+  await driver.performActions([
+    {
+      type: "pointer",
+      id: "finger1",
+      parameters: { pointerType: "touch" },
+      actions: [
+        { type: "pointerMove", duration: 0, x: Math.round(width * 0.1), y: 5 },
+        { type: "pointerDown", button: 0 },
+        { type: "pause", duration: 100 },
+        {
+          type: "pointerMove",
+          duration: 500,
+          x: Math.round(width * 0.1),
+          y: Math.round(height * 0.6),
+        },
+        { type: "pointerUp", button: 0 },
+      ],
+    },
+  ]);
+  await driver.releaseActions();
+  await driver.pause(2_000);
+
+  const predicate = body
+    ? `label CONTAINS "${title}" AND label CONTAINS "${body}"`
+    : `label CONTAINS "${title}"`;
+  const notification = await $(`-ios predicate string:${predicate}`);
+  await notification.waitForDisplayed({ timeout: timeoutMs });
+
+  await driver.execute("mobile: pressButton", { name: "home" });
+  await driver.pause(500);
+
+  await driver.updateSettings({ defaultActiveApplication: bundleId });
+  await driver.execute("mobile: activateApp", { bundleId });
+}
+
+
+export async function checkNotification(buttonId: string, title: string, body?: string) {
+  await clearAllNotifications();
+  const button = await scrollTo(buttonId);
+  await button.click();
+  await driver.pause(3_000);
+  await waitForNotification(title, body);
 }

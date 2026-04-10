@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { waitForAppReady, togglePushEnabled, waitForNotification } from "../helpers/app.js";
+import { waitForAppReady, togglePushEnabled, waitForNotification, checkNotification } from "../helpers/app.js";
 import { waitForLog } from "../helpers/logger.js";
 import { byTestId } from "../helpers/selectors.js";
 
@@ -43,13 +43,11 @@ describe("Push Subscription", () => {
     await okButton.click();
   });
 
-  it("can send simple notification", async () => {
-    const sendSimpleButton = await byTestId("send_simple_button");
-    await sendSimpleButton.scrollIntoView();
-    await sendSimpleButton.click();
+  it("can send a simple notification", async () => {
+    const logView = await byTestId("log_view_container");
+    await logView.waitForDisplayed({ timeout: 30_000 });
 
-    await waitForNotification("Simple Notification", "This is a simple push notification");
-    // await waitForLog("Notification sent: simple", 10_000);
+    await checkNotification("send_simple_button", "Simple Notification", "This is a simple push notification");
   });
 
   // it("should toggle push subscription off and on", async () => {
