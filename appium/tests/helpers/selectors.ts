@@ -1,11 +1,22 @@
-type SdkType = "react-native" | "flutter" | "capacitor" | "ios-native" | "android-native";
+type SdkType =
+  | "react-native"
+  | "flutter"
+  | "capacitor"
+  | "unity"
+  | "cordova"
+  | "dotnet"
+  | "ios"
+  | "android";
 
 const VALID_SDK_TYPES = new Set<string>([
   "react-native",
   "flutter",
   "capacitor",
-  "ios-native",
-  "android-native",
+  "unity",
+  "cordova",
+  "dotnet",
+  "ios",
+  "android",
 ]);
 
 type Platform = "ios" | "android";
@@ -66,8 +77,11 @@ export async function byTestId(id: string) {
   switch (sdkType) {
     case "react-native":
     case "flutter":
-    case "ios-native":
-    case "android-native":
+    case "unity":
+    case "cordova":
+    case "dotnet":
+    case "ios":
+    case "android":
       return $(`~${id}`);
     case "capacitor":
       return $(`[data-testid="${id}"]`);
@@ -83,8 +97,11 @@ export async function byText(text: string) {
   switch (sdkType) {
     case "react-native":
     case "flutter":
-    case "ios-native":
-    case "android-native":
+    case "unity":
+    case "cordova":
+    case "dotnet":
+    case "ios":
+    case "android":
       return $(`~${text}`);
     case "capacitor":
       return $(`//*[contains(text(), "${text}")]`);

@@ -9,7 +9,7 @@ inputs:
     description: 'Path to built APK or .app/.ipa bundle'
     required: true
   sdk-type:
-    description: 'SDK type: react-native, flutter, capacitor, ios-native, or android-native'
+    description: 'SDK type: react-native, flutter, capacitor, unity, cordova, dotnet, ios, or android'
     required: true
   browserstack-username:
     description: 'BrowserStack username'
