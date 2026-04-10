@@ -1,4 +1,4 @@
-import { byTestId } from "./selectors.js";
+import { byTestId, getTestExternalId } from "./selectors.js";
 
 /**
  * Wait for the app to fully launch and the home screen to be visible.
@@ -8,6 +8,13 @@ import { byTestId } from "./selectors.js";
 export async function waitForAppReady(timeoutMs = 30_000) {
   const logView = await byTestId("log_view_container");
   await logView.waitForDisplayed({ timeout: timeoutMs });
+
+  const testUserId = getTestExternalId();
+  const userIdEl = await byTestId("user_external_id_value");
+  const sessionUserId = await userIdEl.getText();
+  if (sessionUserId !== testUserId) {
+    await loginUser(testUserId);
+  }
 }
 
 /**

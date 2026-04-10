@@ -1,3 +1,5 @@
+import { deleteUser, getTestExternalId } from "./tests/helpers/selectors.js";
+
 const isLocal = !process.env.BROWSERSTACK_USERNAME;
 
 const browserstackConnection = {
@@ -48,6 +50,11 @@ export const sharedConfig: WebdriverIO.Config = {
   waitforTimeout: isLocal ? 3_000 : 15_000,
   connectionRetryTimeout: 90_000,
   connectionRetryCount: 3,
+
+  // cleans up test data (deletes a user and their subscriptions from OneSignal dashboard)
+  before: async () => {
+    await deleteUser(getTestExternalId());
+  },
 };
 
 export { bstackOptions };
