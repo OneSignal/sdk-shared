@@ -28,6 +28,8 @@ describe("Push Subscription", () => {
 
   it("should show correct tooltip info", async () => {
     const infoIcon = await byTestId("push_info_icon");
+    await infoIcon.waitForDisplayed({ timeout: 5_000 });
+    console.log("infoIcon", infoIcon);
     await infoIcon.click();
 
     const titleEl = await byTestId("tooltip_title");
@@ -43,11 +45,10 @@ describe("Push Subscription", () => {
     await okButton.click();
   });
 
-  it("can send a simple notification", async () => {
-    const logView = await byTestId("log_view_container");
-    await logView.waitForDisplayed({ timeout: 30_000 });
 
-    await checkNotification("send_simple_button", "Simple Notification", "This is a simple push notification");
+
+  it("can send an image notification", async () => {
+    await checkNotification("send_image_button", "Image Notification", "This notification includes an image", true);
   });
 
   // it("should toggle push subscription off and on", async () => {

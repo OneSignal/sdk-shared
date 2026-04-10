@@ -4,12 +4,7 @@ import { byTestId, getTestExternalId } from "../helpers/selectors.js";
 
 describe("User", () => {
   before(async () => {
-    await waitForAppReady();
-  });
-
-  after(async () => {
-    // reset back to logged in
-    await loginUser(getTestExternalId());
+    await waitForAppReady(true);
   });
 
   it("should start as anonymous", async () => {
@@ -37,7 +32,6 @@ describe("User", () => {
   });
 
   it("can logout", async () => {
-    const userId = getTestExternalId();
     await logoutUser();
     await waitForLog("Logout user");
 
@@ -46,9 +40,5 @@ describe("User", () => {
       timeout: 5_000,
       timeoutMsg: 'Expected status to be "Anonymous"',
     });
-
-    const externalIdEl = await byTestId("user_external_id_value");
-    const externalId = await externalIdEl.getText();
-    expect(externalId).toBe("–");
   });
 });

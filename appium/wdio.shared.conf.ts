@@ -27,7 +27,7 @@ const bstackOptions = {
 export const sharedConfig: WebdriverIO.Config = {
   ...(isLocal ? localConnection : browserstackConnection),
 
-  maxInstances: 1,
+  maxInstances: isLocal ? 1 : 0,
   logLevel: isLocal ? "warn" : "info",
 
   specs: ["./tests/specs/**/*.spec.ts"],
@@ -35,7 +35,7 @@ export const sharedConfig: WebdriverIO.Config = {
   capabilities: [],
 
   framework: "mocha",
-  mochaOpts: { timeout: 120_000 },
+  mochaOpts: { timeout: 120_000, bail: true },
   reporters: [
     "spec",
     [

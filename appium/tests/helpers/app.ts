@@ -6,10 +6,15 @@ import { byTestId, getPlatform, getTestExternalId } from "./selectors.js";
  * the wrong scrollable container (e.g. the log view's inner list).
  */
 async function swipeMainContent(direction: "up" | "down") {
-  const { width, height } = await driver.getWindowSize();
-  const centerX = Math.round(width / 2);
-  const startY = Math.round(direction === "up" ? height * 0.7 : height * 0.3);
-  const endY = Math.round(direction === "up" ? height * 0.3 : height * 0.7);
+  const mainScroll = await byTestId("main_scroll_view");
+  const location = await mainScroll.getLocation();
+  const size = await mainScroll.getSize();
+
+  const centerX = Math.round(location.x + size.width / 2);
+  const topY = Math.round(location.y + size.height * 0.3);
+  const bottomY = Math.round(location.y + size.height * 0.7);
+  const startY = direction === "up" ? bottomY : topY;
+  const endY = direction === "up" ? topY : bottomY;
 
   await driver.performActions([
     {
@@ -19,13 +24,22 @@ async function swipeMainContent(direction: "up" | "down") {
       actions: [
         { type: "pointerMove", duration: 0, x: centerX, y: startY },
         { type: "pointerDown", button: 0 },
-        { type: "pause", duration: 100 },
         { type: "pointerMove", duration: 300, x: centerX, y: endY },
         { type: "pointerUp", button: 0 },
       ],
     },
   ]);
   await driver.releaseActions();
+}
+
+export async function scrollToTop() {
+  for (let i = 0; i < 5; i++) {
+    const topElement = await byTestId("user_status_value");
+    if (await topElement.isDisplayed()) {
+      return;
+    }
+    await swipeMainContent("down");
+  }
 }
 
 /**
@@ -35,22 +49,13 @@ async function swipeMainContent(direction: "up" | "down") {
  *
  * Scrolls to the top first, then searches downward.
  */
-export async function scrollTo(testId: string, maxScrolls = 10) {
+export async function scrollTo(testId: string, direction: "up" | "down" = "up", maxScrolls = 10) {
   for (let i = 0; i < maxScrolls; i++) {
     const el = await byTestId(testId);
     if (await el.isExisting()) {
       return el;
     }
-    await swipeMainContent("down");
-    await driver.pause(300);
-  }
-
-  for (let i = 0; i < maxScrolls; i++) {
-    const el = await byTestId(testId);
-    if (await el.isExisting()) {
-      return el;
-    }
-    await swipeMainContent("up");
+    await swipeMainContent(direction);
     await driver.pause(500);
   }
   throw new Error(`Element "${testId}" not found after ${maxScrolls} scrolls`);
@@ -61,15 +66,19 @@ export async function scrollTo(testId: string, maxScrolls = 10) {
  * Uses the log view container as the sentinel element since it's present
  * on the home screen of all demo apps.
  */
-export async function waitForAppReady(timeoutMs = 30_000) {
+export async function waitForAppReady(skipLogin = false, timeoutMs = 30_000) {
   const logView = await byTestId("log_view_container");
   await logView.waitForDisplayed({ timeout: timeoutMs });
 
   const testUserId = getTestExternalId();
-  const userIdEl = await byTestId("user_external_id_value");
-  const sessionUserId = await userIdEl.getText();
-  if (sessionUserId !== testUserId) {
-    await loginUser(testUserId);
+  await scrollToTop();
+
+  if (!skipLogin) {
+    const userIdEl = await scrollTo("user_external_id_value");
+    const sessionUserId = await userIdEl.getText();
+    if (sessionUserId !== testUserId) {
+      await loginUser(testUserId);
+    }
   }
 }
 
@@ -154,7 +163,7 @@ export async function clearAllNotifications() {
  * uses W3C touch actions (viewport origin) to swipe down and open the
  * notification center. After verifying the notification, it returns to the app.
  */
-export async function waitForNotification(title: string, body?: string, timeoutMs = 15_000) {
+export async function waitForNotification(title: string, body?: string, timeoutMs = 15_000, expectImage = false) {
   const platform = getPlatform();
 
   if (platform === "android") {
@@ -166,6 +175,34 @@ export async function waitForNotification(title: string, body?: string, timeoutM
     if (body) {
       const bodyEl = await $(`//*[@text="${body}"]`);
       await bodyEl.waitForDisplayed({ timeout: 5_000 });
+    }
+
+    if (expectImage) {
+      const location = await titleEl.getLocation();
+      const size = await titleEl.getSize();
+      const centerX = Math.round(location.x + size.width / 2);
+      const startY = Math.round(location.y + size.height / 2);
+      const endY = startY + 300;
+
+      await driver.performActions([
+        {
+          type: "pointer",
+          id: "finger1",
+          parameters: { pointerType: "touch" },
+          actions: [
+            { type: "pointerMove", duration: 0, x: centerX, y: startY },
+            { type: "pointerDown", button: 0 },
+            { type: "pause", duration: 100 },
+            { type: "pointerMove", duration: 300, x: centerX, y: endY },
+            { type: "pointerUp", button: 0 },
+          ],
+        },
+      ]);
+      await driver.releaseActions();
+      await driver.pause(500);
+
+      const image = await $("//android.widget.ImageView");
+      await image.waitForDisplayed({ timeout: 5_000 });
     }
 
     await driver.pressKeyCode(4);
@@ -220,6 +257,39 @@ export async function waitForNotification(title: string, body?: string, timeoutM
   const notification = await $(`-ios predicate string:${predicate}`);
   await notification.waitForDisplayed({ timeout: timeoutMs });
 
+  if (expectImage) {
+    const location = await notification.getLocation();
+    const size = await notification.getSize();
+    const startX = Math.round(location.x + size.width * 0.8);
+    const endX = Math.round(location.x + size.width * 0.2);
+    const centerY = Math.round(location.y + size.height / 2);
+
+    await driver.performActions([
+      {
+        type: "pointer",
+        id: "finger1",
+        parameters: { pointerType: "touch" },
+        actions: [
+          { type: "pointerMove", duration: 0, x: startX, y: centerY },
+          { type: "pointerDown", button: 0 },
+          { type: "pause", duration: 100 },
+          { type: "pointerMove", duration: 300, x: endX, y: centerY },
+          { type: "pointerUp", button: 0 },
+        ],
+      },
+    ]);
+    await driver.releaseActions();
+    await driver.pause(300);
+
+    const viewButton = await $(`-ios predicate string:label == "View"`);
+    await viewButton.waitForDisplayed({ timeout: 5_000 });
+    await viewButton.click();
+    await driver.pause(500);
+
+    const image = await $("-ios class chain:**/XCUIElementTypeImage");
+    await image.waitForDisplayed({ timeout: 5_000 });
+  }
+
   await driver.execute("mobile: pressButton", { name: "home" });
   await driver.pause(500);
 
@@ -228,10 +298,10 @@ export async function waitForNotification(title: string, body?: string, timeoutM
 }
 
 
-export async function checkNotification(buttonId: string, title: string, body?: string) {
+export async function checkNotification(buttonId: string, title: string, body?: string, expectImage = false) {
   await clearAllNotifications();
-  const button = await scrollTo(buttonId);
+  const button = await scrollTo(buttonId, "down");
   await button.click();
   await driver.pause(3_000);
-  await waitForNotification(title, body);
+  await waitForNotification(title, body, 15_000, expectImage);
 }
