@@ -93,17 +93,15 @@ export async function byTestId(id: string) {
  * Useful for buttons/labels without explicit test IDs.
  */
 export async function byText(text: string) {
+  const platform = getPlatform();
   const sdkType = getSdkType();
-  switch (sdkType) {
-    case "react-native":
-    case "flutter":
-    case "unity":
-    case "cordova":
-    case "dotnet":
-    case "ios":
-    case "android":
-      return $(`~${text}`);
-    case "capacitor":
-      return $(`//*[contains(text(), "${text}")]`);
+
+  if (sdkType === "capacitor") {
+    return $(`//*[contains(text(), "${text}")]`);
   }
+
+  if (platform === "ios") {
+    return $(`-ios predicate string:label == "${text}"`);
+  }
+  return $(`android=new UiSelector().text("${text}")`);
 }

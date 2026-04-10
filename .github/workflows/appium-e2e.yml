@@ -57,10 +57,11 @@ jobs:
         env:
           BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
           BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+          APP_FILENAME: ${{ inputs.app-filename }}
         run: |
           RESPONSE=$(curl -s -u "$BROWSERSTACK_USERNAME:$BROWSERSTACK_ACCESS_KEY" \
             -X POST "https://api-cloud.browserstack.com/app-automate/upload" \
-            -F "file=@${{ inputs.app-filename }}")
+            -F "file=@${APP_FILENAME}")
           APP_URL=$(echo "$RESPONSE" | jq -r '.app_url')
           if [ "$APP_URL" = "null" ] || [ -z "$APP_URL" ]; then
             echo "::error::Failed to upload app to BrowserStack: $RESPONSE"
@@ -80,12 +81,13 @@ jobs:
           BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
           BROWSERSTACK_APP_URL: ${{ steps.bs-upload.outputs.app-url }}
           SDK_TYPE: ${{ inputs.sdk-type }}
+          PLATFORM: ${{ inputs.platform }}
           DEVICE: ${{ inputs.device }}
           OS_VERSION: ${{ inputs.os-version }}
           BUILD_NAME: ${{ inputs.build-name }}
           ONESIGNAL_APP_ID: ${{ vars.APPIUM_ONESIGNAL_APP_ID }}
           ONESIGNAL_API_KEY: ${{ secrets.APPIUM_ONESIGNAL_API_KEY }}
-        run: npx wdio run wdio.${{ inputs.platform }}.conf.ts
+        run: npx wdio run "wdio.${PLATFORM}.conf.ts"
 
       - name: Upload test results
         if: always()
