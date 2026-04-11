@@ -1,5 +1,3 @@
-import { scrollToTop } from '../helpers/app';
-
 describe('Debug', () => {
   it('log ui hierarchy', async () => {
     const html = await driver.getPageSource();

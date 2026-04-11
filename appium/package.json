@@ -4,7 +4,7 @@
   "description": "Shared Appium E2E tests for OneSignal SDK wrappers",
   "type": "module",
   "scripts": {
-    "format": "vp fmt . --write",
+    "format": "vp check --fix",
     "test:android": "wdio run wdio.android.conf.ts",
     "test:ios": "wdio run wdio.ios.conf.ts"
   },

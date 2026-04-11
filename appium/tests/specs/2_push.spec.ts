@@ -1,25 +1,18 @@
-import {
-  waitForAppReady,
-  togglePushEnabled,
-  waitForNotification,
-  checkNotification,
-  checkTooltip,
-} from '../helpers/app.js';
-import { waitForLog } from '../helpers/logger.js';
-import { byTestId } from '../helpers/selectors.js';
+import { waitForAppReady, checkNotification, checkTooltip, scrollToEl } from '../helpers/app.js';
 
 describe('Push Subscription', () => {
   before(async () => {
     await waitForAppReady();
+    await scrollToEl('PUSH', { by: 'text' });
   });
 
   it('should have push ID and be enabled initially', async () => {
-    const pushIdEl = await byTestId('push_id_value');
+    const pushIdEl = await scrollToEl('push_id_value');
     const pushId = await pushIdEl.getText();
     expect(pushId).not.toBe('N/A');
     expect(pushId.length).toBeGreaterThan(0);
 
-    const toggleEl = await byTestId('push_enabled_toggle');
+    const toggleEl = await scrollToEl('Enabled', { by: 'text' });
     const value = await toggleEl.getAttribute('value');
     expect(value).toBe('1');
   });

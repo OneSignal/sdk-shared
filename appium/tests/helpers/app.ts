@@ -58,7 +58,8 @@ async function swipeMainContent(
 }
 
 export async function scrollToTop() {
-  await scrollToEl('user_status_value', {
+  await scrollToEl('APP', {
+    by: 'text',
     direction: 'up',
   });
 }
@@ -341,9 +342,10 @@ export async function checkNotification(opts: {
   expectImage?: boolean;
 }) {
   await clearAllNotifications();
-  const button = await scrollToEl(opts.buttonId, { direction: 'down' });
+  await driver.pause(1_000);
+  const button = await scrollToEl(opts.buttonId);
   await button.click();
-  await driver.pause(3_000);
+  await driver.pause(5_000);
   await waitForNotification({
     title: opts.title,
     body: opts.body,

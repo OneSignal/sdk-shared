@@ -10,5 +10,10 @@ export default defineConfig({
       enabled: true,
     },
   },
-  lint: { options: { typeAware: true, typeCheck: true } },
+  lint: {
+    options: { typeAware: true, typeCheck: true },
+    rules: {
+      'no-unused-vars': ['warn', { fix: { imports: 'safe-fix', variables: 'off' } }],
+    },
+  },
 });
