@@ -9,21 +9,12 @@ const tooltipContent = JSON.parse(
   readFileSync(resolve(__dirname, '../../../demo/tooltip_content.json'), 'utf-8'),
 );
 
-/**
- * Swipe the main content area (below the log view) in the given direction.
- * Uses W3C touch actions at specific coordinates to avoid scrolling
- * the wrong scrollable container (e.g. the log view's inner list).
- */
-async function swipeMainContent(direction: 'up' | 'down') {
+async function stopScrolling() {
   const mainScroll = await byTestId('main_scroll_view');
-  const location = await mainScroll.getLocation();
+  const loc = await mainScroll.getLocation();
   const size = await mainScroll.getSize();
-
-  const centerX = Math.round(location.x + size.width / 2);
-  const topY = Math.round(location.y + size.height * 0.3);
-  const bottomY = Math.round(location.y + size.height * 0.7);
-  const startY = direction === 'up' ? bottomY : topY;
-  const endY = direction === 'up' ? topY : bottomY;
+  const x = Math.round(loc.x + 6);
+  const y = Math.round(loc.y + size.height / 2);
 
   await driver.performActions([
     {
@@ -31,9 +22,9 @@ async function swipeMainContent(direction: 'up' | 'down') {
       id: 'finger1',
       parameters: { pointerType: 'touch' },
       actions: [
-        { type: 'pointerMove', duration: 0, x: centerX, y: startY },
+        { type: 'pointerMove', duration: 0, x, y },
         { type: 'pointerDown', button: 0 },
-        { type: 'pointerMove', duration: 300, x: centerX, y: endY },
+        { type: 'pause', duration: 100 },
         { type: 'pointerUp', button: 0 },
       ],
     },
@@ -41,14 +32,35 @@ async function swipeMainContent(direction: 'up' | 'down') {
   await driver.releaseActions();
 }
 
-export async function scrollToTop() {
-  for (let i = 0; i < 5; i++) {
-    const topElement = await byTestId('user_status_value');
-    if (await topElement.isDisplayed()) {
-      return;
-    }
-    await swipeMainContent('down');
+/**
+ * Scroll the main content area in the given direction using native scroll APIs.
+ * Targets the main_scroll_view element to avoid scrolling the log view.
+ */
+async function swipeMainContent(
+  direction: 'up' | 'down',
+  distance: 'small' | 'normal' | 'large' = 'normal',
+) {
+  const distances = { small: 0.3, normal: 0.5, large: 1.0 };
+  const mainScroll = await byTestId('main_scroll_view');
+  const platform = getPlatform();
+  const invertedDirection = direction === 'up' ? 'down' : 'up';
+
+  if (platform === 'ios') {
+    await driver.execute('mobile: swipe', { direction: invertedDirection });
+  } else {
+    await driver.execute('mobile: scrollGesture', {
+      elementId: mainScroll.elementId,
+      direction: direction === 'up' ? 'down' : 'up',
+      percent: distances[distance],
+    });
   }
+  await stopScrolling();
+}
+
+export async function scrollToTop() {
+  await scrollToEl('user_status_value', {
+    direction: 'up',
+  });
 }
 
 /**
@@ -60,18 +72,22 @@ export async function scrollToTop() {
  */
 export async function scrollToEl(
   identifier: string,
-  opts: { by?: 'testId' | 'text'; direction?: 'up' | 'down'; maxScrolls?: number } = {},
+  opts: {
+    by?: 'testId' | 'text';
+    partial?: boolean;
+    direction?: 'up' | 'down';
+    maxScrolls?: number;
+  } = {},
 ) {
-  const { by = 'testId', direction = 'up', maxScrolls = 10 } = opts;
-  const finder = by === 'text' ? byText : byTestId;
+  const { by = 'testId', partial = false, direction = 'down', maxScrolls = 10 } = opts;
+  const finder = (id: string) => (by === 'text' ? byText(id, partial) : byTestId(id));
 
   for (let i = 0; i < maxScrolls; i++) {
     const el = await finder(identifier);
-    if (await el.isExisting()) {
+    if (await el.isDisplayed()) {
       return el;
     }
-    await swipeMainContent(direction);
-    await driver.pause(500);
+    await swipeMainContent(direction, 'normal');
   }
   throw new Error(`Element "${identifier}" not found after ${maxScrolls} scrolls`);
 }
@@ -335,38 +351,51 @@ export async function checkNotification(opts: {
   });
 }
 
+export async function isWebViewVisible() {
+  const platform = getPlatform();
+  const webview =
+    platform === 'ios'
+      ? await $('-ios predicate string:type == "XCUIElementTypeWebView"')
+      : await $('android=new UiSelector().className("android.webkit.WebView")');
+  return webview.isExisting();
+}
+
 export async function checkInAppMessage(opts: {
   buttonLabel: string;
   expectedTitle: string;
   timeoutMs?: number;
+  skipClick?: boolean;
 }) {
   const { buttonLabel, expectedTitle, timeoutMs = 5_000 } = opts;
+  if (!opts.skipClick) {
+    const button = await scrollToEl(buttonLabel, { by: 'text' });
+    await button.click();
+  }
 
-  const button = await scrollToEl(buttonLabel, { by: 'text' });
-  await button.click();
-  await driver.pause(3_000);
+  await driver.waitUntil(() => isWebViewVisible(), {
+    timeout: timeoutMs,
+    timeoutMsg: `IAM webview not shown after clicking "${buttonLabel}"`,
+  });
+  await driver.pause(1_000);
 
-  // switch to the webview context
   const contexts = await driver.getContexts();
   const webviewContext = contexts.find((c) => String(c) !== 'NATIVE_APP');
   expect(webviewContext).toBeDefined();
   await driver.switchContext(String(webviewContext));
-
-  // const bodyEl = await $('body');
-  // const html = await bodyEl.getHTML();
-  // console.log('IAM HTML:', html);
 
   const title = await $('h1');
   await title.waitForExist({ timeout: timeoutMs });
   const text = await title.getText();
   expect(text).toBe(expectedTitle);
 
-  // close the IAM
   const closeButton = await $('.close-button');
   await closeButton.click();
 
-  await driver.pause(1_000);
   await driver.switchContext('NATIVE_APP');
+  await driver.waitUntil(async () => !(await isWebViewVisible()), {
+    timeout: timeoutMs,
+    timeoutMsg: 'IAM webview still visible after closing',
+  });
 }
 
 export async function checkTooltip(buttonId: string, key: string) {

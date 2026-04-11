@@ -90,9 +90,9 @@ export async function byTestId(id: string) {
 
 /**
  * Select an element by visible text content.
- * Useful for buttons/labels without explicit test IDs.
+ * Use partial: true to match elements that contain the text.
  */
-export async function byText(text: string) {
+export async function byText(text: string, partial = false) {
   const platform = getPlatform();
   const sdkType = getSdkType();
 
@@ -101,7 +101,9 @@ export async function byText(text: string) {
   }
 
   if (platform === 'ios') {
-    return $(`-ios predicate string:label == "${text}"`);
+    const op = partial ? 'CONTAINS' : '==';
+    return $(`-ios predicate string:label ${op} "${text}"`);
   }
-  return $(`android=new UiSelector().text("${text}")`);
+  const method = partial ? 'textContains' : 'text';
+  return $(`android=new UiSelector().${method}("${text}")`);
 }
