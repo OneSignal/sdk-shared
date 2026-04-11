@@ -1,4 +1,4 @@
-import { byTestId, getPlatform, getTestExternalId } from './selectors.js';
+import { byTestId, byText, getPlatform, getTestExternalId } from './selectors.js';
 
 /**
  * Swipe the main content area (below the log view) in the given direction.
@@ -49,16 +49,22 @@ export async function scrollToTop() {
  *
  * Scrolls to the top first, then searches downward.
  */
-export async function scrollTo(testId: string, direction: 'up' | 'down' = 'up', maxScrolls = 10) {
+export async function scrollToEl(
+  identifier: string,
+  opts: { by?: 'testId' | 'text'; direction?: 'up' | 'down'; maxScrolls?: number } = {},
+) {
+  const { by = 'testId', direction = 'up', maxScrolls = 10 } = opts;
+  const finder = by === 'text' ? byText : byTestId;
+
   for (let i = 0; i < maxScrolls; i++) {
-    const el = await byTestId(testId);
+    const el = await finder(identifier);
     if (await el.isExisting()) {
       return el;
     }
     await swipeMainContent(direction);
     await driver.pause(500);
   }
-  throw new Error(`Element "${testId}" not found after ${maxScrolls} scrolls`);
+  throw new Error(`Element "${identifier}" not found after ${maxScrolls} scrolls`);
 }
 
 /**
@@ -74,7 +80,7 @@ export async function waitForAppReady(skipLogin = false, timeoutMs = 30_000) {
   await scrollToTop();
 
   if (!skipLogin) {
-    const userIdEl = await scrollTo('user_external_id_value');
+    const userIdEl = await scrollToEl('user_external_id_value');
     const sessionUserId = await userIdEl.getText();
     if (sessionUserId !== testUserId) {
       await loginUser(testUserId);
@@ -148,7 +154,7 @@ export async function clearAllNotifications() {
   if (getPlatform() === 'android') {
     await driver.execute('mobile: clearAllNotifications', {});
   } else {
-    const clearButton = await scrollTo('clear_all_button');
+    const clearButton = await scrollToEl('clear_all_button');
     await clearButton.click();
   }
 }
@@ -310,7 +316,7 @@ export async function checkNotification(opts: {
   expectImage?: boolean;
 }) {
   await clearAllNotifications();
-  const button = await scrollTo(opts.buttonId, 'down');
+  const button = await scrollToEl(opts.buttonId, { direction: 'down' });
   await button.click();
   await driver.pause(3_000);
   await waitForNotification({
@@ -318,4 +324,38 @@ export async function checkNotification(opts: {
     body: opts.body,
     expectImage: opts.expectImage,
   });
+}
+
+export async function checkInAppMessage(opts: {
+  buttonLabel: string;
+  expectedTitle: string;
+  timeoutMs?: number;
+}) {
+  const { buttonLabel, expectedTitle, timeoutMs = 5_000 } = opts;
+
+  const button = await scrollToEl(buttonLabel, { by: 'text' });
+  await button.click();
+  await driver.pause(3_000);
+
+  // switch to the webview context
+  const contexts = await driver.getContexts();
+  const webviewContext = contexts.find((c) => String(c) !== 'NATIVE_APP');
+  expect(webviewContext).toBeDefined();
+  await driver.switchContext(String(webviewContext));
+
+  // const bodyEl = await $('body');
+  // const html = await bodyEl.getHTML();
+  // console.log('IAM HTML:', html);
+
+  const title = await $('h1');
+  await title.waitForExist({ timeout: timeoutMs });
+  const text = await title.getText();
+  expect(text).toBe(expectedTitle);
+
+  // close the IAM
+  const closeButton = await $('.close-button');
+  await closeButton.click();
+
+  await driver.pause(1_000);
+  await driver.switchContext('NATIVE_APP');
 }
