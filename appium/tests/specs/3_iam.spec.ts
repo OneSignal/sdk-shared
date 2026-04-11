@@ -1,8 +1,13 @@
-import { checkInAppMessage, waitForAppReady } from '../helpers/app';
+import { checkInAppMessage, checkTooltip, waitForAppReady } from '../helpers/app';
 
 describe('In-App Messaging', () => {
   before(async () => {
     await waitForAppReady();
+  });
+
+  it('should show correct tooltip info', async () => {
+    await checkTooltip('iam_info_icon', 'inAppMessaging');
+    await checkTooltip('send_iam_info_icon', 'sendInAppMessage');
   });
 
   const iamTypes = [

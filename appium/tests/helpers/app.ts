@@ -1,4 +1,13 @@
+import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { byTestId, byText, getPlatform, getTestExternalId } from './selectors.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const tooltipContent = JSON.parse(
+  readFileSync(resolve(__dirname, '../../../demo/tooltip_content.json'), 'utf-8'),
+);
 
 /**
  * Swipe the main content area (below the log view) in the given direction.
@@ -358,4 +367,23 @@ export async function checkInAppMessage(opts: {
 
   await driver.pause(1_000);
   await driver.switchContext('NATIVE_APP');
+}
+
+export async function checkTooltip(buttonId: string, key: string) {
+  const tooltip = tooltipContent[key];
+
+  const infoIcon = await scrollToEl(buttonId);
+  await infoIcon.click();
+
+  const titleEl = await byTestId('tooltip_title');
+  await titleEl.waitForDisplayed({ timeout: 5_000 });
+  const title = await titleEl.getText();
+  expect(title).toBe(tooltip.title);
+
+  const descEl = await byTestId('tooltip_description');
+  const description = await descEl.getText();
+  expect(description).toBe(tooltip.description);
+
+  const okButton = await $('~OK');
+  await okButton.click();
 }

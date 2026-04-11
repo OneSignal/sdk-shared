@@ -1,20 +1,12 @@
-import { readFileSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import {
   waitForAppReady,
   togglePushEnabled,
   waitForNotification,
   checkNotification,
+  checkTooltip,
 } from '../helpers/app.js';
 import { waitForLog } from '../helpers/logger.js';
 import { byTestId } from '../helpers/selectors.js';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const tooltipContent = JSON.parse(
-  readFileSync(resolve(__dirname, '../../../demo/tooltip_content.json'), 'utf-8'),
-);
 
 describe('Push Subscription', () => {
   before(async () => {
@@ -33,22 +25,8 @@ describe('Push Subscription', () => {
   });
 
   it('should show correct tooltip info', async () => {
-    const infoIcon = await byTestId('push_info_icon');
-    await infoIcon.waitForDisplayed({ timeout: 5_000 });
-    console.log('infoIcon', infoIcon);
-    await infoIcon.click();
-
-    const titleEl = await byTestId('tooltip_title');
-    await titleEl.waitForDisplayed({ timeout: 5_000 });
-    const title = await titleEl.getText();
-    expect(title).toBe(tooltipContent.push.title);
-
-    const descEl = await byTestId('tooltip_description');
-    const description = await descEl.getText();
-    expect(description).toBe(tooltipContent.push.description);
-
-    const okButton = await $('~OK');
-    await okButton.click();
+    await checkTooltip('push_info_icon', 'push');
+    await checkTooltip('send_push_info_icon', 'sendPushNotification');
   });
 
   it('can send an image notification', async () => {
