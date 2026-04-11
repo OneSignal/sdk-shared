@@ -1,14 +1,14 @@
-import { waitForAppReady, addTag, clearLogs } from "../helpers/app.js";
-import { byTestId, byText } from "../helpers/selectors.js";
-import { waitForLog } from "../helpers/logger.js";
+import { waitForAppReady, addTag, clearLogs } from '../helpers/app.js';
+import { waitForLog } from '../helpers/logger.js';
+import { byTestId, byText } from '../helpers/selectors.js';
 
-describe.skip("Tags", () => {
+describe.skip('Tags', () => {
   before(async () => {
     await waitForAppReady();
   });
 
-  it("should display the tags section", async () => {
-    const tagsSection = await byText("Tags");
+  it('should display the tags section', async () => {
+    const tagsSection = await byText('Tags');
     await tagsSection.scrollIntoView();
     const isDisplayed = await tagsSection.isDisplayed();
     expect(isDisplayed).toBe(true);

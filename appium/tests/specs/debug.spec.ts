@@ -1,7 +1,7 @@
-import { scrollToTop } from "../helpers/app";
+import { scrollToTop } from '../helpers/app';
 
-describe.skip("Debug", () => {
-  it("can debug", async () => {
+describe.skip('Debug', () => {
+  it('can debug', async () => {
     await scrollToTop();
   });
 });

@@ -1,30 +1,30 @@
 type SdkType =
-  | "android"
-  | "capacitor"
-  | "cordova"
-  | "dotnet"
-  | "flutter"
-  | "ios"
-  | "react-native"
-  | "unity";
+  | 'android'
+  | 'capacitor'
+  | 'cordova'
+  | 'dotnet'
+  | 'flutter'
+  | 'ios'
+  | 'react-native'
+  | 'unity';
 
 const VALID_SDK_TYPES = new Set<string>([
-  "android",
-  "capacitor",
-  "cordova",
-  "dotnet",
-  "flutter",
-  "ios",
-  "react-native",
-  "unity",
+  'android',
+  'capacitor',
+  'cordova',
+  'dotnet',
+  'flutter',
+  'ios',
+  'react-native',
+  'unity',
 ]);
 
-type Platform = "ios" | "android";
+type Platform = 'ios' | 'android';
 
 export function getPlatform(): Platform {
-  const name = (driver.capabilities.platformName ?? "").toLowerCase();
-  if (name === "ios") return "ios";
-  if (name === "android") return "android";
+  const name = (driver.capabilities.platformName ?? '').toLowerCase();
+  if (name === 'ios') return 'ios';
+  if (name === 'android') return 'android';
   throw new Error(`Unexpected platformName: ${name}`);
 }
 
@@ -38,7 +38,7 @@ export async function deleteUser(externalId: string) {
     const response = await fetch(
       `https://api.onesignal.com/apps/${process.env.ONESIGNAL_APP_ID}/users/by/external_id/${externalId}`,
       {
-        method: "DELETE",
+        method: 'DELETE',
         headers: {
           Authorization: `Key ${process.env.ONESIGNAL_API_KEY}`,
         },
@@ -60,7 +60,7 @@ export function getSdkType(): SdkType {
     return sdkType as SdkType;
   }
   throw new Error(
-    `SDK_TYPE env var must be one of: ${[...VALID_SDK_TYPES].join(", ")}. Got: ${sdkType}`,
+    `SDK_TYPE env var must be one of: ${[...VALID_SDK_TYPES].join(', ')}. Got: ${sdkType}`,
   );
 }
 
@@ -75,15 +75,15 @@ export function getSdkType(): SdkType {
 export async function byTestId(id: string) {
   const sdkType = getSdkType();
   switch (sdkType) {
-    case "react-native":
-    case "flutter":
-    case "unity":
-    case "cordova":
-    case "dotnet":
-    case "ios":
-    case "android":
+    case 'react-native':
+    case 'flutter':
+    case 'unity':
+    case 'cordova':
+    case 'dotnet':
+    case 'ios':
+    case 'android':
       return $(`~${id}`);
-    case "capacitor":
+    case 'capacitor':
       return $(`[data-testid="${id}"]`);
   }
 }
@@ -96,11 +96,11 @@ export async function byText(text: string) {
   const platform = getPlatform();
   const sdkType = getSdkType();
 
-  if (sdkType === "capacitor") {
+  if (sdkType === 'capacitor') {
     return $(`//*[contains(text(), "${text}")]`);
   }
 
-  if (platform === "ios") {
+  if (platform === 'ios') {
     return $(`-ios predicate string:label == "${text}"`);
   }
   return $(`android=new UiSelector().text("${text}")`);
