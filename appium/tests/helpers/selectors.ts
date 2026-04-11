@@ -29,7 +29,34 @@ export function getPlatform(): Platform {
 }
 
 export function getTestExternalId(): string {
-  return `appium-${getSdkType()}-${getPlatform()}`;
+  const sdk = getSdkType();
+  const platform = getPlatform();
+  if (sdk === platform) return `appium-${sdk}`;
+  return `appium-${sdk}-${platform}`;
+}
+
+const TEST_DATA: Record<string, { sms: string; email: string }> = {
+  'appium-flutter-ios': { sms: '+12003004000', email: 'flutter-ios@test.com' },
+  'appium-flutter-android': { sms: '+12003004001', email: 'flutter-android@test.com' },
+  'appium-react-native-ios': { sms: '+12003004002', email: 'rn-ios@test.com' },
+  'appium-react-native-android': { sms: '+12003004003', email: 'rn-android@test.com' },
+  'appium-capacitor-ios': { sms: '+12003004004', email: 'capacitor-ios@test.com' },
+  'appium-capacitor-android': { sms: '+12003004005', email: 'capacitor-android@test.com' },
+  'appium-cordova-ios': { sms: '+12003004006', email: 'cordova-ios@test.com' },
+  'appium-cordova-android': { sms: '+12003004007', email: 'cordova-android@test.com' },
+  'appium-unity-ios': { sms: '+12003004008', email: 'unity-ios@test.com' },
+  'appium-unity-android': { sms: '+12003004009', email: 'unity-android@test.com' },
+  'appium-dotnet-ios': { sms: '+12003004010', email: 'dotnet-ios@test.com' },
+  'appium-dotnet-android': { sms: '+12003004011', email: 'dotnet-android@test.com' },
+  'appium-ios': { sms: '+12003004012', email: 'ios@test.com' },
+  'appium-android': { sms: '+12003004013', email: 'android@test.com' },
+};
+
+export function getTestData() {
+  const id = getTestExternalId();
+  const data = TEST_DATA[id];
+  if (!data) throw new Error(`No test data for ${id}`);
+  return data;
 }
 
 export async function deleteUser(externalId: string) {

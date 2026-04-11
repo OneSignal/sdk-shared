@@ -1,5 +1,5 @@
 import { checkTooltip, scrollToEl, waitForAppReady } from '../helpers/app';
-import { byTestId, byText, getTestExternalId } from '../helpers/selectors.js';
+import { byTestId, byText, getTestData } from '../helpers/selectors.js';
 
 describe('Emails', () => {
   before(async () => {
@@ -12,7 +12,7 @@ describe('Emails', () => {
   });
 
   it('can add and remove email', async () => {
-    const email = `${getTestExternalId()}@test.com`; // e.g. appium-flutter-ios@test.com
+    const { email } = getTestData();
 
     // add email
     const addButton = await scrollToEl('ADD EMAIL', { by: 'text' });
