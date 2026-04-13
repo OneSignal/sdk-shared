@@ -164,20 +164,18 @@ export async function addTag(key: string, value: string) {
 }
 
 /**
- * Assert that a key-value pair is displayed within a section.
- * Scopes the lookup to the section container to avoid matching
- * text elsewhere on screen (e.g. log entries).
+ * Assert that a key-value pair is displayed in the UI.
+ * Uses `${sectionId}_pair_key_${key}` / `${sectionId}_pair_value_${key}` semantics on PairItem.
+ *
+ * Keys must be unique within the section (no duplicate keys in one list).
  */
-export async function expectPairInSection(
-  sectionId: string,
-  key: string,
-  value: string,
-) {
-  const section = await byTestId(`${sectionId}_section`);
-  const keyEl = await section.$(`~pair_key_${key}`);
+export async function expectPairInSection(sectionId: string, key: string, value: string) {
+  const keyEl = await byTestId(`${sectionId}_pair_key_${key}`);
   await keyEl.waitForDisplayed({ timeout: 5_000 });
+  const keyText = await keyEl.getText();
+  expect(keyText).toContain(key);
 
-  const valueEl = await section.$(`~pair_value_${key}`);
+  const valueEl = await byTestId(`${sectionId}_pair_value_${key}`);
   const valueText = await valueEl.getText();
   expect(valueText).toContain(value);
 }
