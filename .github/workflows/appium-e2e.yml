@@ -1,0 +1,98 @@
+name: Appium E2E Tests
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        description: 'Target platform: android or ios'
+        required: true
+        type: string
+      app-artifact:
+        description: 'Name of the uploaded artifact containing the app binary'
+        required: true
+        type: string
+      app-filename:
+        description: 'Filename of the app binary inside the artifact'
+        required: true
+        type: string
+      sdk-type:
+        description: 'SDK type: react-native, flutter, capacitor, unity, cordova, dotnet, ios, or android'
+        required: true
+        type: string
+      device:
+        description: 'BrowserStack device name'
+        required: false
+        type: string
+      os-version:
+        description: 'Device OS version'
+        required: false
+        type: string
+      build-name:
+        description: 'Label for the BrowserStack session'
+        required: false
+        type: string
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download app artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.app-artifact }}
+
+      - name: Checkout sdk-shared (for test files)
+        uses: actions/checkout@v4
+        with:
+          repository: OneSignal/sdk-shared
+          path: _sdk-shared
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Upload app to BrowserStack
+        id: bs-upload
+        env:
+          BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+          BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+          APP_FILENAME: ${{ inputs.app-filename }}
+        run: |
+          RESPONSE=$(curl -s -u "$BROWSERSTACK_USERNAME:$BROWSERSTACK_ACCESS_KEY" \
+            -X POST "https://api-cloud.browserstack.com/app-automate/upload" \
+            -F "file=@${APP_FILENAME}")
+          APP_URL=$(echo "$RESPONSE" | jq -r '.app_url')
+          if [ "$APP_URL" = "null" ] || [ -z "$APP_URL" ]; then
+            echo "::error::Failed to upload app to BrowserStack: $RESPONSE"
+            exit 1
+          fi
+          echo "app-url=$APP_URL" >> "$GITHUB_OUTPUT"
+          echo "Uploaded app to BrowserStack: $APP_URL"
+
+      - name: Install test dependencies
+        working-directory: _sdk-shared/appium
+        run: npm ci
+
+      - name: Run Appium tests
+        working-directory: _sdk-shared/appium
+        env:
+          BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+          BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+          BROWSERSTACK_APP_URL: ${{ steps.bs-upload.outputs.app-url }}
+          SDK_TYPE: ${{ inputs.sdk-type }}
+          PLATFORM: ${{ inputs.platform }}
+          DEVICE: ${{ inputs.device }}
+          OS_VERSION: ${{ inputs.os-version }}
+          BUILD_NAME: ${{ inputs.build-name }}
+          ONESIGNAL_APP_ID: ${{ vars.APPIUM_ONESIGNAL_APP_ID }}
+          ONESIGNAL_API_KEY: ${{ secrets.APPIUM_ONESIGNAL_API_KEY }}
+        run: npx wdio run "wdio.${PLATFORM}.conf.ts"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: appium-results-${{ inputs.platform }}-${{ inputs.sdk-type }}
+          path: _sdk-shared/appium/results/
+          if-no-files-found: ignore
