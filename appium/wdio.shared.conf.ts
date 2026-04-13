@@ -1,4 +1,4 @@
-import { deleteUser, getTestExternalId } from './tests/helpers/selectors.js';
+import { deleteUser } from './tests/helpers/selectors.js';
 
 const isLocal = !process.env.BROWSERSTACK_USERNAME;
 
@@ -51,9 +51,13 @@ export const sharedConfig: WebdriverIO.Config = {
   connectionRetryTimeout: 90_000,
   connectionRetryCount: 3,
 
-  // cleans up test data (deletes a user and their subscriptions from OneSignal dashboard)
-  before: async () => {
-    await deleteUser(getTestExternalId());
+  // cleans up test data once before all specs run
+  onPrepare: async () => {
+    const sdkType = process.env.SDK_TYPE;
+    const platform = process.env.PLATFORM;
+    if (!sdkType || !platform) return;
+    const externalId = sdkType === platform ? `appium-${sdkType}` : `appium-${sdkType}-${platform}`;
+    await deleteUser(externalId);
   },
 };
 

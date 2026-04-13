@@ -98,18 +98,22 @@ export async function scrollToEl(
  * Uses the log view container as the sentinel element since it's present
  * on the home screen of all demo apps.
  */
-export async function waitForAppReady(skipLogin = false, timeoutMs = 30_000) {
+let loggedIn = false;
+export async function waitForAppReady(opts: { skipLogin?: boolean }) {
+  const { skipLogin = false } = opts;
   const logView = await byTestId('log_view_container');
-  await logView.waitForDisplayed({ timeout: timeoutMs });
+  await logView.waitForDisplayed({ timeout: 5_000 });
 
   const testUserId = getTestExternalId();
-  await scrollToTop();
 
-  if (!skipLogin) {
+  if (skipLogin) return;
+
+  if (!loggedIn) {
     const userIdEl = await scrollToEl('user_external_id_value');
     const sessionUserId = await userIdEl.getText();
     if (sessionUserId !== testUserId) {
       await loginUser(testUserId);
+      loggedIn = true;
     }
   }
 }
