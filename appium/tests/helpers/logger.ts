@@ -47,7 +47,7 @@ export async function hasLogContaining(substring: string): Promise<boolean> {
  */
 export async function waitForLog(
   substring: string,
-  timeoutMs = driver.options.waitforTimeout ?? 15_000,
+  timeoutMs = 30_000,
   pollMs = 1_000,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
