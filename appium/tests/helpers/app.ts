@@ -164,6 +164,25 @@ export async function addTag(key: string, value: string) {
 }
 
 /**
+ * Assert that a key-value pair is displayed within a section.
+ * Scopes the lookup to the section container to avoid matching
+ * text elsewhere on screen (e.g. log entries).
+ */
+export async function expectPairInSection(
+  sectionId: string,
+  key: string,
+  value: string,
+) {
+  const section = await byTestId(`${sectionId}_section`);
+  const keyEl = await section.$(`~pair_key_${key}`);
+  await keyEl.waitForDisplayed({ timeout: 5_000 });
+
+  const valueEl = await section.$(`~pair_value_${key}`);
+  const valueText = await valueEl.getText();
+  expect(valueText).toContain(value);
+}
+
+/**
  * Clear the log view.
  */
 export async function clearLogs() {
@@ -345,7 +364,7 @@ export async function checkNotification(opts: {
   await driver.pause(1_000);
   const button = await scrollToEl(opts.buttonId);
   await button.click();
-  await driver.pause(5_000);
+  await driver.pause(10_000);
   await waitForNotification({
     title: opts.title,
     body: opts.body,

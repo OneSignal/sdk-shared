@@ -1,12 +1,5 @@
-import { checkTooltip, scrollToEl, waitForAppReady } from '../helpers/app';
+import { checkTooltip, expectPairInSection, scrollToEl, waitForAppReady } from '../helpers/app';
 import { byTestId, byText } from '../helpers/selectors.js';
-
-async function expectPairInList(key: string, value: string) {
-  const el = await byText(key, true);
-  await el.waitForDisplayed({ timeout: 5_000 });
-  const text = await el.getText();
-  expect(text).toContain(value);
-}
 
 describe('Aliases', () => {
   before(async () => {
@@ -32,7 +25,7 @@ describe('Aliases', () => {
     const confirmButton = await byText('Add');
     await confirmButton.click();
 
-    await expectPairInList('test_label', 'test_id');
+    await expectPairInSection('aliases', 'test_label', 'test_id');
   });
 
   it('can add multiple aliases', async () => {
@@ -61,7 +54,7 @@ describe('Aliases', () => {
     const confirmButton = await byText('Add All');
     await confirmButton.click();
 
-    await expectPairInList('test_label_2', 'test_id_2');
-    await expectPairInList('test_label_3', 'test_id_3');
+    await expectPairInSection('aliases', 'test_label_2', 'test_id_2');
+    await expectPairInSection('aliases', 'test_label_3', 'test_id_3');
   });
 });

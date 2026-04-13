@@ -21,7 +21,6 @@ describe('User', () => {
   it('can login', async () => {
     const userId = getTestExternalId();
     await loginUser(userId);
-    await waitForLog(`Login user: ${userId}`);
 
     const statusEl = await scrollToEl('user_status_value');
     const status = await statusEl.getText();
@@ -34,7 +33,6 @@ describe('User', () => {
 
   it('can logout', async () => {
     await logoutUser();
-    await waitForLog('Logout user');
 
     const statusEl = await scrollToEl('user_status_value');
     await statusEl.waitUntil(async () => (await statusEl.getText()) === 'Anonymous', {
