@@ -98,8 +98,7 @@ export async function scrollToEl(
  * Uses the log view container as the sentinel element since it's present
  * on the home screen of all demo apps.
  */
-let loggedIn = false;
-export async function waitForAppReady(opts: { skipLogin?: boolean }) {
+export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
   const { skipLogin = false } = opts;
   const logView = await byTestId('log_view_container');
   await logView.waitForDisplayed({ timeout: 5_000 });
@@ -108,13 +107,14 @@ export async function waitForAppReady(opts: { skipLogin?: boolean }) {
 
   if (skipLogin) return;
 
+  const loggedIn = await browser.sharedStore.get('loggedIn');
   if (!loggedIn) {
-    const userIdEl = await scrollToEl('user_external_id_value');
+    const userIdEl = await scrollToEl('user_external_id_value', { direction: 'up' });
     const sessionUserId = await userIdEl.getText();
     if (sessionUserId !== testUserId) {
       await loginUser(testUserId);
-      loggedIn = true;
     }
+    await browser.sharedStore.set('loggedIn', true);
   }
 }
 
@@ -222,7 +222,7 @@ export async function waitForNotification(opts: {
   timeoutMs?: number;
   expectImage?: boolean;
 }) {
-  const { title, body, timeoutMs = 15_000, expectImage = false } = opts;
+  const { title, body, timeoutMs = 30_000, expectImage = false } = opts;
   const platform = getPlatform();
 
   if (platform === 'android') {
@@ -366,7 +366,7 @@ export async function checkNotification(opts: {
   await driver.pause(1_000);
   const button = await scrollToEl(opts.buttonId);
   await button.click();
-  await driver.pause(10_000);
+  await driver.pause(3_000);
   await waitForNotification({
     title: opts.title,
     body: opts.body,

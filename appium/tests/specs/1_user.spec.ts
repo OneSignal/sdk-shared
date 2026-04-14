@@ -4,7 +4,7 @@ import { getTestExternalId } from '../helpers/selectors.js';
 describe('User', () => {
   before(async () => {
     await waitForAppReady({ skipLogin: true });
-    await scrollToEl('USER', { by: 'text' });
+    await scrollToEl('user_section');
   });
 
   it('should start as anonymous', async () => {

@@ -4,7 +4,7 @@ import { byTestId, byText, getTestData } from '../helpers/selectors.js';
 describe('SMS', () => {
   before(async () => {
     await waitForAppReady();
-    await scrollToEl('SMS', { by: 'text' });
+    await scrollToEl('sms_section');
   });
 
   it('should show correct tooltip info', async () => {

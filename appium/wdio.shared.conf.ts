@@ -6,13 +6,13 @@ const browserstackConnection = {
   user: process.env.BROWSERSTACK_USERNAME,
   key: process.env.BROWSERSTACK_ACCESS_KEY,
   hostname: 'hub.browserstack.com',
-  services: ['browserstack'] as string[],
+  services: ['shared-store', 'browserstack'] as string[],
 };
 
 const localConnection = {
   hostname: 'localhost',
   port: 4723,
-  services: [] as string[],
+  services: ['shared-store'] as string[],
 };
 
 const bstackOptions = {

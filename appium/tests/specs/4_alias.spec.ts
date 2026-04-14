@@ -4,7 +4,7 @@ import { byTestId, byText } from '../helpers/selectors.js';
 describe('Aliases', () => {
   before(async () => {
     await waitForAppReady();
-    await scrollToEl('ALIASES', { by: 'text' });
+    await scrollToEl('aliases_section');
   });
 
   it('should show correct tooltip info', async () => {

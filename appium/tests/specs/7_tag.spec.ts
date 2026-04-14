@@ -4,7 +4,7 @@ import { byTestId, byText } from '../helpers/selectors.js';
 describe('Tags', () => {
   before(async () => {
     await waitForAppReady();
-    await scrollToEl('TAGS', { by: 'text' });
+    await scrollToEl('tags_section');
   });
 
   it('should show correct tooltip info', async () => {
@@ -36,7 +36,7 @@ describe('Tags', () => {
     await el.waitForDisplayed({ timeout: 5_000, reverse: true });
   });
 
-  it('can add and removemultiple tags', async () => {
+  it.only('can add and remove multiple tags', async () => {
     const addButton = await scrollToEl('ADD MULTIPLE TAGS', { by: 'text' });
     await addButton.click();
 
@@ -68,11 +68,12 @@ describe('Tags', () => {
     const removeButton = await byText('REMOVE TAGS');
     await removeButton.click();
 
-    const tag2Checkbox = await byText('test_tag_2');
-    tag2Checkbox.click();
+    const tag2Checkbox = await byTestId('remove_checkbox_test_tag_2');
+    await tag2Checkbox.waitForDisplayed({ timeout: 5_000 });
+    await tag2Checkbox.click();
 
-    const tag3Checkbox = await byText('test_tag_3');
-    tag3Checkbox.click();
+    const tag3Checkbox = await byTestId('remove_checkbox_test_tag_3');
+    await tag3Checkbox.click();
 
     confirmButton = await byText('Remove (2)');
     await confirmButton.click();

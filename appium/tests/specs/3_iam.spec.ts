@@ -9,7 +9,7 @@ import {
 describe('In-App Messaging', () => {
   before(async () => {
     await waitForAppReady();
-    await scrollToEl('IN-APP MESSAGING', { by: 'text' });
+    await scrollToEl('iam_section');
   });
 
   it('should show correct tooltip info', async () => {

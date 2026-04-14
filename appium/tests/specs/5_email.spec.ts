@@ -4,7 +4,7 @@ import { byTestId, byText, getTestData } from '../helpers/selectors.js';
 describe('Emails', () => {
   before(async () => {
     await waitForAppReady();
-    await scrollToEl('EMAILS', { by: 'text' });
+    await scrollToEl('emails_section');
   });
 
   it('should show correct tooltip info', async () => {
