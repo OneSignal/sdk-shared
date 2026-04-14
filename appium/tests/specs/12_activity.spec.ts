@@ -1,23 +1,5 @@
-import { waitForAppReady, scrollToEl, checkTooltip } from '../helpers/app.js';
+import { waitForAppReady, scrollToEl, checkTooltip, lockScreen, returnToApp } from '../helpers/app.js';
 import { getPlatform } from '../helpers/selectors.js';
-
-async function lockScreen() {
-  await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
-  await driver.lock();
-  await driver.pause(500);
-
-  // wake from lock screen
-  await driver.execute('mobile: pressButton', { name: 'home' });
-  await driver.pause(500);
-}
-
-async function returnToApp() {
-  const caps = driver.capabilities as Record<string, unknown>;
-  const bundleId = (caps['bundleId'] ?? caps['appium:bundleId']) as string;
-  await driver.updateSettings({ defaultActiveApplication: bundleId });
-  await driver.execute('mobile: activateApp', { bundleId });
-  await driver.pause(1_000);
-}
 
 async function checkActivity(options: { orderId?: string; status: string; message: string }) {
   const { orderId = 'ORD-1234', status, message } = options;

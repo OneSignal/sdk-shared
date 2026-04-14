@@ -134,7 +134,6 @@ export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
 
   const alertHandled = await browser.sharedStore.get('alertHandled');
   if (!alertHandled) {
-    await driver.pause(5_000); // TOOD: remove
     const alert = await waitForAlert();
     if (alert) await driver.acceptAlert();
     await browser.sharedStore.set('alertHandled', true);
@@ -222,6 +221,29 @@ export async function expectPairInSection(sectionId: string, key: string, value:
 }
 
 /**
+ * Lock the iOS screen and wake it to reveal the lock screen (with notifications).
+ */
+export async function lockScreen() {
+  await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
+  await driver.lock();
+  await driver.pause(500);
+
+  await driver.execute('mobile: pressButton', { name: 'home' });
+  await driver.pause(500);
+}
+
+/**
+ * Return to the app from SpringBoard / lock screen.
+ */
+export async function returnToApp() {
+  const caps = driver.capabilities as Record<string, unknown>;
+  const bundleId = (caps['bundleId'] ?? caps['appium:bundleId']) as string;
+  await driver.updateSettings({ defaultActiveApplication: bundleId });
+  await driver.execute('mobile: activateApp', { bundleId });
+  await driver.pause(1_000);
+}
+
+/**
  * Clear all notifications.
  * Android: uses the native clearAllNotifications command.
  * iOS: taps the app's "CLEAR ALL" button since XCUITest has no equivalent.
@@ -241,9 +263,8 @@ export async function clearAllNotifications() {
  * Android: opens the notification shade, verifies the title (and optionally
  * body) are visible, then closes the shade.
  *
- * iOS: goes to the home screen, switches to the SpringBoard context, then
- * uses W3C touch actions (viewport origin) to swipe down and open the
- * notification center. After verifying the notification, it returns to the app.
+ * iOS: swipes down from the top-left to open the notification center,
+ * verifies the notification, then returns to the app.
  */
 export async function waitForNotification(opts: {
   title: string;
@@ -303,18 +324,12 @@ export async function waitForNotification(opts: {
     return;
   }
 
-  // iOS: swipe down from the top-left of the screen to open notification center
+  // iOS: swipe down from the top-left to open notification center
   // (top-right opens Control Center on iOS 16+)
-  const caps = driver.capabilities as Record<string, unknown>;
-  const bundleId = (caps['bundleId'] ?? caps['appium:bundleId']) as string;
+  await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
 
   await driver.execute('mobile: pressButton', { name: 'home' });
   await driver.pause(1_000);
-
-  await driver.updateSettings({
-    defaultActiveApplication: 'com.apple.springboard',
-  });
-  await driver.pause(500);
 
   const { width, height } = await driver.getWindowSize();
   await driver.performActions([
@@ -378,11 +393,7 @@ export async function waitForNotification(opts: {
     await image.waitForDisplayed({ timeout: 5_000 });
   }
 
-  await driver.execute('mobile: pressButton', { name: 'home' });
-  await driver.pause(500);
-
-  await driver.updateSettings({ defaultActiveApplication: bundleId });
-  await driver.execute('mobile: activateApp', { bundleId });
+  await returnToApp();
 }
 
 export async function checkNotification(opts: {
