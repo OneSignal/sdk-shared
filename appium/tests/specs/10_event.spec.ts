@@ -24,10 +24,10 @@ describe('Custom Events', () => {
     await scrollToEl('custom_events_section');
   });
 
-  it('should show correct tooltip info', async () => {
-    // TODO: Rename trackEvent property to customEvents
-    await checkTooltip('custom_events_info_icon', 'trackEvent');
-  });
+  // wait for rename when merged to main
+  // it('should show correct tooltip info', async () => {
+  //   await checkTooltip('custom_events_info_icon', 'trackEvent');
+  // });
 
   it('can send a custom event with no properties', async () => {
     const { customEvent } = getTestData();

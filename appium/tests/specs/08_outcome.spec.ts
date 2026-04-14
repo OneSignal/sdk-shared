@@ -1,5 +1,4 @@
 import { checkTooltip, scrollToEl, waitForAppReady } from '../helpers/app';
-import { waitForLog } from '../helpers/logger.js';
 import { byTestId, byText } from '../helpers/selectors.js';
 
 describe('Outcomes', () => {
@@ -26,7 +25,8 @@ describe('Outcomes', () => {
     const sendBtn = await byTestId('outcome_send_button');
     await sendBtn.click();
 
-    await waitForLog('Outcome sent: test_normal');
+    const snackbar = await byText('Outcome sent: test_normal');
+    await snackbar.waitForDisplayed({ timeout: 5_000 });
   });
 
   it('can send a unique outcome', async () => {
@@ -43,7 +43,8 @@ describe('Outcomes', () => {
     const sendBtn = await byTestId('outcome_send_button');
     await sendBtn.click();
 
-    await waitForLog('Unique outcome sent: test_unique');
+    const snackbar = await byText('Unique outcome sent: test_unique');
+    await snackbar.waitForDisplayed({ timeout: 5_000 });
   });
 
   it('can send an outcome with value', async () => {
@@ -64,6 +65,7 @@ describe('Outcomes', () => {
     const sendBtn = await byTestId('outcome_send_button');
     await sendBtn.click();
 
-    await waitForLog('Outcome sent: test_valued = 3.14');
+    const snackbar = await byText('Outcome sent: test_valued = 3.14');
+    await snackbar.waitForDisplayed({ timeout: 5_000 });
   });
 });
