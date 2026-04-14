@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APPIUM_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+SDK_ROOT="$(cd "$APPIUM_DIR/../.." && pwd)"
 
 # ── Load .env if present ─────────────────────────────────────────────────────
 if [[ -f "$SCRIPT_DIR/.env" ]]; then
@@ -23,6 +24,7 @@ error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 APPIUM_PORT="${APPIUM_PORT:-4723}"
+SKIP_BUILD=false
 SKIP_DEVICE=false
 SKIP_RESET=false
 SPEC="tests/specs/**/*.spec.ts"
@@ -32,7 +34,8 @@ for arg in "$@"; do
   case "$arg" in
     --platform=*)  PLATFORM="${arg#--platform=}" ;;
     --sdk=*)       SDK_TYPE="${arg#--sdk=}" ;;
-    --skip)        SKIP_DEVICE=true; SKIP_RESET=true ;;
+    --skip)        SKIP_BUILD=true; SKIP_DEVICE=true; SKIP_RESET=true ;;
+    --skip-build)  SKIP_BUILD=true ;;
     --skip-device) SKIP_DEVICE=true ;;
     --skip-reset)  SKIP_RESET=true ;;
     --spec=*)      SPEC="${arg#--spec=}" ;;
@@ -40,26 +43,27 @@ for arg in "$@"; do
       cat <<USAGE
 Usage: $0 [OPTIONS]
 
-Starts Appium + simulator/emulator and runs E2E tests locally.
-The app must already be built — this script does not build it.
+Builds the app (if needed), starts Appium + simulator/emulator,
+and runs E2E tests locally.
 
-PLATFORM and SDK_TYPE are prompted interactively when not provided
+PLATFORM and SDK are prompted interactively when not provided
 via flags or env vars.
 
 Options:
   --platform=P     ios | android
   --sdk=S          flutter | react-native
-  --skip           Skip device launch and app reset (rerun tests only)
+  --skip           Skip build, device launch, and app reset (rerun tests only)
+  --skip-build     Skip app build (reuse existing)
   --skip-device    Skip simulator/emulator launch
   --skip-reset     Keep existing app data
   --spec=GLOB      Spec glob (default: tests/specs/**/*.spec.ts)
   -h, --help       Show this help
 
 Env vars (set in .env or export):
-  APP_PATH           Path to the .app (iOS) or .apk (Android)  [required]
-  BUNDLE_ID          Bundle/package id (e.g. com.onesignal.example)
-  ONESIGNAL_APP_ID   OneSignal app ID
-  ONESIGNAL_API_KEY  OneSignal REST API key
+  APP_PATH           Path to .app/.apk (auto-detected if not set)
+  BUNDLE_ID          Bundle/package id (default: com.onesignal.example)
+  ONESIGNAL_APP_ID   OneSignal app ID (written to demo app .env)
+  ONESIGNAL_API_KEY  OneSignal REST API key (written to demo app .env)
   DEVICE             Device name for wdio (default: iPhone 16 / Google Pixel 8)
   OS_VERSION         Platform version (default: 18 / 14)
   AVD_NAME           Android AVD to boot (default: Pixel_8)
@@ -110,12 +114,16 @@ case "$PLATFORM" in
   *) error "PLATFORM must be 'ios' or 'android', got '$PLATFORM'" ;;
 esac
 
-: "${APP_PATH:?APP_PATH is required. Set it in .env or export it.}"
+[[ "$PLATFORM" == "android" ]] && error "Android is not supported yet. Only iOS is available for now."
+[[ "$SDK_TYPE" != "flutter" ]] && error "Only flutter is supported for now. Got '$SDK_TYPE'."
 
-if [[ "$PLATFORM" == "ios" ]]; then
-  [[ -d "$APP_PATH" ]] || error "APP_PATH does not exist: $APP_PATH"
-else
-  [[ -f "$APP_PATH" ]] || error "APP_PATH does not exist: $APP_PATH"
+BUNDLE_ID="${BUNDLE_ID:-com.onesignal.example}"
+
+if [[ "$SDK_TYPE" == "flutter" ]]; then
+  FLUTTER_DIR="${FLUTTER_DIR:-$SDK_ROOT/OneSignal-Flutter-SDK}"
+  [[ -d "$FLUTTER_DIR" ]] || error "Flutter SDK not found at $FLUTTER_DIR — set FLUTTER_DIR in .env"
+  DEMO_DIR="$FLUTTER_DIR/examples/demo"
+  APP_PATH="${APP_PATH:-$DEMO_DIR/build/ios/iphonesimulator/Runner.app}"
 fi
 
 # ── Platform defaults ────────────────────────────────────────────────────────
@@ -130,7 +138,50 @@ else
   AVD_NAME="${AVD_NAME:-Pixel_8}"
 fi
 
-# ── 1. Start device ──────────────────────────────────────────────────────────
+# ── 1. Build app ─────────────────────────────────────────────────────────────
+build_flutter_ios() {
+  if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
+    info "Writing .env for demo app..."
+    cat > "$DEMO_DIR/.env" <<EOF
+ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
+ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
+E2E_MODE=true
+EOF
+  else
+    warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — skipping demo .env"
+  fi
+
+  info "Installing Flutter dependencies..."
+  (cd "$FLUTTER_DIR" && flutter pub get)
+
+  info "Installing CocoaPods..."
+  (cd "$DEMO_DIR/ios" && pod install)
+
+  info "Building debug .app for simulator (this may take a few minutes)..."
+  (cd "$DEMO_DIR" && flutter build ios --simulator --debug)
+
+  [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
+  info "App built: $APP_PATH"
+}
+
+build_app() {
+  if [[ "$SKIP_BUILD" == true ]]; then
+    if [[ "$PLATFORM" == "ios" && ! -d "$APP_PATH" ]] || [[ "$PLATFORM" == "android" && ! -f "$APP_PATH" ]]; then
+      error "No app found at $APP_PATH — cannot skip build"
+    fi
+    info "Skipping build (--skip-build), using existing app"
+    return
+  fi
+
+  if [[ "$PLATFORM" == "ios" && -d "$APP_PATH" ]]; then
+    info "App already exists at $APP_PATH (use --skip-build or delete to force rebuild)"
+    return
+  fi
+
+  build_flutter_ios
+}
+
+# ── 2. Start device ──────────────────────────────────────────────────────────
 start_ios_simulator() {
   if xcrun simctl list devices booted 2>/dev/null | grep -q "Booted"; then
     info "Simulator already running"
@@ -278,6 +329,7 @@ main() {
   info "=== OneSignal E2E — $SDK_TYPE / $PLATFORM ==="
   echo ""
 
+  build_app
   start_device
   start_appium
   reset_app
