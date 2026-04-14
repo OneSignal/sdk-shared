@@ -95,13 +95,11 @@ export async function scrollToEl(
 
 /**
  * Wait for the app to fully launch and the home screen to be visible.
- * Uses the log view container as the sentinel element since it's present
- * on the home screen of all demo apps.
  */
 export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
   const { skipLogin = false } = opts;
-  const logView = await byTestId('log_view_container');
-  await logView.waitForDisplayed({ timeout: 5_000 });
+  const mainScroll = await byTestId('main_scroll_view');
+  await mainScroll.waitForDisplayed({ timeout: 5_000 });
 
   const testUserId = getTestExternalId();
 
@@ -182,14 +180,6 @@ export async function expectPairInSection(sectionId: string, key: string, value:
   const valueEl = await byTestId(`${sectionId}_pair_value_${key}`);
   const valueText = await valueEl.getText();
   expect(valueText).toContain(value);
-}
-
-/**
- * Clear the log view.
- */
-export async function clearLogs() {
-  const clearButton = await byTestId('log_view_clear_button');
-  await clearButton.click();
 }
 
 /**
