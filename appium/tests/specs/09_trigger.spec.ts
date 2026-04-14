@@ -38,7 +38,7 @@ describe('Triggers', () => {
     await checkTooltip('triggers_info_icon', 'triggers');
   });
 
-  it('can add and remove triggr', async () => {
+  it('can add and remove trigger', async () => {
     const addButton = await scrollToEl('ADD TRIGGER', { by: 'text' });
     await addButton.click();
 
