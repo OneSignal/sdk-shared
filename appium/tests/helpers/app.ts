@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { byTestId, byText, getPlatform, getTestExternalId } from './selectors.js';
+import { byTestId, byText, getPlatform, getSdkType, getTestExternalId } from './selectors.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const tooltipContent = JSON.parse(
@@ -10,11 +10,22 @@ const tooltipContent = JSON.parse(
 );
 
 async function stopScrolling() {
-  const mainScroll = await byTestId('main_scroll_view');
-  const loc = await mainScroll.getLocation();
-  const size = await mainScroll.getSize();
-  const x = Math.round(loc.x + 6);
-  const y = Math.round(loc.y + size.height / 2);
+  const platform = getPlatform();
+
+  let x: number;
+  let y: number;
+
+  if (platform === 'ios') {
+    const mainScroll = await byTestId('main_scroll_view');
+    const loc = await mainScroll.getLocation();
+    const size = await mainScroll.getSize();
+    x = Math.round(loc.x + 6);
+    y = Math.round(loc.y + size.height / 2);
+  } else {
+    const { width, height } = await driver.getWindowSize();
+    x = Math.round(width / 2);
+    y = Math.round(height / 2);
+  }
 
   await driver.performActions([
     {
@@ -41,15 +52,18 @@ async function swipeMainContent(
   distance: 'small' | 'normal' | 'large' = 'normal',
 ) {
   const distances = { small: 0.2, normal: 0.5, large: 1.0 };
-  const mainScroll = await byTestId('main_scroll_view');
   const platform = getPlatform();
   const invertedDirection = direction === 'up' ? 'down' : 'up';
 
   if (platform === 'ios') {
     await driver.execute('mobile: swipe', { direction: invertedDirection });
   } else {
+    const { width, height } = await driver.getWindowSize();
     await driver.execute('mobile: scrollGesture', {
-      elementId: mainScroll.elementId,
+      left: 0,
+      top: Math.round(height * 0.1),
+      width,
+      height: Math.round(height * 0.8),
       direction: direction === 'up' ? 'down' : 'up',
       percent: distances[distance],
     });
@@ -94,8 +108,10 @@ export async function scrollToEl(
 }
 
 /**
- * Wait for a native system alert to appear and return its text.
- * Returns null if no alert appears within the timeout.
+ * Wait for an iOS system alert to appear and return its text without
+ * dismissing it. Returns null if no alert appears within the timeout.
+ * iOS-only — used by the location spec which needs to accept with a
+ * specific button label.
  */
 export async function waitForAlert(timeoutMs = 10_000): Promise<string | null> {
   try {
@@ -117,19 +133,77 @@ export async function waitForAlert(timeoutMs = 10_000): Promise<string | null> {
 }
 
 /**
+ * Wait for a native system alert/permission dialog, accept it, and return
+ * its text. Returns null if no dialog appears within the timeout.
+ *
+ * iOS: uses XCUITest `mobile: alert` API.
+ * Android: looks for the standard permission dialog "Allow" button via
+ * UiAutomator (works for POST_NOTIFICATIONS, location, etc.).
+ */
+export async function acceptSystemAlert(timeoutMs = 10_000): Promise<string | null> {
+  const platform = getPlatform();
+
+  try {
+    if (platform === 'ios') {
+      const text = await waitForAlert(timeoutMs);
+      if (text) await driver.acceptAlert();
+      return text;
+    }
+
+    const allowBtn = await $('android=new UiSelector().text("Allow")');
+    await allowBtn.waitForDisplayed({ timeout: timeoutMs });
+    let text = 'Permission dialog';
+    try {
+      const msgEl = await $(
+        'android=new UiSelector().resourceId("com.android.permissioncontroller:id/permission_message")',
+      );
+      text = await msgEl.getText();
+    } catch {
+      /* best-effort */
+    }
+    await allowBtn.click();
+    return text;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Wait for the app to fully launch and the home screen to be visible.
  */
 export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
   const { skipLogin = false } = opts;
-  const mainScroll = await byTestId('main_scroll_view');
-  await mainScroll.waitForDisplayed({ timeout: 5_000 });
+
+  if (getPlatform() === 'android' && getSdkType() === 'flutter') {
+    await driver.updateSettings({ disableIdLocatorAutocompletion: true });
+  }
+
+  const waitForMainScroll = async () => {
+    const mainScroll = await byTestId('main_scroll_view');
+    await mainScroll.waitForDisplayed({ timeout: 5_000 });
+  };
 
   const alertHandled = await browser.sharedStore.get('alertHandled');
   if (!alertHandled) {
-    const alert = await waitForAlert();
-    if (alert) await driver.acceptAlert();
-    await browser.sharedStore.set('alertHandled', true);
+    // Dismiss permission dialogs until the app UI is visible
+    while (await acceptSystemAlert(5_000)) {
+      await driver.pause(500);
+    }
   }
+
+  const html = await driver.getPageSource();
+  console.log(html);
+
+  try {
+    await waitForMainScroll();
+  } catch {
+    while (await acceptSystemAlert(2_000)) {
+      await driver.pause(500);
+    }
+    await waitForMainScroll();
+  }
+
+  await browser.sharedStore.set('alertHandled', true);
 
   if (skipLogin) return;
 
@@ -150,8 +224,26 @@ export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
  * Tap the login button, enter an external user ID, and confirm.
  */
 export async function loginUser(externalUserId: string) {
-  const loginButton = await byTestId('login_user_button');
+  const loginButton = await byText('LOGIN USER');
   await loginButton.click();
+
+  const html = await driver.getPageSource();
+  console.log(html);
+
+  if (getPlatform() === 'android' && getSdkType() === 'flutter') {
+    const userIdInput = await byTestId('login_user_id_input');
+    await userIdInput.waitForDisplayed({ timeout: 5_000 });
+    await userIdInput.click();
+    await driver.pause(250);
+    await driver.execute('mobile: type', { text: externalUserId });
+    const confirmButton = await byText('Login');
+    await browser.waitUntil(async () => confirmButton.isEnabled(), {
+      timeout: 5_000,
+      timeoutMsg: 'Expected Login button to enable',
+    });
+    await confirmButton.click();
+    return;
+  }
 
   const userIdInput = await byTestId('login_user_id_input');
   await userIdInput.waitForDisplayed({ timeout: 5_000 });
