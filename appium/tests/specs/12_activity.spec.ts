@@ -11,6 +11,14 @@ async function lockScreen() {
   await driver.pause(500);
 }
 
+async function returnToApp() {
+  const caps = driver.capabilities as Record<string, unknown>;
+  const bundleId = (caps['bundleId'] ?? caps['appium:bundleId']) as string;
+  await driver.updateSettings({ defaultActiveApplication: bundleId });
+  await driver.execute('mobile: activateApp', { bundleId });
+  await driver.pause(1_000);
+}
+
 async function checkActivity(options: { orderId?: string; status: string; message: string }) {
   const { orderId = 'ORD-1234', status, message } = options;
 
@@ -26,11 +34,7 @@ async function checkActivity(options: { orderId?: string; status: string; messag
   const orderEl = await $(`-ios predicate string:label CONTAINS "${orderId}"`);
   expect(orderEl).toBeDisplayed();
 
-  const caps = driver.capabilities as Record<string, unknown>;
-  const bundleId = (caps['bundleId'] ?? caps['appium:bundleId']) as string;
-  await driver.updateSettings({ defaultActiveApplication: bundleId });
-  await driver.execute('mobile: activateApp', { bundleId });
-  await driver.pause(1_000);
+  await returnToApp();
 }
 
 describe('Live Activities', () => {
@@ -77,5 +81,7 @@ describe('Live Activities', () => {
 
     const activityEl = await $(`-ios predicate string:label CONTAINS "ORD-1234"`);
     await activityEl.waitForDisplayed({ timeout: 5_000, reverse: true });
+
+    await returnToApp();
   });
 });
