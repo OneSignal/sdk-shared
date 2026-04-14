@@ -35,21 +35,73 @@ export function getTestExternalId(): string {
   return `appium-${sdk}-${platform}`;
 }
 
-const TEST_DATA: Record<string, { sms: string; email: string }> = {
-  'appium-flutter-ios': { sms: '+12003004000', email: 'flutter-ios@test.com' },
-  'appium-flutter-android': { sms: '+12003004001', email: 'flutter-android@test.com' },
-  'appium-react-native-ios': { sms: '+12003004002', email: 'rn-ios@test.com' },
-  'appium-react-native-android': { sms: '+12003004003', email: 'rn-android@test.com' },
-  'appium-capacitor-ios': { sms: '+12003004004', email: 'capacitor-ios@test.com' },
-  'appium-capacitor-android': { sms: '+12003004005', email: 'capacitor-android@test.com' },
-  'appium-cordova-ios': { sms: '+12003004006', email: 'cordova-ios@test.com' },
-  'appium-cordova-android': { sms: '+12003004007', email: 'cordova-android@test.com' },
-  'appium-unity-ios': { sms: '+12003004008', email: 'unity-ios@test.com' },
-  'appium-unity-android': { sms: '+12003004009', email: 'unity-android@test.com' },
-  'appium-dotnet-ios': { sms: '+12003004010', email: 'dotnet-ios@test.com' },
-  'appium-dotnet-android': { sms: '+12003004011', email: 'dotnet-android@test.com' },
-  'appium-ios': { sms: '+12003004012', email: 'ios@test.com' },
-  'appium-android': { sms: '+12003004013', email: 'android@test.com' },
+const TEST_DATA: Record<string, { sms: string; email: string; customEvent: string }> = {
+  'appium-flutter-ios': {
+    sms: '+12003004000',
+    email: 'flutter-ios@test.com',
+    customEvent: 'flutter_ios',
+  },
+  'appium-flutter-android': {
+    sms: '+12003004001',
+    email: 'flutter-android@test.com',
+    customEvent: 'flutter_android',
+  },
+  'appium-react-native-ios': {
+    sms: '+12003004002',
+    email: 'rn-ios@test.com',
+    customEvent: 'rn_ios',
+  },
+  'appium-react-native-android': {
+    sms: '+12003004003',
+    email: 'rn-android@test.com',
+    customEvent: 'rn_android',
+  },
+  'appium-capacitor-ios': {
+    sms: '+12003004004',
+    email: 'capacitor-ios@test.com',
+    customEvent: 'capacitor_ios',
+  },
+  'appium-capacitor-android': {
+    sms: '+12003004005',
+    email: 'capacitor-android@test.com',
+    customEvent: 'capacitor_android',
+  },
+  'appium-cordova-ios': {
+    sms: '+12003004006',
+    email: 'cordova-ios@test.com',
+    customEvent: 'cordova_ios',
+  },
+  'appium-cordova-android': {
+    sms: '+12003004007',
+    email: 'cordova-android@test.com',
+    customEvent: 'cordova_android',
+  },
+  'appium-unity-ios': {
+    sms: '+12003004008',
+    email: 'unity-ios@test.com',
+    customEvent: 'unity_ios',
+  },
+  'appium-unity-android': {
+    sms: '+12003004009',
+    email: 'unity-android@test.com',
+    customEvent: 'unity_android',
+  },
+  'appium-dotnet-ios': {
+    sms: '+12003004010',
+    email: 'dotnet-ios@test.com',
+    customEvent: 'dotnet_ios',
+  },
+  'appium-dotnet-android': {
+    sms: '+12003004011',
+    email: 'dotnet-android@test.com',
+    customEvent: 'dotnet_android',
+  },
+  'appium-ios': { sms: '+12003004012', email: 'ios@test.com', customEvent: 'ios' },
+  'appium-android': {
+    sms: '+12003004013',
+    email: 'android@test.com',
+    customEvent: 'android',
+  },
 };
 
 export function getTestData() {
