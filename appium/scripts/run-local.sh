@@ -64,8 +64,8 @@ Env vars (set in .env or export):
   BUNDLE_ID          Bundle/package id (default: com.onesignal.example)
   ONESIGNAL_APP_ID   OneSignal app ID (written to demo app .env)
   ONESIGNAL_API_KEY  OneSignal REST API key (written to demo app .env)
-  DEVICE             Device name for wdio (default: iPhone 16 / Google Pixel 8)
-  OS_VERSION         Platform version (default: 18 / 14)
+  DEVICE             Device name for wdio (default: iPhone 17 / Google Pixel 8)
+  OS_VERSION         Platform version (default: 26.2 / 14)
   AVD_NAME           Android AVD to boot (default: Pixel_8)
   IOS_SIMULATOR      iOS simulator name (default: iPhone 16)
   IOS_RUNTIME        simctl runtime id (default: iOS-18-2)
@@ -128,10 +128,10 @@ fi
 
 # ── Platform defaults ────────────────────────────────────────────────────────
 if [[ "$PLATFORM" == "ios" ]]; then
-  DEVICE="${DEVICE:-iPhone 16}"
-  OS_VERSION="${OS_VERSION:-18}"
+  DEVICE="${DEVICE:-iPhone 17}"
+  OS_VERSION="${OS_VERSION:-26.2}"
   IOS_SIMULATOR="${IOS_SIMULATOR:-$DEVICE}"
-  IOS_RUNTIME="${IOS_RUNTIME:-iOS-18-2}"
+  IOS_RUNTIME="${IOS_RUNTIME:-iOS-26-2}"
 else
   DEVICE="${DEVICE:-Google Pixel 8}"
   OS_VERSION="${OS_VERSION:-14}"
@@ -170,11 +170,6 @@ build_app() {
       error "No app found at $APP_PATH — cannot skip build"
     fi
     info "Skipping build (--skip-build), using existing app"
-    return
-  fi
-
-  if [[ "$PLATFORM" == "ios" && -d "$APP_PATH" ]]; then
-    info "App already exists at $APP_PATH (use --skip-build or delete to force rebuild)"
     return
   fi
 
@@ -318,9 +313,9 @@ run_tests() {
   APP_PATH="$APP_PATH" \
   DEVICE="$DEVICE" \
   OS_VERSION="$OS_VERSION" \
-  ${BUNDLE_ID:+BUNDLE_ID="$BUNDLE_ID"} \
-  ${ONESIGNAL_APP_ID:+ONESIGNAL_APP_ID="$ONESIGNAL_APP_ID"} \
-  ${ONESIGNAL_API_KEY:+ONESIGNAL_API_KEY="$ONESIGNAL_API_KEY"} \
+  BUNDLE_ID="${BUNDLE_ID:-}" \
+  ONESIGNAL_APP_ID="${ONESIGNAL_APP_ID:-}" \
+  ONESIGNAL_API_KEY="${ONESIGNAL_API_KEY:-}" \
   bunx wdio run "$conf" --spec "$SPEC"
 }
 

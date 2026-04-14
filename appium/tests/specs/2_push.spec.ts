@@ -3,7 +3,7 @@ import { waitForAppReady, checkNotification, checkTooltip, scrollToEl } from '..
 describe('Push Subscription', () => {
   before(async () => {
     await waitForAppReady();
-    await scrollToEl('PUSH', { by: 'text' });
+    await scrollToEl('push_section');
   });
 
   it('should have push ID and be enabled initially', async () => {
