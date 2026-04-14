@@ -1,10 +1,10 @@
-import { byTestId } from "./selectors.js";
+import { byTestId } from './selectors.js';
 
 /**
  * Get the current log entry count shown in the header badge.
  */
 export async function getLogCount(): Promise<number> {
-  const countEl = await byTestId("log_view_count");
+  const countEl = await byTestId('log_view_count');
   const text = await countEl.getText();
   const match = text.match(/\d+/);
   return match ? parseInt(match[0], 10) : 0;

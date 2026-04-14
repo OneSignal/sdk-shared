@@ -9,10 +9,7 @@
     "resolveJsonModule": true,
     "outDir": "dist",
     "rootDir": ".",
-    "types": [
-      "@wdio/globals/types",
-      "@wdio/mocha-framework"
-    ]
+    "types": ["node", "@wdio/globals/types", "@wdio/mocha-framework", "@wdio/shared-store-service"]
   },
   "include": ["wdio.*.conf.ts", "tests/**/*.ts"]
 }

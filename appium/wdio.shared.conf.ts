@@ -1,47 +1,47 @@
-import { deleteUser, getTestExternalId } from "./tests/helpers/selectors.js";
+import { deleteUser } from './tests/helpers/selectors.js';
 
 const isLocal = !process.env.BROWSERSTACK_USERNAME;
 
 const browserstackConnection = {
   user: process.env.BROWSERSTACK_USERNAME,
   key: process.env.BROWSERSTACK_ACCESS_KEY,
-  hostname: "hub.browserstack.com",
-  services: ["browserstack"] as string[],
+  hostname: 'hub.browserstack.com',
+  services: ['shared-store', 'browserstack'] as string[],
 };
 
 const localConnection = {
-  hostname: "localhost",
+  hostname: 'localhost',
   port: 4723,
-  services: [] as string[],
+  services: ['shared-store'] as string[],
 };
 
 const bstackOptions = {
-  projectName: "OneSignal SDK E2E",
-  buildName: process.env.BUILD_NAME || "local",
-  sessionName: process.env.SDK_TYPE || "unknown",
+  projectName: 'OneSignal SDK E2E',
+  buildName: process.env.BUILD_NAME || 'local',
+  sessionName: process.env.SDK_TYPE || 'unknown',
   debug: true,
   networkLogs: true,
-  appiumVersion: "2.6",
+  appiumVersion: '2.6',
 };
 
 export const sharedConfig: WebdriverIO.Config = {
   ...(isLocal ? localConnection : browserstackConnection),
 
   maxInstances: 1,
-  logLevel: isLocal ? "warn" : "info",
+  logLevel: 'warn',
 
-  specs: ["./tests/specs/**/*.spec.ts"],
+  specs: ['./tests/specs/**/*.spec.ts'],
 
   capabilities: [],
 
-  framework: "mocha",
-  mochaOpts: { timeout: 120_000 },
+  framework: 'mocha',
+  mochaOpts: { timeout: 120_000, bail: true },
   reporters: [
-    "spec",
+    'spec',
     [
-      "junit",
+      'junit',
       {
-        outputDir: "./results",
+        outputDir: './results',
         outputFileFormat: ({ cid }: { cid: string }) => `results-${cid}.xml`,
       },
     ],
@@ -51,9 +51,13 @@ export const sharedConfig: WebdriverIO.Config = {
   connectionRetryTimeout: 90_000,
   connectionRetryCount: 3,
 
-  // cleans up test data (deletes a user and their subscriptions from OneSignal dashboard)
-  before: async () => {
-    await deleteUser(getTestExternalId());
+  // cleans up test data once before all specs run
+  onPrepare: async () => {
+    const sdkType = process.env.SDK_TYPE;
+    const platform = process.env.PLATFORM;
+    if (!sdkType || !platform) return;
+    const externalId = sdkType === platform ? `appium-${sdkType}` : `appium-${sdkType}-${platform}`;
+    await deleteUser(externalId);
   },
 };
 

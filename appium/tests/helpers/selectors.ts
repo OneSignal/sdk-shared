@@ -1,35 +1,62 @@
 type SdkType =
-  | "android"
-  | "capacitor"
-  | "cordova"
-  | "dotnet"
-  | "flutter"
-  | "ios"
-  | "react-native"
-  | "unity";
+  | 'android'
+  | 'capacitor'
+  | 'cordova'
+  | 'dotnet'
+  | 'flutter'
+  | 'ios'
+  | 'react-native'
+  | 'unity';
 
 const VALID_SDK_TYPES = new Set<string>([
-  "android",
-  "capacitor",
-  "cordova",
-  "dotnet",
-  "flutter",
-  "ios",
-  "react-native",
-  "unity",
+  'android',
+  'capacitor',
+  'cordova',
+  'dotnet',
+  'flutter',
+  'ios',
+  'react-native',
+  'unity',
 ]);
 
-type Platform = "ios" | "android";
+type Platform = 'ios' | 'android';
 
-function getPlatform(): Platform {
-  const name = (driver.capabilities.platformName ?? "").toLowerCase();
-  if (name === "ios") return "ios";
-  if (name === "android") return "android";
+export function getPlatform(): Platform {
+  const name = (driver.capabilities.platformName ?? '').toLowerCase();
+  if (name === 'ios') return 'ios';
+  if (name === 'android') return 'android';
   throw new Error(`Unexpected platformName: ${name}`);
 }
 
 export function getTestExternalId(): string {
-  return `appium-${getSdkType()}-${getPlatform()}`;
+  const sdk = getSdkType();
+  const platform = getPlatform();
+  if (sdk === platform) return `appium-${sdk}`;
+  return `appium-${sdk}-${platform}`;
+}
+
+const TEST_DATA: Record<string, { sms: string; email: string }> = {
+  'appium-flutter-ios': { sms: '+12003004000', email: 'flutter-ios@test.com' },
+  'appium-flutter-android': { sms: '+12003004001', email: 'flutter-android@test.com' },
+  'appium-react-native-ios': { sms: '+12003004002', email: 'rn-ios@test.com' },
+  'appium-react-native-android': { sms: '+12003004003', email: 'rn-android@test.com' },
+  'appium-capacitor-ios': { sms: '+12003004004', email: 'capacitor-ios@test.com' },
+  'appium-capacitor-android': { sms: '+12003004005', email: 'capacitor-android@test.com' },
+  'appium-cordova-ios': { sms: '+12003004006', email: 'cordova-ios@test.com' },
+  'appium-cordova-android': { sms: '+12003004007', email: 'cordova-android@test.com' },
+  'appium-unity-ios': { sms: '+12003004008', email: 'unity-ios@test.com' },
+  'appium-unity-android': { sms: '+12003004009', email: 'unity-android@test.com' },
+  'appium-dotnet-ios': { sms: '+12003004010', email: 'dotnet-ios@test.com' },
+  'appium-dotnet-android': { sms: '+12003004011', email: 'dotnet-android@test.com' },
+  'appium-ios': { sms: '+12003004012', email: 'ios@test.com' },
+  'appium-android': { sms: '+12003004013', email: 'android@test.com' },
+};
+
+export function getTestData() {
+  const id = getTestExternalId();
+  const data = TEST_DATA[id];
+  if (!data) throw new Error(`No test data for ${id}`);
+  return data;
 }
 
 export async function deleteUser(externalId: string) {
@@ -38,7 +65,7 @@ export async function deleteUser(externalId: string) {
     const response = await fetch(
       `https://api.onesignal.com/apps/${process.env.ONESIGNAL_APP_ID}/users/by/external_id/${externalId}`,
       {
-        method: "DELETE",
+        method: 'DELETE',
         headers: {
           Authorization: `Key ${process.env.ONESIGNAL_API_KEY}`,
         },
@@ -60,7 +87,7 @@ export function getSdkType(): SdkType {
     return sdkType as SdkType;
   }
   throw new Error(
-    `SDK_TYPE env var must be one of: ${[...VALID_SDK_TYPES].join(", ")}. Got: ${sdkType}`,
+    `SDK_TYPE env var must be one of: ${[...VALID_SDK_TYPES].join(', ')}. Got: ${sdkType}`,
   );
 }
 
@@ -75,33 +102,35 @@ export function getSdkType(): SdkType {
 export async function byTestId(id: string) {
   const sdkType = getSdkType();
   switch (sdkType) {
-    case "react-native":
-    case "flutter":
-    case "unity":
-    case "cordova":
-    case "dotnet":
-    case "ios":
-    case "android":
+    case 'react-native':
+    case 'flutter':
+    case 'unity':
+    case 'cordova':
+    case 'dotnet':
+    case 'ios':
+    case 'android':
       return $(`~${id}`);
-    case "capacitor":
+    case 'capacitor':
       return $(`[data-testid="${id}"]`);
   }
 }
 
 /**
  * Select an element by visible text content.
- * Useful for buttons/labels without explicit test IDs.
+ * Use partial: true to match elements that contain the text.
  */
-export async function byText(text: string) {
+export async function byText(text: string, partial = false) {
   const platform = getPlatform();
   const sdkType = getSdkType();
 
-  if (sdkType === "capacitor") {
+  if (sdkType === 'capacitor') {
     return $(`//*[contains(text(), "${text}")]`);
   }
 
-  if (platform === "ios") {
-    return $(`-ios predicate string:label == "${text}"`);
+  if (platform === 'ios') {
+    const op = partial ? 'CONTAINS' : '==';
+    return $(`-ios predicate string:label ${op} "${text}"`);
   }
-  return $(`android=new UiSelector().text("${text}")`);
+  const method = partial ? 'textContains' : 'text';
+  return $(`android=new UiSelector().${method}("${text}")`);
 }
