@@ -1,58 +1,38 @@
-import { byTestId } from './selectors.js';
+import { getPlatform } from './selectors.js';
 
-/**
- * Get the current log entry count shown in the header badge.
- */
-export async function getLogCount(): Promise<number> {
-  const countEl = await byTestId('log_view_count');
-  const text = await countEl.getText();
-  const match = text.match(/\d+/);
-  return match ? parseInt(match[0], 10) : 0;
+const BUNDLE_ID = process.env.BUNDLE_ID || 'com.onesignal.example';
+const collectedLogs: string[] = [];
+
+function drainLogs() {
+  const logType = getPlatform() === 'ios' ? 'syslog' : 'logcat';
+  return driver.getLogs(logType);
 }
 
-/**
- * Get the text of a specific log entry by index.
- */
-export async function getLogMessage(index: number): Promise<string> {
-  const messageEl = await byTestId(`log_entry_${index}_message`);
-  return messageEl.getText();
-}
-
-/**
- * Get the level (info/warn/error) of a specific log entry.
- */
-export async function getLogLevel(index: number): Promise<string> {
-  const levelEl = await byTestId(`log_entry_${index}_level`);
-  return levelEl.getText();
-}
-
-/**
- * Check whether any log entry contains the given substring.
- * Scans entries 0..count-1.
- */
-export async function hasLogContaining(substring: string): Promise<boolean> {
-  const count = await getLogCount();
-  for (let i = 0; i < count; i++) {
-    const msg = await getLogMessage(i);
-    if (msg.includes(substring)) {
-      return true;
+async function collectNewLogs(): Promise<void> {
+  const entries = await drainLogs();
+  for (const entry of entries) {
+    const msg = String((entry as Record<string, unknown>).message ?? entry);
+    if (msg.includes(BUNDLE_ID)) {
+      collectedLogs.push(msg);
     }
   }
-  return false;
 }
 
-/**
- * Wait until a log entry containing the substring appears,
- * polling at the given interval.
- */
+export function hasLogContaining(substring: string): boolean {
+  return collectedLogs.some((msg) => msg.includes(substring));
+}
+
+// Avoid using this function and rely on snackbars instead
 export async function waitForLog(
   substring: string,
   timeoutMs = 30_000,
   pollMs = 1_000,
 ): Promise<void> {
+  collectedLogs.length = 0;
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (await hasLogContaining(substring)) {
+    await collectNewLogs();
+    if (hasLogContaining(substring)) {
       return;
     }
     await driver.pause(pollMs);

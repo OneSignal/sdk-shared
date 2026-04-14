@@ -35,6 +35,10 @@
     "title": "Location",
     "description": "Share device location (requires user permission) for location-based segmentation and messaging."
   },
+  "customEvents": {
+    "title": "Custom Events",
+    "description": "Send custom events with optional properties to trigger Journeys, activate Wait Until steps, and power real-time personalized messaging."
+  },
   "trackEvent": {
     "title": "Track Event",
     "description": "Send custom events with optional properties to trigger Journeys, activate Wait Until steps, and power real-time personalized messaging."

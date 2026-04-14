@@ -28,7 +28,7 @@ describe('SMS', () => {
     await el.waitForDisplayed({ timeout: 5_000 });
 
     // remove sms
-    const removeButton = await byTestId(`remove_${sms}`);
+    const removeButton = await byTestId(`sms_remove_${sms}`);
     await removeButton.click();
 
     el = await byText(sms);

@@ -40,7 +40,7 @@ async function swipeMainContent(
   direction: 'up' | 'down',
   distance: 'small' | 'normal' | 'large' = 'normal',
 ) {
-  const distances = { small: 0.3, normal: 0.5, large: 1.0 };
+  const distances = { small: 0.2, normal: 0.5, large: 1.0 };
   const mainScroll = await byTestId('main_scroll_view');
   const platform = getPlatform();
   const invertedDirection = direction === 'up' ? 'down' : 'up';
@@ -88,25 +88,53 @@ export async function scrollToEl(
     if (await el.isDisplayed()) {
       return el;
     }
-    await swipeMainContent(direction, 'normal');
+    await swipeMainContent(direction, 'small');
   }
   throw new Error(`Element "${identifier}" not found after ${maxScrolls} scrolls`);
 }
 
 /**
+ * Wait for a native system alert to appear and return its text.
+ * Returns null if no alert appears within the timeout.
+ */
+export async function waitForAlert(timeoutMs = 10_000): Promise<string | null> {
+  try {
+    await driver.waitUntil(
+      async () => {
+        try {
+          const buttons = await driver.execute('mobile: alert', { action: 'getButtons' });
+          return Array.isArray(buttons) && buttons.length > 0;
+        } catch {
+          return false;
+        }
+      },
+      { timeout: timeoutMs, interval: 250 },
+    );
+    return await driver.getAlertText();
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Wait for the app to fully launch and the home screen to be visible.
- * Uses the log view container as the sentinel element since it's present
- * on the home screen of all demo apps.
  */
 export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
   const { skipLogin = false } = opts;
-  const logView = await byTestId('log_view_container');
-  await logView.waitForDisplayed({ timeout: 5_000 });
+  const mainScroll = await byTestId('main_scroll_view');
+  await mainScroll.waitForDisplayed({ timeout: 5_000 });
 
-  const testUserId = getTestExternalId();
+  const alertHandled = await browser.sharedStore.get('alertHandled');
+  if (!alertHandled) {
+    const alert = await waitForAlert();
+    if (alert) await driver.acceptAlert();
+    await browser.sharedStore.set('alertHandled', true);
+  }
 
   if (skipLogin) return;
 
+  // want to login user so we can't clean up/delete user data for the next rerun
+  const testUserId = getTestExternalId();
   const loggedIn = await browser.sharedStore.get('loggedIn');
   if (!loggedIn) {
     const userIdEl = await scrollToEl('user_external_id_value', { direction: 'up' });
@@ -156,14 +184,14 @@ export async function addTag(key: string, value: string) {
   const addButton = await byTestId('add_tag_button');
   await addButton.click();
 
-  const keyInput = await byTestId('multi_pair_key_0');
+  const keyInput = await byTestId('tag_key_input');
   await keyInput.waitForDisplayed({ timeout: 5_000 });
   await keyInput.setValue(key);
 
-  const valueInput = await byTestId('multi_pair_value_0');
+  const valueInput = await byTestId('tag_value_input');
   await valueInput.setValue(value);
 
-  const confirmButton = await byTestId('multi_pair_confirm_button');
+  const confirmButton = await byTestId('tag_confirm_button');
   await confirmButton.click();
 }
 
@@ -185,11 +213,26 @@ export async function expectPairInSection(sectionId: string, key: string, value:
 }
 
 /**
- * Clear the log view.
+ * Lock the iOS screen and wake it to reveal the lock screen (with notifications).
  */
-export async function clearLogs() {
-  const clearButton = await byTestId('log_view_clear_button');
-  await clearButton.click();
+export async function lockScreen() {
+  await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
+  await driver.lock();
+  await driver.pause(500);
+
+  await driver.execute('mobile: pressButton', { name: 'home' });
+  await driver.pause(500);
+}
+
+/**
+ * Return to the app from SpringBoard / lock screen.
+ */
+export async function returnToApp() {
+  const caps = driver.capabilities as Record<string, unknown>;
+  const bundleId = (caps['bundleId'] ?? caps['appium:bundleId']) as string;
+  await driver.updateSettings({ defaultActiveApplication: bundleId });
+  await driver.execute('mobile: activateApp', { bundleId });
+  await driver.pause(1_000);
 }
 
 /**
@@ -212,9 +255,8 @@ export async function clearAllNotifications() {
  * Android: opens the notification shade, verifies the title (and optionally
  * body) are visible, then closes the shade.
  *
- * iOS: goes to the home screen, switches to the SpringBoard context, then
- * uses W3C touch actions (viewport origin) to swipe down and open the
- * notification center. After verifying the notification, it returns to the app.
+ * iOS: swipes down from the top-left to open the notification center,
+ * verifies the notification, then returns to the app.
  */
 export async function waitForNotification(opts: {
   title: string;
@@ -274,18 +316,12 @@ export async function waitForNotification(opts: {
     return;
   }
 
-  // iOS: swipe down from the top-left of the screen to open notification center
+  // iOS: swipe down from the top-left to open notification center
   // (top-right opens Control Center on iOS 16+)
-  const caps = driver.capabilities as Record<string, unknown>;
-  const bundleId = (caps['bundleId'] ?? caps['appium:bundleId']) as string;
+  await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
 
   await driver.execute('mobile: pressButton', { name: 'home' });
   await driver.pause(1_000);
-
-  await driver.updateSettings({
-    defaultActiveApplication: 'com.apple.springboard',
-  });
-  await driver.pause(500);
 
   const { width, height } = await driver.getWindowSize();
   await driver.performActions([
@@ -349,11 +385,7 @@ export async function waitForNotification(opts: {
     await image.waitForDisplayed({ timeout: 5_000 });
   }
 
-  await driver.execute('mobile: pressButton', { name: 'home' });
-  await driver.pause(500);
-
-  await driver.updateSettings({ defaultActiveApplication: bundleId });
-  await driver.execute('mobile: activateApp', { bundleId });
+  await returnToApp();
 }
 
 export async function checkNotification(opts: {

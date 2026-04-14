@@ -34,6 +34,7 @@ for arg in "$@"; do
   case "$arg" in
     --platform=*)  PLATFORM="${arg#--platform=}" ;;
     --sdk=*)       SDK_TYPE="${arg#--sdk=}" ;;
+    --device=*)    DEVICE="${arg#--device=}" ;;
     --skip)        SKIP_BUILD=true; SKIP_DEVICE=true; SKIP_RESET=true ;;
     --skip-build)  SKIP_BUILD=true ;;
     --skip-device) SKIP_DEVICE=true ;;
@@ -52,6 +53,7 @@ via flags or env vars.
 Options:
   --platform=P     ios | android
   --sdk=S          flutter | react-native
+  --device=NAME    Device/simulator/AVD name (default: iPhone 17 / Samsung Galaxy S26)
   --skip           Skip build, device launch, and app reset (rerun tests only)
   --skip-build     Skip app build (reuse existing)
   --skip-device    Skip simulator/emulator launch
@@ -64,9 +66,7 @@ Env vars (set in .env or export):
   BUNDLE_ID          Bundle/package id (default: com.onesignal.example)
   ONESIGNAL_APP_ID   OneSignal app ID (written to demo app .env)
   ONESIGNAL_API_KEY  OneSignal REST API key (written to demo app .env)
-  DEVICE             Device name for wdio (default: iPhone 17 / Google Pixel 8)
-  OS_VERSION         Platform version (default: 26.2 / 14)
-  AVD_NAME           Android AVD to boot (default: Pixel_8)
+  OS_VERSION         Platform version (default: 26.2 / 16)
   IOS_SIMULATOR      iOS simulator name (default: iPhone 17)
   IOS_RUNTIME        simctl runtime id (default: iOS-26-2)
   APPIUM_PORT        Appium port (default: 4723)
@@ -114,7 +114,6 @@ case "$PLATFORM" in
   *) error "PLATFORM must be 'ios' or 'android', got '$PLATFORM'" ;;
 esac
 
-[[ "$PLATFORM" == "android" ]] && error "Android is not supported yet. Only iOS is available for now."
 [[ "$SDK_TYPE" != "flutter" ]] && error "Only flutter is supported for now. Got '$SDK_TYPE'."
 
 BUNDLE_ID="${BUNDLE_ID:-com.onesignal.example}"
@@ -123,7 +122,11 @@ if [[ "$SDK_TYPE" == "flutter" ]]; then
   FLUTTER_DIR="${FLUTTER_DIR:-$SDK_ROOT/OneSignal-Flutter-SDK}"
   [[ -d "$FLUTTER_DIR" ]] || error "Flutter SDK not found at $FLUTTER_DIR — set FLUTTER_DIR in .env"
   DEMO_DIR="$FLUTTER_DIR/examples/demo"
-  APP_PATH="${APP_PATH:-$DEMO_DIR/build/ios/iphonesimulator/Runner.app}"
+  if [[ "$PLATFORM" == "ios" ]]; then
+    APP_PATH="${APP_PATH:-$DEMO_DIR/build/ios/iphonesimulator/Runner.app}"
+  else
+    APP_PATH="${APP_PATH:-$DEMO_DIR/build/app/outputs/flutter-apk/app-debug.apk}"
+  fi
 fi
 
 # ── Platform defaults ────────────────────────────────────────────────────────
@@ -133,9 +136,9 @@ if [[ "$PLATFORM" == "ios" ]]; then
   IOS_SIMULATOR="${IOS_SIMULATOR:-$DEVICE}"
   IOS_RUNTIME="${IOS_RUNTIME:-iOS-26-2}"
 else
-  DEVICE="${DEVICE:-Google Pixel 8}"
-  OS_VERSION="${OS_VERSION:-14}"
-  AVD_NAME="${AVD_NAME:-Pixel_8}"
+  DEVICE="${DEVICE:-Samsung Galaxy S26}"
+  OS_VERSION="${OS_VERSION:-16}"
+  AVD_NAME="${AVD_NAME:-${DEVICE// /_}}"
 fi
 
 # ── 1. Build app ─────────────────────────────────────────────────────────────
@@ -164,6 +167,28 @@ EOF
   info "App built: $APP_PATH"
 }
 
+build_flutter_android() {
+  if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
+    info "Writing .env for demo app..."
+    cat > "$DEMO_DIR/.env" <<EOF
+ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
+ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
+E2E_MODE=true
+EOF
+  else
+    warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — skipping demo .env"
+  fi
+
+  info "Installing Flutter dependencies..."
+  (cd "$FLUTTER_DIR" && flutter pub get)
+
+  info "Building debug APK (this may take a few minutes)..."
+  (cd "$DEMO_DIR" && flutter build apk --debug)
+
+  [[ -f "$APP_PATH" ]] || error ".apk not found after build at $APP_PATH"
+  info "App built: $APP_PATH"
+}
+
 build_app() {
   if [[ "$SKIP_BUILD" == true ]]; then
     if [[ "$PLATFORM" == "ios" && ! -d "$APP_PATH" ]] || [[ "$PLATFORM" == "android" && ! -f "$APP_PATH" ]]; then
@@ -173,7 +198,11 @@ build_app() {
     return
   fi
 
-  build_flutter_ios
+  if [[ "$PLATFORM" == "ios" ]]; then
+    build_flutter_ios
+  else
+    build_flutter_android
+  fi
 }
 
 # ── 2. Start device ──────────────────────────────────────────────────────────

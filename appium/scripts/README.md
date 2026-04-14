@@ -42,16 +42,16 @@ If `--platform` or `--sdk` are not provided, the script prompts interactively.
 
 ### Options
 
-| Flag | Description |
-|---|---|
-| `--platform=P` | `ios` or `android` |
-| `--sdk=S` | `flutter` or `react-native` |
-| `--spec=GLOB` | Spec file glob (default: `tests/specs/**/*.spec.ts`) |
-| `--skip` | Skip build, device launch, and app reset (rerun tests only) |
-| `--skip-build` | Skip app build (reuse existing `.app`/`.apk`) |
-| `--skip-device` | Skip simulator/emulator launch |
-| `--skip-reset` | Keep existing app data between runs |
-| `-h, --help` | Show help |
+| Flag            | Description                                                 |
+| --------------- | ----------------------------------------------------------- |
+| `--platform=P`  | `ios` or `android`                                          |
+| `--sdk=S`       | `flutter` or `react-native`                                 |
+| `--spec=GLOB`   | Spec file glob (default: `tests/specs/**/*.spec.ts`)        |
+| `--skip`        | Skip build, device launch, and app reset (rerun tests only) |
+| `--skip-build`  | Skip app build (reuse existing `.app`/`.apk`)               |
+| `--skip-device` | Skip simulator/emulator launch                              |
+| `--skip-reset`  | Keep existing app data between runs                         |
+| `-h, --help`    | Show help                                                   |
 
 ### Examples
 
@@ -64,7 +64,13 @@ Run all tests (full build + fresh install):
 Run a single spec file:
 
 ```bash
-./run-local.sh --platform=ios --sdk=flutter --spec="tests/specs/1_user.spec.ts"
+./run-local.sh --platform=ios --sdk=flutter --spec="tests/specs/01_user.spec.ts"
+```
+
+Run multiple spec files:
+
+```bash
+./run-local.sh --platform=ios --sdk=flutter --spec="tests/specs/{01_user,08_outcome}.spec.ts"
 ```
 
 Re-run tests without rebuilding or relaunching the simulator:
@@ -83,19 +89,19 @@ Skip only the build (simulator + reset still happen):
 
 All env vars can be set in `.env` or exported in your shell. See [`.env.example`](.env.example) for the full list.
 
-| Variable | Default | Description |
-|---|---|---|
-| `ONESIGNAL_APP_ID` | -- | OneSignal app ID (written to demo app `.env`) |
-| `ONESIGNAL_API_KEY` | -- | OneSignal REST API key |
-| `FLUTTER_DIR` | `../../OneSignal-Flutter-SDK` | Path to the Flutter SDK repo |
-| `APP_PATH` | auto-detected from build | Path to `.app` or `.apk` |
-| `BUNDLE_ID` | `com.onesignal.example` | App bundle/package ID |
-| `DEVICE` | `iPhone 17` / `Google Pixel 8` | Device name for WebdriverIO |
-| `OS_VERSION` | `26.2` / `14` | Platform version |
-| `IOS_SIMULATOR` | same as `DEVICE` | Simulator name for `simctl` |
-| `IOS_RUNTIME` | `iOS-26-2` | simctl runtime identifier |
-| `AVD_NAME` | `Pixel_8` | Android AVD name |
-| `APPIUM_PORT` | `4723` | Appium server port |
+| Variable            | Default                            | Description                                   |
+| ------------------- | ---------------------------------- | --------------------------------------------- |
+| `ONESIGNAL_APP_ID`  | --                                 | OneSignal app ID (written to demo app `.env`) |
+| `ONESIGNAL_API_KEY` | --                                 | OneSignal REST API key                        |
+| `FLUTTER_DIR`       | `../../OneSignal-Flutter-SDK`      | Path to the Flutter SDK repo                  |
+| `APP_PATH`          | auto-detected from build           | Path to `.app` or `.apk`                      |
+| `BUNDLE_ID`         | `com.onesignal.example`            | App bundle/package ID                         |
+| `DEVICE`            | `iPhone 17` / `Samsung Galaxy S26` | Device name for WebdriverIO                   |
+| `OS_VERSION`        | `26.2` / `16`                      | Platform version                              |
+| `IOS_SIMULATOR`     | same as `DEVICE`                   | Simulator name for `simctl`                   |
+| `IOS_RUNTIME`       | `iOS-26-2`                         | simctl runtime identifier                     |
+| `AVD_NAME`          | `Samsung_Galaxy_S26`               | Android AVD name                              |
+| `APPIUM_PORT`       | `4723`                             | Appium server port                            |
 
 ## Troubleshooting
 
