@@ -67,8 +67,8 @@ Env vars (set in .env or export):
   DEVICE             Device name for wdio (default: iPhone 17 / Google Pixel 8)
   OS_VERSION         Platform version (default: 26.2 / 14)
   AVD_NAME           Android AVD to boot (default: Pixel_8)
-  IOS_SIMULATOR      iOS simulator name (default: iPhone 16)
-  IOS_RUNTIME        simctl runtime id (default: iOS-18-2)
+  IOS_SIMULATOR      iOS simulator name (default: iPhone 17)
+  IOS_RUNTIME        simctl runtime id (default: iOS-26-2)
   APPIUM_PORT        Appium port (default: 4723)
 USAGE
       exit 0
