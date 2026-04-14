@@ -40,7 +40,7 @@ async function swipeMainContent(
   direction: 'up' | 'down',
   distance: 'small' | 'normal' | 'large' = 'normal',
 ) {
-  const distances = { small: 0.3, normal: 0.5, large: 1.0 };
+  const distances = { small: 0.2, normal: 0.5, large: 1.0 };
   const mainScroll = await byTestId('main_scroll_view');
   const platform = getPlatform();
   const invertedDirection = direction === 'up' ? 'down' : 'up';
@@ -86,17 +86,9 @@ export async function scrollToEl(
   for (let i = 0; i < maxScrolls; i++) {
     const el = await finder(identifier);
     if (await el.isDisplayed()) {
-      const { height } = await driver.getWindowSize();
-      const loc = await el.getLocation();
-      const margin = height * 0.15;
-      const nearEdge = direction === 'down' ? loc.y > height - margin : loc.y < margin;
-      if (nearEdge) {
-        await swipeMainContent(direction, 'small');
-        return await finder(identifier);
-      }
       return el;
     }
-    await swipeMainContent(direction, 'normal');
+    await swipeMainContent(direction, 'small');
   }
   throw new Error(`Element "${identifier}" not found after ${maxScrolls} scrolls`);
 }
