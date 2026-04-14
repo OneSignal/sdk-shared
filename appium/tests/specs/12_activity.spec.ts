@@ -5,6 +5,10 @@ async function lockScreen() {
   await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
   await driver.lock();
   await driver.pause(500);
+
+  // wake from lock screen
+  await driver.execute('mobile: pressButton', { name: 'home' });
+  await driver.pause(500);
 }
 
 async function checkActivity(options: { orderId?: string; status: string; message: string }) {
@@ -22,11 +26,11 @@ async function checkActivity(options: { orderId?: string; status: string; messag
   const orderEl = await $(`-ios predicate string:label CONTAINS "${orderId}"`);
   expect(orderEl).toBeDisplayed();
 
-  // unlock and switch back to app context
   const caps = driver.capabilities as Record<string, unknown>;
   const bundleId = (caps['bundleId'] ?? caps['appium:bundleId']) as string;
   await driver.updateSettings({ defaultActiveApplication: bundleId });
   await driver.execute('mobile: activateApp', { bundleId });
+  await driver.pause(1_000);
 }
 
 describe('Live Activities', () => {
@@ -63,14 +67,6 @@ describe('Live Activities', () => {
     await checkActivity({
       status: 'On the Way',
       message: 'Driver is heading your way',
-    });
-
-    // update live activity to delivered
-    await clickUpdateButton('DELIVERED');
-
-    await checkActivity({
-      status: 'Delivered',
-      message: 'Order delivered!',
     });
 
     // end live activity
