@@ -93,6 +93,7 @@ export async function scrollToEl(
         direction === 'down' ? loc.y > height - margin : loc.y < margin;
       if (nearEdge) {
         await swipeMainContent(direction, 'small');
+        return await finder(identifier);
       }
       return el;
     }
@@ -192,14 +193,14 @@ export async function addTag(key: string, value: string) {
   const addButton = await byTestId('add_tag_button');
   await addButton.click();
 
-  const keyInput = await byTestId('multi_pair_key_0');
+  const keyInput = await byTestId('tag_key_input');
   await keyInput.waitForDisplayed({ timeout: 5_000 });
   await keyInput.setValue(key);
 
-  const valueInput = await byTestId('multi_pair_value_0');
+  const valueInput = await byTestId('tag_value_input');
   await valueInput.setValue(value);
 
-  const confirmButton = await byTestId('multi_pair_confirm_button');
+  const confirmButton = await byTestId('tag_confirm_button');
   await confirmButton.click();
 }
 

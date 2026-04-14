@@ -64,7 +64,13 @@ Run all tests (full build + fresh install):
 Run a single spec file:
 
 ```bash
-./run-local.sh --platform=ios --sdk=flutter --spec="tests/specs/1_user.spec.ts"
+./run-local.sh --platform=ios --sdk=flutter --spec="tests/specs/01_user.spec.ts"
+```
+
+Run multiple spec files:
+
+```bash
+./run-local.sh --platform=ios --sdk=flutter --spec="tests/specs/{01_user,08_outcome}.spec.ts"
 ```
 
 Re-run tests without rebuilding or relaunching the simulator:
