@@ -94,6 +94,29 @@ export async function scrollToEl(
 }
 
 /**
+ * Wait for a native system alert to appear and return its text.
+ * Returns null if no alert appears within the timeout.
+ */
+export async function waitForAlert(timeoutMs = 10_000): Promise<string | null> {
+  try {
+    await driver.waitUntil(
+      async () => {
+        try {
+          const buttons = await driver.execute('mobile: alert', { action: 'getButtons' });
+          return Array.isArray(buttons) && buttons.length > 0;
+        } catch {
+          return false;
+        }
+      },
+      { timeout: timeoutMs, interval: 250 },
+    );
+    return await driver.getAlertText();
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Wait for the app to fully launch and the home screen to be visible.
  */
 export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
@@ -101,10 +124,17 @@ export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
   const mainScroll = await byTestId('main_scroll_view');
   await mainScroll.waitForDisplayed({ timeout: 5_000 });
 
-  const testUserId = getTestExternalId();
+  const alertHandled = await browser.sharedStore.get('alertHandled');
+  if (!alertHandled) {
+    const alert = await waitForAlert();
+    if (alert) await driver.acceptAlert();
+    await browser.sharedStore.set('alertHandled', true);
+  }
 
   if (skipLogin) return;
 
+  // want to login user so we can't clean up/delete user data for the next rerun
+  const testUserId = getTestExternalId();
   const loggedIn = await browser.sharedStore.get('loggedIn');
   if (!loggedIn) {
     const userIdEl = await scrollToEl('user_external_id_value', { direction: 'up' });

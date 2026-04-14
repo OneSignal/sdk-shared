@@ -44,12 +44,12 @@ cp .env.example .env   # add your OneSignal credentials
 
 Tests are numbered to run in dependency order (user login happens before push/email/SMS tests that require a logged-in user):
 
-| File | Description |
-|---|---|
-| `1_user.spec.ts` | Login, logout, anonymous state |
-| `2_push.spec.ts` | Push subscription |
-| `3_iam.spec.ts` | In-app messaging |
-| `4_alias.spec.ts` | Alias operations |
-| `5_email.spec.ts` | Email subscription |
-| `6_sms.spec.ts` | SMS subscription |
-| `7_tag.spec.ts` | Tag operations |
+| File              | Description                    |
+| ----------------- | ------------------------------ |
+| `1_user.spec.ts`  | Login, logout, anonymous state |
+| `2_push.spec.ts`  | Push subscription              |
+| `3_iam.spec.ts`   | In-app messaging               |
+| `4_alias.spec.ts` | Alias operations               |
+| `5_email.spec.ts` | Email subscription             |
+| `6_sms.spec.ts`   | SMS subscription               |
+| `7_tag.spec.ts`   | Tag operations                 |

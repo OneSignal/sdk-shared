@@ -1,6 +1,6 @@
 import { checkTooltip, scrollToEl, waitForAppReady } from '../helpers/app';
-import { byTestId, byText } from '../helpers/selectors.js';
 import { waitForLog } from '../helpers/logger.js';
+import { byTestId, byText } from '../helpers/selectors.js';
 
 describe('Outcomes', () => {
   before(async () => {
