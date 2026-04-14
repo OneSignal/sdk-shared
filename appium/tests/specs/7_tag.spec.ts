@@ -16,14 +16,14 @@ describe('Tags', () => {
     await addButton.click();
 
     // add tag
-    const keyInput = await byTestId('multi_pair_key_0');
+    const keyInput = await byTestId('tag_key_input');
     await keyInput.waitForDisplayed({ timeout: 5_000 });
     await keyInput.setValue('test_tag');
 
-    const valueInput = await byTestId('multi_pair_value_0');
+    const valueInput = await byTestId('tag_value_input');
     await valueInput.setValue('test_tag_value');
 
-    const confirmButton = await byTestId('multi_pair_confirm_button');
+    const confirmButton = await byTestId('tag_confirm_button');
     await confirmButton.click();
 
     await expectPairInSection('tags', 'test_tag', 'test_tag_value');
