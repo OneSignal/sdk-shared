@@ -1,0 +1,290 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+APPIUM_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# ── Load .env if present ─────────────────────────────────────────────────────
+if [[ -f "$SCRIPT_DIR/.env" ]]; then
+  set -a
+  source "$SCRIPT_DIR/.env"
+  set +a
+fi
+
+# ── Colors / logging ─────────────────────────────────────────────────────────
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+info()  { echo -e "${GREEN}[INFO]${NC} $*"; }
+warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
+error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
+
+# ── Defaults ──────────────────────────────────────────────────────────────────
+APPIUM_PORT="${APPIUM_PORT:-4723}"
+SKIP_DEVICE=false
+SKIP_RESET=false
+SPEC="tests/specs/**/*.spec.ts"
+
+# ── Parse args ────────────────────────────────────────────────────────────────
+for arg in "$@"; do
+  case "$arg" in
+    --platform=*)  PLATFORM="${arg#--platform=}" ;;
+    --sdk=*)       SDK_TYPE="${arg#--sdk=}" ;;
+    --skip)        SKIP_DEVICE=true; SKIP_RESET=true ;;
+    --skip-device) SKIP_DEVICE=true ;;
+    --skip-reset)  SKIP_RESET=true ;;
+    --spec=*)      SPEC="${arg#--spec=}" ;;
+    --help|-h)
+      cat <<USAGE
+Usage: $0 [OPTIONS]
+
+Starts Appium + simulator/emulator and runs E2E tests locally.
+The app must already be built — this script does not build it.
+
+PLATFORM and SDK_TYPE are prompted interactively when not provided
+via flags or env vars.
+
+Options:
+  --platform=P     ios | android
+  --sdk=S          flutter | react-native
+  --skip           Skip device launch and app reset (rerun tests only)
+  --skip-device    Skip simulator/emulator launch
+  --skip-reset     Keep existing app data
+  --spec=GLOB      Spec glob (default: tests/specs/**/*.spec.ts)
+  -h, --help       Show this help
+
+Env vars (set in .env or export):
+  APP_PATH           Path to the .app (iOS) or .apk (Android)  [required]
+  BUNDLE_ID          Bundle/package id (e.g. com.onesignal.example)
+  ONESIGNAL_APP_ID   OneSignal app ID
+  ONESIGNAL_API_KEY  OneSignal REST API key
+  DEVICE             Device name for wdio (default: iPhone 16 / Google Pixel 8)
+  OS_VERSION         Platform version (default: 18 / 14)
+  AVD_NAME           Android AVD to boot (default: Pixel_8)
+  IOS_SIMULATOR      iOS simulator name (default: iPhone 16)
+  IOS_RUNTIME        simctl runtime id (default: iOS-18-2)
+  APPIUM_PORT        Appium port (default: 4723)
+USAGE
+      exit 0
+      ;;
+    *) warn "Unknown option: $arg (ignored)" ;;
+  esac
+done
+
+# ── Prompt for required vars if not set ───────────────────────────────────────
+prompt_choice() {
+  local var_name="$1" prompt_text="$2"
+  shift 2
+  local options=("$@")
+
+  if [[ -n "${!var_name:-}" ]]; then
+    return
+  fi
+
+  echo ""
+  echo -e "${GREEN}${prompt_text}${NC}"
+  local i=1
+  for opt in "${options[@]}"; do
+    echo "  $i) $opt"
+    i=$((i + 1))
+  done
+
+  local choice
+  while true; do
+    read -rp "> " choice
+    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#options[@]} )); then
+      printf -v "$var_name" '%s' "${options[$((choice - 1))]}"
+      return
+    fi
+    echo "  Invalid choice. Enter a number 1-${#options[@]}."
+  done
+}
+
+prompt_choice PLATFORM "Select platform:" ios android
+prompt_choice SDK_TYPE "Select SDK type:" flutter react-native
+
+case "$PLATFORM" in
+  ios|android) ;;
+  *) error "PLATFORM must be 'ios' or 'android', got '$PLATFORM'" ;;
+esac
+
+: "${APP_PATH:?APP_PATH is required. Set it in .env or export it.}"
+
+if [[ "$PLATFORM" == "ios" ]]; then
+  [[ -d "$APP_PATH" ]] || error "APP_PATH does not exist: $APP_PATH"
+else
+  [[ -f "$APP_PATH" ]] || error "APP_PATH does not exist: $APP_PATH"
+fi
+
+# ── Platform defaults ────────────────────────────────────────────────────────
+if [[ "$PLATFORM" == "ios" ]]; then
+  DEVICE="${DEVICE:-iPhone 16}"
+  OS_VERSION="${OS_VERSION:-18}"
+  IOS_SIMULATOR="${IOS_SIMULATOR:-$DEVICE}"
+  IOS_RUNTIME="${IOS_RUNTIME:-iOS-18-2}"
+else
+  DEVICE="${DEVICE:-Google Pixel 8}"
+  OS_VERSION="${OS_VERSION:-14}"
+  AVD_NAME="${AVD_NAME:-Pixel_8}"
+fi
+
+# ── 1. Start device ──────────────────────────────────────────────────────────
+start_ios_simulator() {
+  if xcrun simctl list devices booted 2>/dev/null | grep -q "Booted"; then
+    info "Simulator already running"
+    return
+  fi
+
+  local udid
+  udid=$(xcrun simctl list devices available -j \
+    | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for runtime, devices in data['devices'].items():
+    if '$IOS_RUNTIME' in runtime:
+        for d in devices:
+            if d['name'] == '$IOS_SIMULATOR' and d['isAvailable']:
+                print(d['udid']); sys.exit(0)
+" 2>/dev/null || true)
+
+  if [[ -z "$udid" ]]; then
+    error "Simulator '$IOS_SIMULATOR' ($IOS_RUNTIME) not found. Run: xcrun simctl list devices available"
+  fi
+
+  info "Booting simulator '$IOS_SIMULATOR' ($udid)..."
+  xcrun simctl boot "$udid" 2>/dev/null || true
+  open -a Simulator
+
+  info "Waiting for simulator..."
+  local retries=0
+  while ! xcrun simctl list devices booted 2>/dev/null | grep -q "Booted"; do
+    retries=$((retries + 1))
+    [[ $retries -gt 60 ]] && error "Simulator failed to boot after 60s"
+    sleep 1
+  done
+  info "Simulator ready"
+}
+
+start_android_emulator() {
+  if adb devices 2>/dev/null | grep -q "emulator-"; then
+    info "Emulator already running"
+    return
+  fi
+
+  info "Starting emulator '$AVD_NAME'..."
+  emulator -avd "$AVD_NAME" -no-audio -no-boot-anim &
+
+  info "Waiting for emulator to boot..."
+  adb wait-for-device
+  local boot=""
+  while [[ "$boot" != "1" ]]; do
+    boot=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
+    sleep 2
+  done
+  info "Emulator booted"
+}
+
+start_device() {
+  if [[ "$SKIP_DEVICE" == true ]]; then
+    info "Skipping device launch (--skip-device)"
+    return
+  fi
+
+  if [[ "$PLATFORM" == "ios" ]]; then
+    start_ios_simulator
+  else
+    start_android_emulator
+  fi
+}
+
+# ── 2. Start Appium ──────────────────────────────────────────────────────────
+start_appium() {
+  if curl -s "http://localhost:$APPIUM_PORT/status" | grep -q '"ready":true' 2>/dev/null; then
+    info "Appium already running on port $APPIUM_PORT"
+    return
+  fi
+
+  info "Starting Appium on port $APPIUM_PORT..."
+  appium --port "$APPIUM_PORT" --log-level error &
+  local pid=$!
+
+  local retries=0
+  while ! curl -s "http://localhost:$APPIUM_PORT/status" | grep -q '"ready":true' 2>/dev/null; do
+    retries=$((retries + 1))
+    [[ $retries -gt 30 ]] && error "Appium failed to start after 30s"
+    sleep 1
+  done
+  info "Appium ready (pid $pid)"
+}
+
+# ── 3. Reset app ─────────────────────────────────────────────────────────────
+reset_app() {
+  if [[ "$SKIP_RESET" == true ]]; then
+    info "Skipping app reset (--skip-reset)"
+    return
+  fi
+
+  if [[ "$PLATFORM" == "ios" ]]; then
+    local bundle="${BUNDLE_ID:-}"
+    if [[ -z "$bundle" ]]; then
+      info "No BUNDLE_ID set — skipping reset"
+      return
+    fi
+    if xcrun simctl listapps booted 2>/dev/null | grep -q "$bundle"; then
+      info "Uninstalling $bundle..."
+      xcrun simctl uninstall booted "$bundle" 2>/dev/null || true
+    else
+      info "App not installed — nothing to reset"
+    fi
+  else
+    local package="${BUNDLE_ID:-}"
+    if [[ -z "$package" ]]; then
+      info "No BUNDLE_ID set — skipping reset"
+      return
+    fi
+    if adb shell pm list packages 2>/dev/null | grep -q "$package"; then
+      info "Uninstalling $package..."
+      adb uninstall "$package" 2>/dev/null || true
+    else
+      info "App not installed — nothing to reset"
+    fi
+  fi
+}
+
+# ── 4. Run tests ─────────────────────────────────────────────────────────────
+run_tests() {
+  cd "$APPIUM_DIR"
+  info "Installing test dependencies..."
+  bun i
+
+  local conf="wdio.${PLATFORM}.conf.ts"
+  info "Running tests (conf: $conf, spec: $SPEC)..."
+
+  SDK_TYPE="$SDK_TYPE" \
+  PLATFORM="$PLATFORM" \
+  APP_PATH="$APP_PATH" \
+  DEVICE="$DEVICE" \
+  OS_VERSION="$OS_VERSION" \
+  ${BUNDLE_ID:+BUNDLE_ID="$BUNDLE_ID"} \
+  ${ONESIGNAL_APP_ID:+ONESIGNAL_APP_ID="$ONESIGNAL_APP_ID"} \
+  ${ONESIGNAL_API_KEY:+ONESIGNAL_API_KEY="$ONESIGNAL_API_KEY"} \
+  bunx wdio run "$conf" --spec "$SPEC"
+}
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+main() {
+  info "=== OneSignal E2E — $SDK_TYPE / $PLATFORM ==="
+  echo ""
+
+  start_device
+  start_appium
+  reset_app
+  run_tests
+
+  echo ""
+  info "=== Done ==="
+}
+
+main
