@@ -5,15 +5,6 @@ async function lockScreen() {
   await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
   await driver.lock();
   await driver.pause(500);
-
-  // // wake from lock screen
-  // await driver.execute('mobile: pressButton', { name: 'home' });
-  // await driver.pause(500);
-
-  // const allowButton = await $(`-ios predicate string:label == "Allow"`);
-  // if (await allowButton.isExisting()) {
-  //   await allowButton.click();
-  // }
 }
 
 async function checkActivity(options: { orderId?: string; status: string; message: string }) {
@@ -36,7 +27,6 @@ async function checkActivity(options: { orderId?: string; status: string; messag
   const bundleId = (caps['bundleId'] ?? caps['appium:bundleId']) as string;
   await driver.updateSettings({ defaultActiveApplication: bundleId });
   await driver.execute('mobile: activateApp', { bundleId });
-  await driver.pause(2_000);
 }
 
 describe('Live Activities', () => {
@@ -56,14 +46,19 @@ describe('Live Activities', () => {
     const startButton = await scrollToEl('START LIVE ACTIVITY', { by: 'text' });
     await startButton.click();
 
+    const clickUpdateButton = async (status: string) => {
+      let updateButton = await scrollToEl(`UPDATE → ${status}`, { by: 'text' });
+      await updateButton.click();
+      await driver.pause(3_000);
+    };
+
     await checkActivity({
       status: 'Preparing',
       message: 'Your order is being prepared',
     });
 
     // update live activity to on the way
-    let updateButton = await scrollToEl('UPDATE → ON THE WAY', { by: 'text' });
-    await updateButton.click();
+    await clickUpdateButton('ON THE WAY');
 
     await checkActivity({
       status: 'On the Way',
@@ -71,8 +66,7 @@ describe('Live Activities', () => {
     });
 
     // update live activity to delivered
-    updateButton = await scrollToEl('UPDATE → DELIVERED', { by: 'text' });
-    await updateButton.click();
+    await clickUpdateButton('DELIVERED');
 
     await checkActivity({
       status: 'Delivered',
@@ -82,6 +76,7 @@ describe('Live Activities', () => {
     // end live activity
     const endButton = await scrollToEl('END LIVE ACTIVITY', { by: 'text' });
     await endButton.click();
+    await driver.pause(3_000);
     await lockScreen();
 
     const activityEl = await $(`-ios predicate string:label CONTAINS "ORD-1234"`);
