@@ -6,6 +6,11 @@ describe('Push Subscription', () => {
     await scrollToEl('push_section');
   });
 
+  it('should show correct tooltip info', async () => {
+    await checkTooltip('push_info_icon', 'push');
+    await checkTooltip('send_push_info_icon', 'sendPushNotification');
+  });
+
   it('should have push ID and be enabled initially', async () => {
     const pushIdEl = await scrollToEl('push_id_value');
     const pushId = await pushIdEl.getText();
@@ -15,11 +20,6 @@ describe('Push Subscription', () => {
     const toggleEl = await scrollToEl('Enabled', { by: 'text' });
     const value = await toggleEl.getAttribute('value');
     expect(value).toBe('1');
-  });
-
-  it('should show correct tooltip info', async () => {
-    await checkTooltip('push_info_icon', 'push');
-    await checkTooltip('send_push_info_icon', 'sendPushNotification');
   });
 
   it('can send an image notification', async () => {

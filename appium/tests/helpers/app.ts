@@ -86,6 +86,14 @@ export async function scrollToEl(
   for (let i = 0; i < maxScrolls; i++) {
     const el = await finder(identifier);
     if (await el.isDisplayed()) {
+      const { height } = await driver.getWindowSize();
+      const loc = await el.getLocation();
+      const margin = height * 0.15;
+      const nearEdge =
+        direction === 'down' ? loc.y > height - margin : loc.y < margin;
+      if (nearEdge) {
+        await swipeMainContent(direction, 'small');
+      }
       return el;
     }
     await swipeMainContent(direction, 'normal');
