@@ -89,8 +89,7 @@ export async function scrollToEl(
       const { height } = await driver.getWindowSize();
       const loc = await el.getLocation();
       const margin = height * 0.15;
-      const nearEdge =
-        direction === 'down' ? loc.y > height - margin : loc.y < margin;
+      const nearEdge = direction === 'down' ? loc.y > height - margin : loc.y < margin;
       if (nearEdge) {
         await swipeMainContent(direction, 'small');
         return await finder(identifier);
@@ -135,6 +134,7 @@ export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
 
   const alertHandled = await browser.sharedStore.get('alertHandled');
   if (!alertHandled) {
+    await driver.pause(5_000); // TOOD: remove
     const alert = await waitForAlert();
     if (alert) await driver.acceptAlert();
     await browser.sharedStore.set('alertHandled', true);
