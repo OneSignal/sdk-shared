@@ -29,7 +29,7 @@ describe('Emails', () => {
     await el.waitForDisplayed({ timeout: 5_000 });
 
     // remove email
-    const removeButton = await byTestId(`remove_${email}`);
+    const removeButton = await byTestId(`emails_remove_${email}`);
     await removeButton.click();
 
     el = await byText(email);
