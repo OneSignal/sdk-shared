@@ -51,11 +51,12 @@ describe('Outcomes', () => {
     const sendButton = await scrollToEl('SEND OUTCOME', { by: 'text' });
     await sendButton.click();
 
+    const nameInput = await byTestId('outcome_name_input');
+    await nameInput.waitForDisplayed({ timeout: 5_000 });
+
     const withValueRadio = await byText('Outcome with Value');
     await withValueRadio.click();
 
-    const nameInput = await byTestId('outcome_name_input');
-    await nameInput.waitForDisplayed({ timeout: 5_000 });
     await nameInput.setValue('test_valued');
 
     const valueInput = await byTestId('outcome_value_input');

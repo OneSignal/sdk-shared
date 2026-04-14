@@ -55,7 +55,7 @@ describe('Triggers', () => {
 
     await expectPairInSection('triggers', 'test_trigger_key', 'test_trigger_value');
 
-    // remove tag
+    // remove trigger
     const removeButton = await byTestId(`triggers_remove_test_trigger_key`);
     await removeButton.click();
 

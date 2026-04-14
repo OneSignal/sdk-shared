@@ -44,17 +44,17 @@ cp .env.example .env   # add your OneSignal credentials
 
 Tests are numbered to run in dependency order (user login happens before push/email/SMS tests that require a logged-in user):
 
-| File                   | Description                    |
-| ---------------------- | ------------------------------ |
-| `01_user.spec.ts`      | Login, logout, anonymous state |
-| `02_push.spec.ts`      | Push subscription              |
-| `03_iam.spec.ts`       | In-app messaging               |
-| `04_alias.spec.ts`     | Alias operations               |
-| `05_email.spec.ts`     | Email subscription             |
-| `06_sms.spec.ts`       | SMS subscription               |
-| `07_tag.spec.ts`       | Tag operations                 |
-| `08_outcome.spec.ts`   | Outcome sending                |
-| `09_trigger.spec.ts`   | Trigger add/remove/clear       |
-| `10_event.spec.ts`     | Custom event tracking          |
-| `11_location.spec.ts`  | Location prompting and sharing |
-| `12_activity.spec.ts`  | iOS Live Activity lifecycle    |
+| File                  | Description                    |
+| --------------------- | ------------------------------ |
+| `01_user.spec.ts`     | Login, logout, anonymous state |
+| `02_push.spec.ts`     | Push subscription              |
+| `03_iam.spec.ts`      | In-app messaging               |
+| `04_alias.spec.ts`    | Alias operations               |
+| `05_email.spec.ts`    | Email subscription             |
+| `06_sms.spec.ts`      | SMS subscription               |
+| `07_tag.spec.ts`      | Tag operations                 |
+| `08_outcome.spec.ts`  | Outcome sending                |
+| `09_trigger.spec.ts`  | Trigger add/remove/clear       |
+| `10_event.spec.ts`    | Custom event tracking          |
+| `11_location.spec.ts` | Location prompting and sharing |
+| `12_activity.spec.ts` | iOS Live Activity lifecycle    |

@@ -28,6 +28,7 @@ export async function waitForLog(
   timeoutMs = 30_000,
   pollMs = 1_000,
 ): Promise<void> {
+  collectedLogs.length = 0;
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     await collectNewLogs();

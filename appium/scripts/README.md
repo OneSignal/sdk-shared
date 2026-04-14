@@ -89,19 +89,19 @@ Skip only the build (simulator + reset still happen):
 
 All env vars can be set in `.env` or exported in your shell. See [`.env.example`](.env.example) for the full list.
 
-| Variable            | Default                        | Description                                   |
-| ------------------- | ------------------------------ | --------------------------------------------- |
-| `ONESIGNAL_APP_ID`  | --                             | OneSignal app ID (written to demo app `.env`) |
-| `ONESIGNAL_API_KEY` | --                             | OneSignal REST API key                        |
-| `FLUTTER_DIR`       | `../../OneSignal-Flutter-SDK`  | Path to the Flutter SDK repo                  |
-| `APP_PATH`          | auto-detected from build       | Path to `.app` or `.apk`                      |
-| `BUNDLE_ID`         | `com.onesignal.example`        | App bundle/package ID                         |
-| `DEVICE`            | `iPhone 17` / `Google Pixel 8` | Device name for WebdriverIO                   |
-| `OS_VERSION`        | `26.2` / `14`                  | Platform version                              |
-| `IOS_SIMULATOR`     | same as `DEVICE`               | Simulator name for `simctl`                   |
-| `IOS_RUNTIME`       | `iOS-26-2`                     | simctl runtime identifier                     |
-| `AVD_NAME`          | `Pixel_8`                      | Android AVD name                              |
-| `APPIUM_PORT`       | `4723`                         | Appium server port                            |
+| Variable            | Default                            | Description                                   |
+| ------------------- | ---------------------------------- | --------------------------------------------- |
+| `ONESIGNAL_APP_ID`  | --                                 | OneSignal app ID (written to demo app `.env`) |
+| `ONESIGNAL_API_KEY` | --                                 | OneSignal REST API key                        |
+| `FLUTTER_DIR`       | `../../OneSignal-Flutter-SDK`      | Path to the Flutter SDK repo                  |
+| `APP_PATH`          | auto-detected from build           | Path to `.app` or `.apk`                      |
+| `BUNDLE_ID`         | `com.onesignal.example`            | App bundle/package ID                         |
+| `DEVICE`            | `iPhone 17` / `Samsung Galaxy S26` | Device name for WebdriverIO                   |
+| `OS_VERSION`        | `26.2` / `16`                      | Platform version                              |
+| `IOS_SIMULATOR`     | same as `DEVICE`                   | Simulator name for `simctl`                   |
+| `IOS_RUNTIME`       | `iOS-26-2`                         | simctl runtime identifier                     |
+| `AVD_NAME`          | `Samsung_Galaxy_S26`               | Android AVD name                              |
+| `APPIUM_PORT`       | `4723`                             | Appium server port                            |
 
 ## Troubleshooting
 

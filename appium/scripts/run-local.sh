@@ -53,7 +53,7 @@ via flags or env vars.
 Options:
   --platform=P     ios | android
   --sdk=S          flutter | react-native
-  --device=NAME    Device/simulator/AVD name (default: iPhone 17 / Google Pixel 8)
+  --device=NAME    Device/simulator/AVD name (default: iPhone 17 / Samsung Galaxy S26)
   --skip           Skip build, device launch, and app reset (rerun tests only)
   --skip-build     Skip app build (reuse existing)
   --skip-device    Skip simulator/emulator launch
@@ -66,7 +66,7 @@ Env vars (set in .env or export):
   BUNDLE_ID          Bundle/package id (default: com.onesignal.example)
   ONESIGNAL_APP_ID   OneSignal app ID (written to demo app .env)
   ONESIGNAL_API_KEY  OneSignal REST API key (written to demo app .env)
-  OS_VERSION         Platform version (default: 26.2 / 14)
+  OS_VERSION         Platform version (default: 26.2 / 16)
   IOS_SIMULATOR      iOS simulator name (default: iPhone 17)
   IOS_RUNTIME        simctl runtime id (default: iOS-26-2)
   APPIUM_PORT        Appium port (default: 4723)
@@ -136,7 +136,7 @@ if [[ "$PLATFORM" == "ios" ]]; then
   IOS_SIMULATOR="${IOS_SIMULATOR:-$DEVICE}"
   IOS_RUNTIME="${IOS_RUNTIME:-iOS-26-2}"
 else
-  DEVICE="${DEVICE:-Android 16}"
+  DEVICE="${DEVICE:-Samsung Galaxy S26}"
   OS_VERSION="${OS_VERSION:-16}"
   AVD_NAME="${AVD_NAME:-${DEVICE// /_}}"
 fi

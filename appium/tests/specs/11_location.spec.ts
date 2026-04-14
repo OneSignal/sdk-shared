@@ -26,18 +26,18 @@ describe('Location', () => {
   });
 
   it('can share location', async () => {
-    const checkSharedButton = await scrollToEl('CHECK LOCATION SHARED', { by: 'text' });
+    let checkSharedButton = await scrollToEl('CHECK LOCATION SHARED', { by: 'text' });
     await checkSharedButton.click();
 
     let snackbar = await byText('Location shared: false');
     await snackbar.waitForDisplayed({ timeout: 5_000 });
-    expect(snackbar).toBeDefined();
 
     // toggle location sharing on
     const shareButton = await scrollToEl('Share device location', { by: 'text', partial: true });
     await shareButton.click();
 
-    // verify it's now shared
+    // verify it's now shared — re-fetch to avoid stale reference after scroll
+    checkSharedButton = await scrollToEl('CHECK LOCATION SHARED', { by: 'text' });
     await checkSharedButton.click();
     snackbar = await byText('Location shared: true');
     await snackbar.waitForDisplayed({ timeout: 5_000 });

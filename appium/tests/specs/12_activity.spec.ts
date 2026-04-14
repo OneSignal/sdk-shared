@@ -1,20 +1,25 @@
-import { waitForAppReady, scrollToEl, checkTooltip, lockScreen, returnToApp } from '../helpers/app.js';
+import {
+  waitForAppReady,
+  scrollToEl,
+  checkTooltip,
+  lockScreen,
+  returnToApp,
+} from '../helpers/app.js';
 import { getPlatform } from '../helpers/selectors.js';
 
 async function checkActivity(options: { orderId?: string; status: string; message: string }) {
   const { orderId = 'ORD-1234', status, message } = options;
 
-  // lock screen Lock Screen with Live Activity
   await lockScreen();
 
   const statusEl = await $(`-ios predicate string:label CONTAINS "${status}"`);
   await statusEl.waitForDisplayed({ timeout: 10_000 });
 
   const messageEl = await $(`-ios predicate string:label CONTAINS "${message}"`);
-  expect(messageEl).toBeDisplayed();
+  await expect(messageEl).toBeDisplayed();
 
   const orderEl = await $(`-ios predicate string:label CONTAINS "${orderId}"`);
-  expect(orderEl).toBeDisplayed();
+  await expect(orderEl).toBeDisplayed();
 
   await returnToApp();
 }

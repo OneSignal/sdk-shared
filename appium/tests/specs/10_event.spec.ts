@@ -1,4 +1,4 @@
-import { checkTooltip, scrollToEl, waitForAppReady } from '../helpers/app';
+import { scrollToEl, waitForAppReady } from '../helpers/app';
 import { byTestId, byText, getTestData } from '../helpers/selectors.js';
 
 const TEST_JSON = {
