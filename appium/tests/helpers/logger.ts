@@ -22,6 +22,7 @@ export function hasLogContaining(substring: string): boolean {
   return collectedLogs.some((msg) => msg.includes(substring));
 }
 
+// Avoid using this function and rely on snackbars instead
 export async function waitForLog(
   substring: string,
   timeoutMs = 30_000,
