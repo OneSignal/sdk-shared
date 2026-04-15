@@ -22,6 +22,7 @@ export const config: WebdriverIO.Config = {
 
       // Hide keyboard during session
       'appium:hideKeyboard': true,
+      'appium:chromedriverAutodownload': true,
     },
   ],
 };
