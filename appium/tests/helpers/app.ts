@@ -170,11 +170,13 @@ export async function acceptSystemAlert(timeoutMs = 10_000): Promise<string | nu
 }
 
 async function acceptSystemAlerts(timeoutMs: number): Promise<void> {
-  const alertText = await acceptSystemAlert(timeoutMs);
-  if (!alertText) return;
-
-  await driver.pause(500);
-  await acceptSystemAlerts(1_000);
+  await browser.waitUntil(
+    async () => {
+      const alertText = await acceptSystemAlert(500);
+      return !alertText;
+    },
+    { timeout: timeoutMs, interval: 500 },
+  );
 }
 
 /**

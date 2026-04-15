@@ -19,6 +19,9 @@ export const config: WebdriverIO.Config = {
       // Disable ID locator autocompletion to avoid Flutter's Semantics(container:true) wrapping inputs in a View.
       // @ts-expect-error - Appium types are not fully compatible with WebdriverIO types
       'appium:settings[disableIdLocatorAutocompletion]': true,
+
+      // Hide keyboard during session
+      'appium:hideKeyboard': true,
     },
   ],
 };
