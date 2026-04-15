@@ -1,5 +1,5 @@
 import { waitForAppReady, waitForAlert, scrollToEl, checkTooltip } from '../helpers/app.js';
-import { byText } from '../helpers/selectors.js';
+import { byText, getPlatform } from '../helpers/selectors.js';
 
 describe('Location', () => {
   before(async () => {
@@ -16,13 +16,19 @@ describe('Location', () => {
     await promptButton.click();
 
     await driver.pause(3_000);
-    const alert = await waitForAlert();
 
-    expect(alert).toContain('location');
-    await driver.execute('mobile: alert', {
-      action: 'accept',
-      buttonLabel: 'Allow While Using App',
-    });
+    if (getPlatform() === 'ios') {
+      const alert = await waitForAlert();
+      expect(alert).toContain('location');
+      await driver.execute('mobile: alert', {
+        action: 'accept',
+        buttonLabel: 'Allow While Using App',
+      });
+    } else {
+      const allowBtn = await byText('While using the app');
+      await allowBtn.waitForDisplayed({ timeout: 10_000 });
+      await allowBtn.click();
+    }
   });
 
   it('can share location', async () => {

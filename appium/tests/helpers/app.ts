@@ -99,8 +99,14 @@ export async function scrollToEl(
   const finder = (id: string) => (by === 'text' ? byText(id, partial) : byTestId(id));
 
   for (let i = 0; i < maxScrolls; i++) {
-    const el = await finder(identifier);
+    let el = await finder(identifier);
     if (await el.isDisplayed()) {
+      const { y } = await el.getLocation();
+      const { height } = await driver.getWindowSize();
+      if (y > height * 0.9) {
+        await swipeMainContent(direction, 'small');
+        el = await finder(identifier);
+      }
       return el;
     }
     await swipeMainContent(direction);
