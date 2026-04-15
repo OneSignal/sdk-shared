@@ -144,6 +144,51 @@ export function getSdkType(): SdkType {
 }
 
 /**
+ * On Flutter Android, the standard WebDriver getText() often returns empty
+ * because Flutter writes text into content-desc / text attributes rather than
+ * the property that UiAutomator2's getText maps to. This proxy intercepts
+ * getText() and falls back to those attributes.
+ */
+function withFlutterAndroidFixes<T extends { getText(): Promise<string> }>(el: T): T {
+  if (!(getPlatform() === 'android' && getSdkType() === 'flutter')) {
+    return el;
+  }
+
+  return new Proxy(el, {
+    get(target, prop, receiver) {
+      if (prop === 'getText') {
+        return async () => {
+          const text = (await target.getText()).trim();
+          if (text) return text;
+
+          const attrs = ['content-desc', 'contentDescription', 'text', 'name'];
+          for (const attr of attrs) {
+            try {
+              const val = (
+                await (target as unknown as { getAttribute(n: string): Promise<string | null> })
+                  .getAttribute(attr)
+              )?.trim();
+              if (val) return val;
+            } catch {
+              /* best-effort */
+            }
+          }
+
+          return '';
+        };
+      }
+
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof value === 'function') {
+        return value.bind(target);
+      }
+
+      return value;
+    },
+  });
+}
+
+/**
  * Select an element by its cross-platform test ID.
  *
  * Native iOS uses `accessibilityIdentifier`, native Android Compose uses
@@ -157,7 +202,8 @@ export async function byTestId(id: string) {
   const platform = getPlatform();
 
   if (sdkType === 'capacitor') return $(`[data-testid="${id}"]`);
-  if (sdkType === 'flutter' && platform === 'android') return $(`id=${id}`);
+  if (sdkType === 'flutter' && platform === 'android')
+    return withFlutterAndroidFixes(await $(`id=${id}`));
 
   return $(`~${id}`);
 }
@@ -175,8 +221,12 @@ export async function byText(text: string, partial = false) {
   }
 
   if (partial) {
-    return $(`//*[contains(@content-desc, "${text}") or contains(@text, "${text}")]`);
+    return withFlutterAndroidFixes(
+      await $(`//*[contains(@content-desc, "${text}") or contains(@text, "${text}")]`),
+    );
   }
 
-  return $(`//*[@content-desc="${text}" or @text="${text}"]`);
+  return withFlutterAndroidFixes(
+    await $(`//*[@content-desc="${text}" or @text="${text}"]`),
+  );
 }
