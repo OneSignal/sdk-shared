@@ -1,4 +1,10 @@
-import { checkTooltip, expectPairInSection, scrollToEl, typeInto, waitForAppReady } from '../helpers/app';
+import {
+  checkTooltip,
+  expectPairInSection,
+  scrollToEl,
+  typeInto,
+  waitForAppReady,
+} from '../helpers/app';
 import { byTestId, byText } from '../helpers/selectors.js';
 
 async function addMultipleTriggers() {
@@ -67,7 +73,7 @@ describe('Triggers', () => {
     await addMultipleTriggers();
 
     // remove triggers
-    const removeButton = await scrollToEl('REMOVE TRIGGERS');
+    const removeButton = await scrollToEl('REMOVE TRIGGERS', { by: 'text' });
     await removeButton.click();
 
     const trigger2Checkbox = await byTestId('remove_checkbox_test_trigger_key_2');
@@ -93,7 +99,7 @@ describe('Triggers', () => {
     await addMultipleTriggers();
 
     // clear all triggers
-    const clearButton = await scrollToEl('CLEAR ALL TRIGGERS');
+    const clearButton = await scrollToEl('CLEAR ALL TRIGGERS', { by: 'text' });
     await clearButton.click();
 
     await scrollToEl('triggers_section', { direction: 'up' });

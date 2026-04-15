@@ -1,4 +1,4 @@
-describe('Debug', () => {
+describe.skip('Debug', () => {
   it('log ui hierarchy', async () => {
     const html = await driver.getPageSource();
     console.log(html);

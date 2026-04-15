@@ -95,7 +95,7 @@ export async function scrollToEl(
     maxScrolls?: number;
   } = {},
 ) {
-  const { by = 'testId', partial = false, direction = 'down', maxScrolls = 10 } = opts;
+  const { by = 'testId', partial = false, direction = 'down', maxScrolls = 20 } = opts;
   const finder = (id: string) => (by === 'text' ? byText(id, partial) : byTestId(id));
 
   for (let i = 0; i < maxScrolls; i++) {
@@ -103,7 +103,7 @@ export async function scrollToEl(
     if (await el.isDisplayed()) {
       return el;
     }
-    await swipeMainContent(direction, 'small');
+    await swipeMainContent(direction);
   }
   throw new Error(`Element "${identifier}" not found after ${maxScrolls} scrolls`);
 }
@@ -252,9 +252,9 @@ export async function typeInto(
   if (getPlatform() === 'android' && getSdkType() === 'flutter') {
     await el.click();
     await driver.execute('mobile: type', { text });
-  } else {
-    await el.setValue(text);
+    return;
   }
+  await el.setValue(text);
 }
 
 /**

@@ -1,4 +1,10 @@
-import { checkTooltip, expectPairInSection, scrollToEl, typeInto, waitForAppReady } from '../helpers/app';
+import {
+  checkTooltip,
+  expectPairInSection,
+  scrollToEl,
+  typeInto,
+  waitForAppReady,
+} from '../helpers/app';
 import { byTestId, byText } from '../helpers/selectors.js';
 
 describe('Tags', () => {
@@ -65,7 +71,7 @@ describe('Tags', () => {
     await expectPairInSection('tags', 'test_tag_3', 'test_tag_value_3');
 
     // remove tags
-    const removeButton = await scrollToEl('REMOVE TAGS');
+    const removeButton = await scrollToEl('REMOVE TAGS', { by: 'text' });
     await removeButton.click();
 
     const tag2Checkbox = await byTestId('remove_checkbox_test_tag_2');
