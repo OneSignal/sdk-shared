@@ -255,11 +255,7 @@ export async function typeInto(
   el: { click(): Promise<void>; setValue(value: string): Promise<void> },
   text: string,
 ) {
-  if (getPlatform() === 'android' && getSdkType() === 'flutter') {
-    await el.click();
-    await driver.execute('mobile: type', { text });
-    return;
-  }
+  await el.click();
   await el.setValue(text);
 }
 
