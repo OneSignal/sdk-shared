@@ -26,10 +26,10 @@ async function checkActivity(options: { orderId?: string; status: string; messag
 
 describe('Live Activities', () => {
   before(async function () {
+    await waitForAppReady({ skipLogin: true });
     if (getPlatform() !== 'ios') {
       return this.skip();
     }
-    await waitForAppReady({ skipLogin: true });
     await scrollToEl('live_activities_section');
   });
 

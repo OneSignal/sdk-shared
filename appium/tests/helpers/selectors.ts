@@ -112,7 +112,7 @@ export function getTestData() {
 }
 
 export async function deleteUser(externalId: string) {
-  console.log(`Deleting user: ${externalId}`);
+  console.info(`Deleting user: ${externalId}`);
   try {
     const response = await fetch(
       `https://api.onesignal.com/apps/${process.env.ONESIGNAL_APP_ID}/users/by/external_id/${externalId}`,
@@ -127,10 +127,19 @@ export async function deleteUser(externalId: string) {
     if (!response.ok) {
       throw new Error(`Failed to delete user: ${response.statusText}`);
     }
-    console.log(`User deleted successfully`);
+    console.info(`User deleted successfully`);
   } catch (error) {
     console.error(`Failed to delete user: ${error}`);
   }
+}
+
+export async function getToggleState(el: {
+  getAttribute(name: string): Promise<string | null>;
+}): Promise<boolean> {
+  if (getPlatform() === 'ios') {
+    return (await el.getAttribute('value')) === '1';
+  }
+  return (await el.getAttribute('checked')) === 'true';
 }
 
 export function getSdkType(): SdkType {
@@ -144,27 +153,69 @@ export function getSdkType(): SdkType {
 }
 
 /**
+ * On Flutter Android, the standard WebDriver getText() often returns empty
+ * because Flutter writes text into content-desc / text attributes rather than
+ * the property that UiAutomator2's getText maps to. This proxy intercepts
+ * getText() and falls back to those attributes.
+ */
+function withFlutterAndroidFixes<T extends { getText(): Promise<string> }>(el: T): T {
+  if (!(getPlatform() === 'android' && getSdkType() === 'flutter')) {
+    return el;
+  }
+
+  return new Proxy(el, {
+    get(target, prop, receiver) {
+      if (prop === 'getText') {
+        return async () => {
+          const text = (await target.getText()).trim();
+          if (text) return text;
+
+          const attrs = ['content-desc', 'contentDescription', 'text', 'name'];
+          for (const attr of attrs) {
+            try {
+              const val = (
+                await (
+                  target as unknown as { getAttribute(n: string): Promise<string | null> }
+                ).getAttribute(attr)
+              )?.trim();
+              if (val) return val;
+            } catch {
+              /* best-effort */
+            }
+          }
+
+          return '';
+        };
+      }
+
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof value === 'function') {
+        return value.bind(target);
+      }
+
+      return value;
+    },
+  });
+}
+
+/**
  * Select an element by its cross-platform test ID.
  *
  * Native iOS uses `accessibilityIdentifier`, native Android Compose uses
- * `testTag`, RN uses `testID`, and Flutter uses `Semantics(label:)` — all
- * map to Appium accessibility id. Capacitor uses `data-testid` as a CSS
- * attribute inside a WebView.
+ * `testTag`, RN uses `testID` — all map to Appium accessibility id (`~`).
+ * Flutter uses `Semantics(identifier:)` which maps to `accessibilityIdentifier`
+ * on iOS (`~`) but to `resource-id` on Android (UiAutomator selector).
+ * Capacitor uses `data-testid` as a CSS attribute inside a WebView.
  */
 export async function byTestId(id: string) {
   const sdkType = getSdkType();
-  switch (sdkType) {
-    case 'react-native':
-    case 'flutter':
-    case 'unity':
-    case 'cordova':
-    case 'dotnet':
-    case 'ios':
-    case 'android':
-      return $(`~${id}`);
-    case 'capacitor':
-      return $(`[data-testid="${id}"]`);
-  }
+  const platform = getPlatform();
+
+  if (sdkType === 'capacitor') return $(`[data-testid="${id}"]`);
+  if (sdkType === 'flutter' && platform === 'android')
+    return withFlutterAndroidFixes(await $(`id=${id}`));
+
+  return $(`~${id}`);
 }
 
 /**
@@ -173,16 +224,17 @@ export async function byTestId(id: string) {
  */
 export async function byText(text: string, partial = false) {
   const platform = getPlatform();
-  const sdkType = getSdkType();
-
-  if (sdkType === 'capacitor') {
-    return $(`//*[contains(text(), "${text}")]`);
-  }
 
   if (platform === 'ios') {
     const op = partial ? 'CONTAINS' : '==';
     return $(`-ios predicate string:label ${op} "${text}"`);
   }
-  const method = partial ? 'textContains' : 'text';
-  return $(`android=new UiSelector().${method}("${text}")`);
+
+  if (partial) {
+    return withFlutterAndroidFixes(
+      await $(`//*[contains(@content-desc, "${text}") or contains(@text, "${text}")]`),
+    );
+  }
+
+  return withFlutterAndroidFixes(await $(`//*[@content-desc="${text}" or @text="${text}"]`));
 }
