@@ -15,6 +15,10 @@ export const config: WebdriverIO.Config = {
       'appium:autoGrantPermissions': false,
       'appium:noReset': true,
       ...(isLocal ? {} : { 'bstack:options': bstackOptions }),
+
+      // Disable ID locator autocompletion to avoid Flutter's Semantics(container:true) wrapping inputs in a View.
+      // @ts-expect-error - Appium types are not fully compatible with WebdriverIO types
+      'appium:settings[disableIdLocatorAutocompletion]': true,
     },
   ],
 };

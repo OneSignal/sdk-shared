@@ -182,10 +182,6 @@ async function acceptSystemAlerts(timeoutMs: number): Promise<void> {
 export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
   const { skipLogin = false } = opts;
 
-  // if (getPlatform() === 'android' && getSdkType() === 'flutter') {
-  //   await driver.updateSettings({ disableIdLocatorAutocompletion: true });
-  // }
-
   const alertHandled = await browser.sharedStore.get('alertHandled');
   if (!alertHandled) {
     // Accept permission dialogs until the app UI is visible.
