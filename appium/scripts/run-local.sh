@@ -282,7 +282,7 @@ start_appium() {
   fi
 
   info "Starting Appium on port $APPIUM_PORT..."
-  appium --port "$APPIUM_PORT" --log-level error --allow-insecure=uiautomator2:chromedriver_autodownload &
+  appium --port "$APPIUM_PORT" --log-level error &
   local pid=$!
 
   local retries=0

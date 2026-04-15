@@ -456,46 +456,54 @@ export async function checkNotification(opts: {
 }
 
 export async function isWebViewVisible() {
-  const platform = getPlatform();
-  if (platform === 'ios') {
+  if (getPlatform() === 'ios') {
     const webview = await $('-ios predicate string:type == "XCUIElementTypeWebView"');
     return await webview.isExisting();
   }
 
-  const currentContext = await driver.getContext();
-  let isVisible = false;
+  const contexts = await driver.getContexts();
+  return contexts.some((c) => String(c).includes('WEBVIEW'));
+}
 
-  try {
-    const contexts = await driver.getContexts();
-    const webviewContexts = contexts.filter((c) => String(c).includes('WEBVIEW'));
+/**
+ * On Android, Appium pools all IAM webviews under a single WEBVIEW_* context,
+ * so closing one IAM doesn't remove the context -- old window handles linger.
+ * We iterate window handles to find the one whose <h1> matches the expected title.
+ */
+async function switchToWebViewContext() {
+  const contexts = await driver.getContexts();
+  const webviewContext = contexts.find((c) => String(c) !== 'NATIVE_APP');
+  if (!webviewContext) return false;
+  await driver.switchContext(String(webviewContext));
+  return true;
+}
 
-    for (const context of webviewContexts) {
-      try {
-        await driver.switchContext(String(context));
-        const url = await driver.getUrl();
-        if (url && url !== 'about:blank' && url !== 'data:,') {
-          isVisible = true;
-          break;
-        }
-      } catch (err: any) {
-        if (err.message && err.message.includes('terminated')) {
-          continue;
-        }
-      }
-    }
-  } catch (e) {
-    // ignore
-  } finally {
-    try {
-      if (String(currentContext) === 'NATIVE_APP') {
-        await driver.switchContext('NATIVE_APP');
-      }
-    } catch {
-      // ignore
-    }
+async function switchToIAMWebView(expectedTitle: string, timeoutMs: number) {
+  if (getPlatform() === 'ios') {
+    expect(await switchToWebViewContext()).toBe(true);
+    return;
   }
 
-  return isVisible;
+  await driver.waitUntil(
+    async () => {
+      try {
+        if (!(await switchToWebViewContext())) return false;
+
+        for (const handle of await driver.getWindowHandles()) {
+          await driver.switchToWindow(handle);
+          const h1 = await $('h1');
+          if ((await h1.isExisting()) && (await h1.getText()) === expectedTitle) {
+            return true;
+          }
+        }
+        await driver.switchContext('NATIVE_APP');
+        return false;
+      } catch {
+        return false;
+      }
+    },
+    { timeout: timeoutMs, timeoutMsg: `Could not find IAM with title "${expectedTitle}"` },
+  );
 }
 
 export async function checkInAppMessage(opts: {
@@ -516,51 +524,11 @@ export async function checkInAppMessage(opts: {
   });
   await driver.pause(1_000);
 
-  let validContext: string | undefined;
-
-  for (let i = 0; i < 15; i++) {
-    const contexts = await driver.getContexts();
-    const webviewContexts = contexts.filter((c) => String(c).includes('WEBVIEW')).reverse();
-    for (const c of webviewContexts) {
-      try {
-        await driver.switchContext(String(c));
-        const handles = await driver.getWindowHandles();
-        for (const handle of handles) {
-          await driver.switchToWindow(handle);
-          const titles = await $$('h1');
-          if (titles.length > 0) {
-            for (const title of titles) {
-              const text = await title.getText();
-              if (text === expectedTitle) {
-                validContext = String(c);
-                break;
-              }
-            }
-            if (validContext) break;
-          }
-        }
-        
-        // Always switch back to NATIVE_APP so the next getContexts/switchContext is fresh
-        await driver.switchContext('NATIVE_APP');
-      } catch (err: any) {
-        if (err.message && err.message.includes('terminated')) {
-          continue;
-        }
-      }
-    }
-    if (validContext) break;
-    await driver.pause(1000);
-  }
-
-  expect(validContext).toBeDefined();
-  if (validContext) {
-    await driver.switchContext(validContext);
-  }
+  await switchToIAMWebView(expectedTitle, timeoutMs);
 
   const title = await $('h1');
   await title.waitForExist({ timeout: timeoutMs });
-  const text = await title.getText();
-  expect(text).toBe(expectedTitle);
+  expect(await title.getText()).toBe(expectedTitle);
 
   const closeButton = await $('.close-button');
   await closeButton.click();
@@ -573,8 +541,6 @@ export async function checkInAppMessage(opts: {
       timeoutMsg: 'IAM webview still visible after closing',
     });
   } else {
-    // Appium Android caches the webview context heavily, so we can't reliably detect
-    // if the IAM webview is fully destroyed. We just wait for the animation.
     await driver.pause(3000);
   }
 }
