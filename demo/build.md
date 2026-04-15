@@ -50,7 +50,7 @@ Plain class (not tied to UI framework) injected into the state management layer.
 - **Push subscription**: getPushSubscriptionId() -> nullable, isPushOptedIn() -> nullable bool, optInPush(), optOutPush()
 - **Notifications**: hasPermission() -> bool, requestPermission(fallbackToSettings) -> async bool, clearAll()
 - **In-App Messages**: setPaused(bool)
-- **Location**: setLocationShared(bool), requestLocationPermission()
+- **Location**: setLocationShared(bool), isLocationShared() -> async bool, requestLocationPermission()
 - **Privacy consent**: setConsentRequired(bool), setConsentGiven(bool)
 - **User IDs**: getExternalId() -> nullable, getOnesignalId() -> nullable
 - **Live Activities** (iOS only): startDefaultLiveActivity(activityId, attributes, content)
@@ -137,17 +137,17 @@ Clean up listeners on teardown (if platform requires it).
 7. **Aliases Section** (Add/Add Multiple, read-only list)
 8. **Emails Section** (Collapsible list >5)
 9. **SMS Section** (Collapsible list >5)
-10. **Tags Section** (Add/Add Multiple/Remove Selected)
-11. **Outcome Events Section** (Send Outcome with type selection)
-12. **Triggers Section** (Add/Add Multiple/Remove Selected/Clear All - IN MEMORY ONLY)
-13. **Track Event Section** (JSON validation)
-14. **Location Section** (Shared toggle, Prompt button)
+10. **Tags Section** (Add Tag/Add Multiple Tags/Remove Tags)
+11. **Outcomes Section** (Send Outcome with type selection)
+12. **Triggers Section** (Add Trigger/Add Multiple Triggers/Remove Triggers/Clear All Triggers - IN MEMORY ONLY)
+13. **Custom Events Section** (JSON validation)
+14. **Location Section** (Shared toggle, Prompt button, Check button)
 15. **Live Activities Section** (iOS only - Start, Update, End)
-16. **Next Page Button**
+16. **Next Screen Button**
 
 ### Prompt 2.1a - App Section
 
-1. App ID display (readonly text)
+1. App ID display (readonly text). When `E2E_MODE=true`, mask the value with bullet characters for deterministic screenshots.
 2. Sticky guidance banner:
    - "Add your own App ID, then rebuild to fully test all functionality."
    - Link: "Get your keys at onesignal.com" (opens browser)
@@ -173,7 +173,7 @@ Separate SectionCard titled "User":
 ### Prompt 2.2 - Push Section
 
 - Title: "Push" with info icon
-- Push Subscription ID (readonly)
+- Push Subscription ID (readonly). When `E2E_MODE=true`, mask the value with bullet characters.
 - Enabled toggle (optIn/optOut), disabled when permission NOT granted
 - Auto-request permission when home screen loads
 - PROMPT PUSH button: only visible when permission NOT granted, hidden once granted
@@ -212,9 +212,9 @@ Separate SectionCard titled "User":
 - Title: "Aliases" with info icon
 - Stacked key-value list (read-only, no delete icons, see styles.md "Stacked" layout)
 - Filter out "external_id" and "onesignal_id" from display
-- "No Aliases Added" when empty
-- ADD -> PairInputDialog (Label + ID on same row)
-- ADD MULTIPLE -> MultiPairInputDialog
+- "No aliases added" when empty
+- ADD ALIAS -> PairInputDialog (Label + ID on same row)
+- ADD MULTIPLE ALIASES -> MultiPairInputDialog
 - No remove functionality (aliases are add-only)
 
 ### Prompt 2.7 - Emails Section
@@ -236,14 +236,14 @@ Separate SectionCard titled "User":
 
 - Title: "Tags" with info icon
 - Stacked key-value list with X icon (remove action)
-- "No Tags Added" when empty
-- ADD -> PairInputDialog (Key + Value)
-- ADD MULTIPLE -> MultiPairInputDialog
-- REMOVE SELECTED (only when tags exist) -> MultiSelectRemoveDialog
+- "No tags added" when empty
+- ADD TAG -> PairInputDialog (Key + Value)
+- ADD MULTIPLE TAGS -> MultiPairInputDialog
+- REMOVE TAGS (only when tags exist) -> MultiSelectRemoveDialog
 
-### Prompt 2.10 - Outcome Events Section
+### Prompt 2.10 - Outcomes Section
 
-- Title: "Outcome Events" with info icon
+- Title: "Outcomes" with info icon
 - SEND OUTCOME -> dialog with 3 radio options:
   1. Normal Outcome -> name field
   2. Unique Outcome -> name field
@@ -252,16 +252,16 @@ Separate SectionCard titled "User":
 ### Prompt 2.11 - Triggers Section (IN MEMORY ONLY)
 
 - Title: "Triggers" with info icon
-- Same list/button pattern as Tags, plus:
-  - CLEAR ALL button (only when triggers exist)
+- Same list/button pattern as Tags (ADD TRIGGER, ADD MULTIPLE TRIGGERS, REMOVE TRIGGERS), plus:
+  - CLEAR ALL TRIGGERS button (only when triggers exist)
 - Triggers are IN MEMORY ONLY: not persisted, cleared on restart
 - Sending an IAM also upserts `iam_type` in this list
 - Transient test data for IAM testing
 
-### Prompt 2.12 - Track Event Section
+### Prompt 2.12 - Custom Events Section
 
-- Title: "Track Event" with info icon
-- TRACK EVENT -> TrackEventDialog:
+- Title: "Custom Events" with info icon
+- TRACK EVENT -> TrackEventDialog (dialog title: "Custom Event"):
   - "Event Name" (required, error if empty)
   - "Properties (optional, JSON)" with placeholder `{"key": "value"}`
     - Invalid JSON shows "Invalid JSON format" error
@@ -274,6 +274,7 @@ Separate SectionCard titled "User":
 - Title: "Location" with info icon
 - Toggle: "Location Shared" / "Share device location with OneSignal"
 - PROMPT LOCATION button
+- CHECK LOCATION SHARED button -> queries SDK and shows snackbar "Location shared: {bool}"
 
 ### Prompt 2.14 - Live Activities Section (iOS Only)
 
@@ -304,16 +305,19 @@ Widget extension requirements:
 - Status-based theming: preparing (orange), on_the_way (blue), delivered (green)
 - If the file `examples/demo/ios/OneSignalWidget/OneSignalWidgetLiveActivity.swift` already exists, replace its contents with the shared reference implementation at `https://raw.githubusercontent.com/OneSignal/sdk-shared/main/demo/LiveActivity.swift`
 
-API key setup:
+Environment / API key setup:
 
-- Store REST API key in `.env` file (e.g. `ONESIGNAL_API_KEY=your_rest_api_key`)
-- Provide `.env.example` with placeholder value
+- `.env` file with two variables:
+  - `ONESIGNAL_APP_ID=your-onesignal-app-id` (overrides default app ID; falls back to default if empty or missing)
+  - `ONESIGNAL_API_KEY=your-onesignal-api-key` (required for Live Activity update/end)
+  - `E2E_MODE=true` (optional, masks sensitive IDs in the UI for deterministic Appium screenshots)
+- Provide `.env.example` with placeholder values and a comment noting the default app ID
 - Add `.env` to `.gitignore`
 - `hasApiKey()` on the API service checks that the key is present and not the placeholder
 
 ### Prompt 2.15 - Secondary Screen
 
-Launched by "Next Screen" button at bottom of main screen:
+Launched by "NEXT SCREEN" button at bottom of main screen:
 
 - Title: "Secondary Screen"
 - Centered large headline text "Secondary Screen"
@@ -373,7 +377,7 @@ SectionCard has optional info icon -> onInfoTap callback -> shows TooltipDialog 
 
 ### Persisted (local storage)
 
-PreferencesService: App ID, consent required, privacy consent, external user ID, location shared, IAM paused.
+PreferencesService: consent required, privacy consent, external user ID, location shared, IAM paused. App ID is read from `.env` (not persisted in preferences).
 
 ### Initialization Flow
 
@@ -412,6 +416,75 @@ All dialog fields EMPTY by default. Appium enters:
 
 Add Multiple dialogs use the same values for the first row and support multiple rows.
 
+### Prompt 6.2 - Accessibility Identifiers (Appium)
+
+Use the platform's accessibility/test ID mechanism (e.g. `Semantics(identifier:)` in Flutter, `accessibilityIdentifier` in iOS, `testID` in React Native). These identifiers allow Appium to locate elements reliably.
+
+**Scroll view**: `main_scroll_view`
+
+**Section containers**: Each section has `{sectionKey}_section` wrapping it. Info icons have `{sectionKey}_info_icon`.
+
+Section keys: `app`, `user`, `push`, `send_push`, `iam`, `send_iam`, `aliases`, `emails`, `sms`, `tags`, `outcomes`, `triggers`, `custom_events`, `location`, `live_activities`
+
+**Value displays**:
+
+| Identifier             | Element                           |
+| ---------------------- | --------------------------------- |
+| `app_id_value`         | App ID text                       |
+| `push_id_value`        | Push Subscription ID text         |
+| `user_status_value`    | User status (Anonymous/Logged In) |
+| `user_external_id_value` | External ID text                |
+
+**Buttons**:
+
+| Identifier              | Button                                  |
+| ------------------------ | --------------------------------------- |
+| `login_user_button`      | Login / Switch User                     |
+| `logout_user_button`     | Logout User                             |
+| `send_simple_button`     | Simple notification                     |
+| `send_image_button`      | Image notification                      |
+| `send_sound_button`      | Sound notification                      |
+| `send_custom_button`     | Custom notification                     |
+| `clear_all_button`       | Clear all notifications                 |
+| `add_tag_button`         | Add Tag                                 |
+
+**Toggles**:
+
+| Identifier              | Toggle                                  |
+| ------------------------ | --------------------------------------- |
+| `push_enabled_toggle`    | Push Enabled                            |
+| `pause_iam_toggle`       | Pause In-App Messages                   |
+
+**Dialog inputs** (passed as parameters to reusable dialog components):
+
+| Identifier                | Dialog field                           |
+| ------------------------- | -------------------------------------- |
+| `login_user_id_input`     | Login External User Id                 |
+| `login_confirm_button`    | Login confirm                          |
+| `alias_label_input`       | Add Alias label field                  |
+| `alias_id_input`          | Add Alias ID field                     |
+| `alias_confirm_button`    | Add Alias confirm                      |
+| `tag_key_input`           | Add Tag key field                      |
+| `tag_value_input`         | Add Tag value field                    |
+| `tag_confirm_button`      | Add Tag confirm                        |
+| `trigger_key_input`       | Add Trigger key field                  |
+| `trigger_value_input`     | Add Trigger value field                |
+| `trigger_confirm_button`  | Add Trigger confirm                    |
+| `outcome_name_input`      | Outcome name field                     |
+| `outcome_value_input`     | Outcome value field                    |
+| `outcome_send_button`     | Outcome send button                    |
+| `event_name_input`        | Custom Event name field                |
+| `event_properties_input`  | Custom Event properties field          |
+| `event_track_button`      | Custom Event track button              |
+| `tooltip_title`           | Tooltip dialog title                   |
+| `tooltip_description`     | Tooltip dialog description             |
+
+**List items**: Generated from `sectionKey` parameter:
+- Key-value pairs: `{sectionKey}_pair_key_{keyText}`, `{sectionKey}_pair_value_{keyText}`
+- Remove buttons: `{sectionKey}_remove_{keyText}` or `{sectionKey}_remove_{text}`
+- Multi-select checkboxes: `remove_checkbox_{key}`
+- Multi-pair rows: `{keyLabel}_input_{index}`, `{valueLabel}_input_{index}`
+
 ---
 
 ## Phase 7: Implementation Details
@@ -434,12 +507,12 @@ Single state container at app root. Holds all UI state with public getters. Expo
 
 ### Prompt 8.2 - Reusable Components
 
-- **SectionCard**: card with title, optional info icon, content slot, onInfoTap callback
-- **ToggleRow**: label, optional description, toggle control
-- **ActionButton**: PrimaryButton (filled) and OutlinedButton (for secondary/destructive actions), full-width, per styles.md
-- **ListWidgets**: PairItem (key-value + optional delete), SingleItem (value + delete), EmptyState, CollapsibleList (5 items then expandable), PairList
+- **SectionCard**: card with title, optional info icon, content slot, onInfoTap callback, optional `sectionKey` for accessibility identifiers (generates `{sectionKey}_section` on the container and `{sectionKey}_info_icon` on the info button)
+- **ToggleRow**: label, optional description, toggle control, optional `semanticsLabel` for accessibility identifier
+- **ActionButton**: PrimaryButton (filled) and DestructiveButton (outlined, for secondary/destructive actions), full-width, per styles.md. Both accept optional `semanticsLabel` for accessibility identifier.
+- **ListWidgets**: PairItem (key-value + optional delete), SingleItem (value + delete), EmptyState, CollapsibleList (5 items then expandable), PairList. All list widgets accept a required `sectionKey` for generating accessibility identifiers (e.g. `{sectionKey}_pair_key_{keyText}`, `{sectionKey}_remove_{keyText}`).
 - **LoadingOverlay**: full-screen spinner overlay per styles.md
-- **Dialogs**: all full-width with consistent padding
+- **Dialogs**: all full-width with consistent padding. Dialogs accept optional semantics label parameters for key inputs and confirm buttons (e.g. `keySemanticsLabel`, `valueSemanticsLabel`, `confirmSemanticsLabel`).
   - SingleInputDialog, PairInputDialog (same row), MultiPairInputDialog (dynamic rows, dividers, X to delete, batch submit), MultiSelectRemoveDialog (checkboxes, batch remove)
   - LoginDialog, OutcomeDialog, TrackEventDialog, CustomNotificationDialog, TooltipDialog
 
@@ -455,7 +528,7 @@ Shared by Aliases, Tags, and Triggers ADD MULTIPLE buttons.
 
 ### Prompt 8.4 - MultiSelectRemoveDialog
 
-Shared by Tags and Triggers REMOVE SELECTED buttons.
+Shared by Tags and Triggers REMOVE buttons.
 
 - Checkbox per item, label shows key only
 - "Remove (N)" button shows selected count, disabled when none
@@ -467,37 +540,26 @@ All styling defined in: `https://raw.githubusercontent.com/OneSignal/sdk-shared/
 
 Implement theme constants/tokens mapping style reference to the platform's theming system.
 
-### Prompt 8.6 - Log View (Appium-Ready)
+### Prompt 8.6 - Feedback Messages (SnackBar/Toast)
 
-Collapsible log view at top of screen.
+Feedback messages are shown directly from the UI layer (not centralized in the state management layer). Use a `BuildContext` extension or helper that calls the platform's transient message API (SnackBar/Toast). The extension should hide the current message before showing a new one. Show snackbars from UI widget callbacks after awaiting the action, using a context-mounted check before displaying.
 
-LogManager: singleton with reactive updates, API: d(tag, message), i(), w(), e(), also prints to console.
+Only the following actions show snackbar feedback from the UI:
 
-LogView: layout per styles.md Logs View section, 100dp list height, newest first, trash icon when entries exist.
+- Login/Logout: "Logged in as {userId}" / "User logged out"
+- Outcomes: "Outcome sent: {name}" / "Unique outcome sent: {name}" / "Outcome sent: {name} = {value}"
+- Custom Events: "Event tracked: {name}"
+- Location check: "Location shared: {bool}"
 
-Appium IDs: `log_view_container`, `log_view_header`, `log_view_count`, `log_view_clear_button`, `log_view_list`, `log_view_empty`, `log_entry_{N}`, `log_entry_{N}_timestamp`, `log_entry_{N}_level`, `log_entry_{N}_message`
-
-Use the platform's accessibility/test ID mechanism.
-
-### Prompt 8.7 - Feedback Messages
-
-All actions show brief feedback via platform's transient message (SnackBar/Toast):
-
-- Login/Logout: "Logged in as: {userId}" / "Logged out"
-- Add/remove items: "Alias added: {label}", "{count} alias(es) added", etc.
-- Notifications: "Notification sent: {type}" / "Failed to send notification"
-- IAM: "Sent In-App Message: {type}"
-- Outcomes: "Outcome sent: {name}"
-- Events: "Event tracked: {name}"
-- Live Activities: "Started Live Activity: {activityId}", "Updated Live Activity: {activityId}", "Ended Live Activity: {activityId}" / "Failed to update Live Activity" / "Failed to end Live Activity"
-
-Clear previous message before showing new. All messages also logged via LogManager.i().
+All other actions (add/remove items, notifications, IAM, live activities, etc.) use `debugPrint()` / console logging only -- no snackbar. The state management layer should NOT hold snackbar state or expose snackbar messages. Use `debugPrint()` for all internal logging instead of a custom LogManager.
 
 ---
 
 ## Configuration
 
-Default app id: `77e32082-ea27-42e3-a898-c72e141824ef`
+Default app id: `77e32082-ea27-42e3-a898-c72e141824ef` (used when `ONESIGNAL_APP_ID` env var is empty or missing)
+
+App ID is loaded from the `.env` file's `ONESIGNAL_APP_ID` variable at startup, NOT from local preferences. If the env var is empty or absent, fall back to the default app ID above.
 
 REST API key is NOT required for the fetchUser endpoint.
 
