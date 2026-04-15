@@ -17,12 +17,6 @@ Design spec for OneSignal SDK demo/sample apps. Values use platform-independent 
 | osDivider           | `#E8EAED`            | Dividers                            |
 | osWarningBackground | `#FFF8E1`            | Guidance / warning banner card      |
 | osBackdrop          | `rgba(0,0,0,0.54)`   | Dialog / overlay backdrop           |
-| osLogBackground     | `#1A1B1E`            | Logs view background                |
-| osLogDebug          | `#82AAFF`            | Log level: Debug                    |
-| osLogInfo           | `#C3E88D`            | Log level: Info                     |
-| osLogWarn           | `#FFCB6B`            | Log level: Warn                     |
-| osLogError          | `#FF5370`            | Log level: Error                    |
-| osLogTimestamp      | `#676E7B`            | Log timestamp text                  |
 
 ## Spacing
 
@@ -53,7 +47,6 @@ All sizes in sp/px. Use the platform's default system font unless otherwise note
 | bodyLarge  | 16   | normal/400 | Radio button labels (dialogs)                                                            |
 | bodyMedium | 14   | normal/400 | Card row labels, toggle labels, unstacked list items, list empty state, stacked list key |
 | bodySmall  | 12   | normal/400 | Card row values, toggle descriptions, section headers, stacked list value                |
-| labelSmall | 11   | medium/500 | Log entry text (timestamp, level, message)                                               |
 
 ### Header Bar
 
@@ -206,63 +199,6 @@ When a list exceeds `maxVisible` items (default 5), the overflow is hidden behin
 ## Scrollable List
 
 - Bottom padding: 24
-
-## Logs View
-
-Sticky dark panel at the top of the scrollable content, always visible. Full width with no horizontal margin, no rounded corners, and no gap between it and the header bar.
-
-### Layout
-
-| Property      | Value                                        |
-| ------------- | -------------------------------------------- |
-| Background    | osLogBackground (`#1A1B1E`)                  |
-| Corner radius | 0                                            |
-| Height        | 100 (fixed, content scrolls)                 |
-| Margin        | 0 (touches header bar on top, content below) |
-| Default state | Expanded                                     |
-
-### Header Row
-
-| Property        | Value                                                 |
-| --------------- | ----------------------------------------------------- |
-| Padding         | 16 horizontal, 12 vertical                            |
-| Title text      | "LOGS", labelSmall (11), bold, white                  |
-| Count text      | "(N)" where N = log count, labelSmall (11), osGrey500 |
-| Clear icon      | Trash/delete, size 18, osGrey500                      |
-| Expand/collapse | Chevron icon, size 18, osGrey500                      |
-| Spacing         | 8 between title and count                             |
-
-Tapping the header row toggles expand/collapse.
-
-### Log Entry Row
-
-| Property         | Value         |
-| ---------------- | ------------- |
-| Vertical padding | 1             |
-| List padding     | 12 horizontal |
-
-Each row contains three inline elements separated by 4px gaps:
-
-| Element   | Style                            | Color                   | Format                    |
-| --------- | -------------------------------- | ----------------------- | ------------------------- |
-| Timestamp | labelSmall (11), monospace       | osLogTimestamp          | `HH:mm:ss`                |
-| Level     | labelSmall (11), monospace, bold | level color (see below) | Single letter: D, I, W, E |
-| Message   | labelSmall (11), monospace       | white                   | `tag: message`            |
-
-### Log Level Colors
-
-| Level | Label | Color |
-| ----- | ----- | ----- |
-| Debug | D     | Blue  |
-| Info  | I     | Green |
-| Warn  | W     | Amber |
-| Error | E     | Red   |
-
-### Behavior
-
-- Newest entries at the top
-- Empty state: centered "No logs yet" text, osGrey500
-- Horizontal scroll on the entire list (not per row), no text truncation
 
 ## Loading Overlay
 
