@@ -8,7 +8,7 @@ export const config: WebdriverIO.Config = {
     {
       platformName: 'Android',
       'appium:app': isLocal ? process.env.APP_PATH : process.env.BROWSERSTACK_APP_URL,
-      'appium:deviceName': process.env.DEVICE || 'Samsung Galaxy S26',
+      'appium:deviceName': process.env.DEVICE || 'Samsung Galaxy S24',
       'appium:platformVersion': process.env.OS_VERSION || '16',
       'appium:automationName': 'UiAutomator2',
       ...(process.env.BUNDLE_ID ? { 'appium:appPackage': process.env.BUNDLE_ID } : {}),

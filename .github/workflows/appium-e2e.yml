@@ -47,10 +47,8 @@ jobs:
           repository: OneSignal/sdk-shared
           path: _sdk-shared
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
 
       - name: Upload app to BrowserStack
         id: bs-upload
@@ -72,7 +70,7 @@ jobs:
 
       - name: Install test dependencies
         working-directory: _sdk-shared/appium
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Run Appium tests
         working-directory: _sdk-shared/appium
@@ -87,7 +85,7 @@ jobs:
           BUILD_NAME: ${{ inputs.build-name }}
           ONESIGNAL_APP_ID: ${{ vars.APPIUM_ONESIGNAL_APP_ID }}
           ONESIGNAL_API_KEY: ${{ secrets.APPIUM_ONESIGNAL_API_KEY }}
-        run: npx wdio run "wdio.${PLATFORM}.conf.ts"
+        run: bunx wdio run "wdio.${PLATFORM}.conf.ts"
 
       - name: Upload test results
         if: always()
