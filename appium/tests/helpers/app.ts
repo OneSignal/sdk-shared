@@ -306,9 +306,20 @@ export async function lockScreen() {
  */
 export async function returnToApp() {
   const caps = driver.capabilities as Record<string, unknown>;
-  const bundleId = (caps['bundleId'] ?? caps['appium:bundleId']) as string;
-  await driver.updateSettings({ defaultActiveApplication: bundleId });
-  await driver.execute('mobile: activateApp', { bundleId });
+  const platform = getPlatform();
+
+  if (platform === 'android') {
+    await driver.pressKeyCode(4);
+    const appId = (caps['appPackage'] ?? caps['appium:appPackage']) as string;
+    if (appId) {
+      await driver.execute('mobile: activateApp', { appId });
+    }
+  } else {
+    const bundleId = (caps['bundleId'] ?? caps['appium:bundleId']) as string;
+    await driver.updateSettings({ defaultActiveApplication: bundleId });
+    await driver.execute('mobile: activateApp', { bundleId });
+  }
+
   await driver.pause(1_000);
 }
 
@@ -342,40 +353,11 @@ export async function waitForNotification(opts: {
     }
 
     if (expectImage) {
-      const location = await titleEl.getLocation();
-      const size = await titleEl.getSize();
-      const centerX = Math.round(location.x + size.width / 2);
-      const startY = Math.round(location.y + size.height / 2);
-      const endY = startY + 300;
-
-      await driver.performActions([
-        {
-          type: 'pointer',
-          id: 'finger1',
-          parameters: { pointerType: 'touch' },
-          actions: [
-            { type: 'pointerMove', duration: 0, x: centerX, y: startY },
-            { type: 'pointerDown', button: 0 },
-            { type: 'pause', duration: 100 },
-            { type: 'pointerMove', duration: 300, x: centerX, y: endY },
-            { type: 'pointerUp', button: 0 },
-          ],
-        },
-      ]);
-      await driver.releaseActions();
-      await driver.pause(500);
-
       const image = await $('//android.widget.ImageView');
       await image.waitForDisplayed({ timeout: 5_000 });
     }
 
-    await driver.pressKeyCode(4);
-
-    const caps = driver.capabilities as Record<string, unknown>;
-    const appId = (caps['appPackage'] ?? caps['appium:appPackage']) as string;
-    if (appId) {
-      await driver.execute('mobile: activateApp', { appId });
-    }
+    await returnToApp();
     return;
   }
 
