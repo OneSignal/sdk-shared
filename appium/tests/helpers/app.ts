@@ -168,42 +168,33 @@ export async function acceptSystemAlert(timeoutMs = 10_000): Promise<string | nu
   }
 }
 
+async function acceptSystemAlerts(timeoutMs: number): Promise<void> {
+  const alertText = await acceptSystemAlert(timeoutMs);
+  if (!alertText) return;
+
+  await driver.pause(500);
+  await acceptSystemAlerts(1_000);
+}
+
 /**
  * Wait for the app to fully launch and the home screen to be visible.
  */
 export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
   const { skipLogin = false } = opts;
 
-  if (getPlatform() === 'android' && getSdkType() === 'flutter') {
-    await driver.updateSettings({ disableIdLocatorAutocompletion: true });
-  }
-
-  const waitForMainScroll = async () => {
-    const mainScroll = await byTestId('main_scroll_view');
-    await mainScroll.waitForDisplayed({ timeout: 5_000 });
-  };
+  // if (getPlatform() === 'android' && getSdkType() === 'flutter') {
+  //   await driver.updateSettings({ disableIdLocatorAutocompletion: true });
+  // }
 
   const alertHandled = await browser.sharedStore.get('alertHandled');
   if (!alertHandled) {
-    // Dismiss permission dialogs until the app UI is visible
-    while (await acceptSystemAlert(5_000)) {
-      await driver.pause(500);
-    }
+    // Accept permission dialogs until the app UI is visible.
+    await acceptSystemAlerts(5_000);
+    await browser.sharedStore.set('alertHandled', true);
   }
 
-  const html = await driver.getPageSource();
-  console.log(html);
-
-  try {
-    await waitForMainScroll();
-  } catch {
-    while (await acceptSystemAlert(2_000)) {
-      await driver.pause(500);
-    }
-    await waitForMainScroll();
-  }
-
-  await browser.sharedStore.set('alertHandled', true);
+  const mainScroll = await byTestId('main_scroll_view');
+  await mainScroll.waitForDisplayed({ timeout: 5_000 });
 
   if (skipLogin) return;
 
@@ -226,9 +217,6 @@ export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
 export async function loginUser(externalUserId: string) {
   const loginButton = await byText('LOGIN USER');
   await loginButton.click();
-
-  const html = await driver.getPageSource();
-  console.log(html);
 
   if (getPlatform() === 'android' && getSdkType() === 'flutter') {
     const userIdInput = await byTestId('login_user_id_input');
