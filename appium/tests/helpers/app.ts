@@ -217,24 +217,9 @@ export async function loginUser(externalUserId: string) {
   const loginButton = await byText('LOGIN USER');
   await loginButton.click();
 
-  if (getPlatform() === 'android' && getSdkType() === 'flutter') {
-    const userIdInput = await byTestId('login_user_id_input');
-    await userIdInput.waitForDisplayed({ timeout: 5_000 });
-    await userIdInput.click();
-    await driver.pause(250);
-    await driver.execute('mobile: type', { text: externalUserId });
-    const confirmButton = await byText('Login');
-    await browser.waitUntil(async () => confirmButton.isEnabled(), {
-      timeout: 5_000,
-      timeoutMsg: 'Expected Login button to enable',
-    });
-    await confirmButton.click();
-    return;
-  }
-
   const userIdInput = await byTestId('login_user_id_input');
   await userIdInput.waitForDisplayed({ timeout: 5_000 });
-  await userIdInput.setValue(externalUserId);
+  await typeIntoInput(userIdInput, externalUserId);
 
   const confirmButton = await byTestId('login_confirm_button');
   await confirmButton.click();
@@ -257,6 +242,22 @@ export async function togglePushEnabled() {
 }
 
 /**
+ * Type text into an input field. On Flutter Android, setValue is unreliable
+ * so we tap the field and use the native `mobile: type` command instead.
+ */
+export async function typeIntoInput(
+  el: { click(): Promise<void>; setValue(value: string): Promise<void> },
+  text: string,
+) {
+  if (getPlatform() === 'android' && getSdkType() === 'flutter') {
+    await el.click();
+    await driver.execute('mobile: type', { text });
+  } else {
+    await el.setValue(text);
+  }
+}
+
+/**
  * Add a single tag via the UI.
  */
 export async function addTag(key: string, value: string) {
@@ -265,10 +266,10 @@ export async function addTag(key: string, value: string) {
 
   const keyInput = await byTestId('tag_key_input');
   await keyInput.waitForDisplayed({ timeout: 5_000 });
-  await keyInput.setValue(key);
+  await typeIntoInput(keyInput, key);
 
   const valueInput = await byTestId('tag_value_input');
-  await valueInput.setValue(value);
+  await typeIntoInput(valueInput, value);
 
   const confirmButton = await byTestId('tag_confirm_button');
   await confirmButton.click();
