@@ -22,7 +22,7 @@ describe('Push Subscription', () => {
     expect(value).toBe('1');
   });
 
-  it.only('can send an image notification', async () => {
+  it('can send an image notification', async () => {
     await checkNotification({
       buttonId: 'send_image_button',
       title: 'Image Notification',
