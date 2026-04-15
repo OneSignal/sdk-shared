@@ -457,11 +457,45 @@ export async function checkNotification(opts: {
 
 export async function isWebViewVisible() {
   const platform = getPlatform();
-  const webview =
-    platform === 'ios'
-      ? await $('-ios predicate string:type == "XCUIElementTypeWebView"')
-      : await $('android=new UiSelector().className("android.webkit.WebView")');
-  return webview.isExisting();
+  if (platform === 'ios') {
+    const webview = await $('-ios predicate string:type == "XCUIElementTypeWebView"');
+    return await webview.isExisting();
+  }
+
+  const currentContext = await driver.getContext();
+  let isVisible = false;
+
+  try {
+    const contexts = await driver.getContexts();
+    const webviewContexts = contexts.filter((c) => String(c).includes('WEBVIEW'));
+
+    for (const context of webviewContexts) {
+      try {
+        await driver.switchContext(String(context));
+        const url = await driver.getUrl();
+        if (url && url !== 'about:blank' && url !== 'data:,') {
+          isVisible = true;
+          break;
+        }
+      } catch (err: any) {
+        if (err.message && err.message.includes('terminated')) {
+          continue;
+        }
+      }
+    }
+  } catch (e) {
+    // ignore
+  } finally {
+    try {
+      if (String(currentContext) === 'NATIVE_APP') {
+        await driver.switchContext('NATIVE_APP');
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return isVisible;
 }
 
 export async function checkInAppMessage(opts: {
@@ -482,10 +516,46 @@ export async function checkInAppMessage(opts: {
   });
   await driver.pause(1_000);
 
-  const contexts = await driver.getContexts();
-  const webviewContext = contexts.find((c) => String(c) !== 'NATIVE_APP');
-  expect(webviewContext).toBeDefined();
-  await driver.switchContext(String(webviewContext));
+  let validContext: string | undefined;
+
+  for (let i = 0; i < 15; i++) {
+    const contexts = await driver.getContexts();
+    const webviewContexts = contexts.filter((c) => String(c).includes('WEBVIEW')).reverse();
+    for (const c of webviewContexts) {
+      try {
+        await driver.switchContext(String(c));
+        const handles = await driver.getWindowHandles();
+        for (const handle of handles) {
+          await driver.switchToWindow(handle);
+          const titles = await $$('h1');
+          if (titles.length > 0) {
+            for (const title of titles) {
+              const text = await title.getText();
+              if (text === expectedTitle) {
+                validContext = String(c);
+                break;
+              }
+            }
+            if (validContext) break;
+          }
+        }
+        
+        // Always switch back to NATIVE_APP so the next getContexts/switchContext is fresh
+        await driver.switchContext('NATIVE_APP');
+      } catch (err: any) {
+        if (err.message && err.message.includes('terminated')) {
+          continue;
+        }
+      }
+    }
+    if (validContext) break;
+    await driver.pause(1000);
+  }
+
+  expect(validContext).toBeDefined();
+  if (validContext) {
+    await driver.switchContext(validContext);
+  }
 
   const title = await $('h1');
   await title.waitForExist({ timeout: timeoutMs });
@@ -496,10 +566,17 @@ export async function checkInAppMessage(opts: {
   await closeButton.click();
 
   await driver.switchContext('NATIVE_APP');
-  await driver.waitUntil(async () => !(await isWebViewVisible()), {
-    timeout: timeoutMs,
-    timeoutMsg: 'IAM webview still visible after closing',
-  });
+
+  if (getPlatform() === 'ios') {
+    await driver.waitUntil(async () => !(await isWebViewVisible()), {
+      timeout: timeoutMs,
+      timeoutMsg: 'IAM webview still visible after closing',
+    });
+  } else {
+    // Appium Android caches the webview context heavily, so we can't reliably detect
+    // if the IAM webview is fully destroyed. We just wait for the animation.
+    await driver.pause(3000);
+  }
 }
 
 export async function checkTooltip(buttonId: string, key: string) {

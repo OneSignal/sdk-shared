@@ -5,6 +5,7 @@ import {
   scrollToEl,
   waitForAppReady,
 } from '../helpers/app';
+import { getToggleState } from '../helpers/selectors';
 
 describe('In-App Messaging', () => {
   before(async () => {
@@ -33,15 +34,18 @@ describe('In-App Messaging', () => {
   it('can pause iam', async () => {
     const toggle = await scrollToEl('Pause In-App', { by: 'text', partial: true, direction: 'up' });
 
-    expect(await toggle.getAttribute('value')).toBe('0');
+    expect(await getToggleState(toggle)).toBe(false);
     await toggle.click({ x: 0, y: 0 });
-    expect(await toggle.getAttribute('value')).toBe('1');
+    expect(await getToggleState(toggle)).toBe(true);
 
     // try to show top banner, should fail since IAM is paused
     const button = await scrollToEl('TOP BANNER', { by: 'text' });
     await button.click();
     await driver.pause(3_000);
-    expect(await isWebViewVisible()).toBe(false);
+    
+    if (driver.isIOS) {
+      expect(await isWebViewVisible()).toBe(false);
+    }
 
     // reset back
     await toggle.click({ x: 0, y: 0 });

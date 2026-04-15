@@ -133,6 +133,13 @@ export async function deleteUser(externalId: string) {
   }
 }
 
+export async function getToggleState(el: { getAttribute(name: string): Promise<string | null> }): Promise<boolean> {
+  if (getPlatform() === 'ios') {
+    return (await el.getAttribute('value')) === '1';
+  }
+  return (await el.getAttribute('checked')) === 'true';
+}
+
 export function getSdkType(): SdkType {
   const sdkType = process.env.SDK_TYPE;
   if (sdkType && VALID_SDK_TYPES.has(sdkType)) {
