@@ -12,20 +12,21 @@ const tooltipContent = JSON.parse(
 async function stopScrolling() {
   const platform = getPlatform();
 
+  if (platform === 'android') {
+    // Android's scrollGesture already completes the gesture. A follow-up tap in
+    // the center of the screen can hit interactive elements like LOGIN USER.
+    await driver.pause(150);
+    return;
+  }
+
   let x: number;
   let y: number;
 
-  if (platform === 'ios') {
-    const mainScroll = await byTestId('main_scroll_view');
-    const loc = await mainScroll.getLocation();
-    const size = await mainScroll.getSize();
-    x = Math.round(loc.x + 6);
-    y = Math.round(loc.y + size.height / 2);
-  } else {
-    const { width, height } = await driver.getWindowSize();
-    x = Math.round(width / 2);
-    y = Math.round(height / 2);
-  }
+  const mainScroll = await byTestId('main_scroll_view');
+  const loc = await mainScroll.getLocation();
+  const size = await mainScroll.getSize();
+  x = Math.round(loc.x + 6);
+  y = Math.round(loc.y + size.height / 2);
 
   await driver.performActions([
     {
@@ -64,7 +65,7 @@ async function swipeMainContent(
       top: Math.round(height * 0.1),
       width,
       height: Math.round(height * 0.8),
-      direction: direction === 'up' ? 'down' : 'up',
+      direction,
       percent: distances[distance],
     });
   }
