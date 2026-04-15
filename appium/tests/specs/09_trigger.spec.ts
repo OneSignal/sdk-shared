@@ -1,4 +1,4 @@
-import { checkTooltip, expectPairInSection, scrollToEl, waitForAppReady } from '../helpers/app';
+import { checkTooltip, expectPairInSection, scrollToEl, typeInto, waitForAppReady } from '../helpers/app';
 import { byTestId, byText } from '../helpers/selectors.js';
 
 async function addMultipleTriggers() {
@@ -10,16 +10,16 @@ async function addMultipleTriggers() {
 
   const key0 = await byTestId('Key_input_0');
   await key0.waitForDisplayed({ timeout: 5_000 });
-  await key0.setValue('test_trigger_key_2');
+  await typeInto(key0, 'test_trigger_key_2');
 
   const value0 = await byTestId('Value_input_0');
-  await value0.setValue('test_trigger_value_2');
+  await typeInto(value0, 'test_trigger_value_2');
 
   const key1 = await byTestId('Key_input_1');
-  await key1.setValue('test_trigger_key_3');
+  await typeInto(key1, 'test_trigger_key_3');
 
   const value1 = await byTestId('Value_input_1');
-  await value1.setValue('test_trigger_value_3');
+  await typeInto(value1, 'test_trigger_value_3');
 
   let confirmButton = await byText('Add All');
   await confirmButton.click();
@@ -45,10 +45,10 @@ describe('Triggers', () => {
     // add trigger
     const keyInput = await byTestId('trigger_key_input');
     await keyInput.waitForDisplayed({ timeout: 5_000 });
-    await keyInput.setValue('test_trigger_key');
+    await typeInto(keyInput, 'test_trigger_key');
 
     const valueInput = await byTestId('trigger_value_input');
-    await valueInput.setValue('test_trigger_value');
+    await typeInto(valueInput, 'test_trigger_value');
 
     const confirmButton = await byTestId('trigger_confirm_button');
     await confirmButton.click();

@@ -1,4 +1,4 @@
-import { checkTooltip, scrollToEl, waitForAppReady } from '../helpers/app';
+import { checkTooltip, scrollToEl, typeInto, waitForAppReady } from '../helpers/app';
 import { byTestId, byText, getTestData } from '../helpers/selectors.js';
 
 describe('Emails', () => {
@@ -20,7 +20,7 @@ describe('Emails', () => {
 
     const emailInput = await byTestId('Email_input');
     await emailInput.waitForDisplayed({ timeout: 5_000 });
-    await emailInput.setValue(email);
+    await typeInto(emailInput, email);
 
     const confirmButton = await byText('Add');
     await confirmButton.click();

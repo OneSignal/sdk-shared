@@ -219,7 +219,7 @@ export async function loginUser(externalUserId: string) {
 
   const userIdInput = await byTestId('login_user_id_input');
   await userIdInput.waitForDisplayed({ timeout: 5_000 });
-  await typeIntoInput(userIdInput, externalUserId);
+  await typeInto(userIdInput, externalUserId);
 
   const confirmButton = await byTestId('login_confirm_button');
   await confirmButton.click();
@@ -245,7 +245,7 @@ export async function togglePushEnabled() {
  * Type text into an input field. On Flutter Android, setValue is unreliable
  * so we tap the field and use the native `mobile: type` command instead.
  */
-export async function typeIntoInput(
+export async function typeInto(
   el: { click(): Promise<void>; setValue(value: string): Promise<void> },
   text: string,
 ) {
@@ -266,10 +266,10 @@ export async function addTag(key: string, value: string) {
 
   const keyInput = await byTestId('tag_key_input');
   await keyInput.waitForDisplayed({ timeout: 5_000 });
-  await typeIntoInput(keyInput, key);
+  await typeInto(keyInput, key);
 
   const valueInput = await byTestId('tag_value_input');
-  await typeIntoInput(valueInput, value);
+  await typeInto(valueInput, value);
 
   const confirmButton = await byTestId('tag_confirm_button');
   await confirmButton.click();

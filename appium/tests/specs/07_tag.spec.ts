@@ -1,4 +1,4 @@
-import { checkTooltip, expectPairInSection, scrollToEl, waitForAppReady } from '../helpers/app';
+import { checkTooltip, expectPairInSection, scrollToEl, typeInto, waitForAppReady } from '../helpers/app';
 import { byTestId, byText } from '../helpers/selectors.js';
 
 describe('Tags', () => {
@@ -18,10 +18,10 @@ describe('Tags', () => {
     // add tag
     const keyInput = await byTestId('tag_key_input');
     await keyInput.waitForDisplayed({ timeout: 5_000 });
-    await keyInput.setValue('test_tag');
+    await typeInto(keyInput, 'test_tag');
 
     const valueInput = await byTestId('tag_value_input');
-    await valueInput.setValue('test_tag_value');
+    await typeInto(valueInput, 'test_tag_value');
 
     const confirmButton = await byTestId('tag_confirm_button');
     await confirmButton.click();
@@ -43,20 +43,20 @@ describe('Tags', () => {
     // add tags
     const key0 = await byTestId('Key_input_0');
     await key0.waitForDisplayed({ timeout: 5_000 });
-    await key0.setValue('test_tag_2');
+    await typeInto(key0, 'test_tag_2');
 
     const value0 = await byTestId('Value_input_0');
-    await value0.setValue('test_tag_value_2');
+    await typeInto(value0, 'test_tag_value_2');
 
     const addRowButton = await byText('Add Row');
     await addRowButton.click();
 
     const key1 = await byTestId('Key_input_1');
     await key1.waitForDisplayed({ timeout: 5_000 });
-    await key1.setValue('test_tag_3');
+    await typeInto(key1, 'test_tag_3');
 
     const value1 = await byTestId('Value_input_1');
-    await value1.setValue('test_tag_value_3');
+    await typeInto(value1, 'test_tag_value_3');
 
     let confirmButton = await byText('Add All');
     await confirmButton.click();

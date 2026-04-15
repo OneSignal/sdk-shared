@@ -1,4 +1,4 @@
-import { checkTooltip, scrollToEl, waitForAppReady } from '../helpers/app';
+import { checkTooltip, scrollToEl, typeInto, waitForAppReady } from '../helpers/app';
 import { byTestId, byText, getTestData } from '../helpers/selectors.js';
 
 describe('SMS', () => {
@@ -19,7 +19,7 @@ describe('SMS', () => {
 
     const smsInput = await byTestId('SMS Number_input');
     await smsInput.waitForDisplayed({ timeout: 5_000 });
-    await smsInput.setValue(sms);
+    await typeInto(smsInput, sms);
 
     const confirmButton = await byText('Add');
     await confirmButton.click();

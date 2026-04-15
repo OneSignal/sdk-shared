@@ -1,4 +1,4 @@
-import { scrollToEl, waitForAppReady } from '../helpers/app';
+import { scrollToEl, typeInto, waitForAppReady } from '../helpers/app';
 import { byTestId, byText, getTestData } from '../helpers/selectors.js';
 
 const TEST_JSON = {
@@ -36,7 +36,7 @@ describe('Custom Events', () => {
 
     const nameInput = await byTestId('event_name_input');
     await nameInput.waitForDisplayed({ timeout: 5_000 });
-    await nameInput.setValue(`${customEvent}_no_props`);
+    await typeInto(nameInput, `${customEvent}_no_props`);
 
     const trackBtn = await byTestId('event_track_button');
     await trackBtn.click();
@@ -52,11 +52,10 @@ describe('Custom Events', () => {
 
     const nameInput = await byTestId('event_name_input');
     await nameInput.waitForDisplayed({ timeout: 5_000 });
-    await nameInput.setValue(`${customEvent}_with_props`);
+    await typeInto(nameInput, `${customEvent}_with_props`);
 
     const propertiesInput = await byTestId('event_properties_input');
-    await propertiesInput.click();
-    await propertiesInput.setValue(JSON.stringify(TEST_JSON));
+    await typeInto(propertiesInput, JSON.stringify(TEST_JSON));
 
     const trackBtn = await byTestId('event_track_button');
     await trackBtn.click();
