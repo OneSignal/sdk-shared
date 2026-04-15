@@ -66,6 +66,8 @@ Env vars (set in .env or export):
   BUNDLE_ID          Bundle/package id (default: com.onesignal.example)
   ONESIGNAL_APP_ID   OneSignal app ID (written to demo app .env)
   ONESIGNAL_API_KEY  OneSignal REST API key (written to demo app .env)
+  FLUTTER_DIR        Flutter SDK repo root (default: ../../OneSignal-Flutter-SDK)
+  RN_DIR             React Native SDK repo root (default: ../../react-native-onesignal)
   OS_VERSION         Platform version (default: 26.2 / 16)
   IOS_SIMULATOR      iOS simulator name (default: iPhone 17)
   IOS_RUNTIME        simctl runtime id (default: iOS-26-2)
@@ -114,7 +116,10 @@ case "$PLATFORM" in
   *) error "PLATFORM must be 'ios' or 'android', got '$PLATFORM'" ;;
 esac
 
-[[ "$SDK_TYPE" != "flutter" ]] && error "Only flutter is supported for now. Got '$SDK_TYPE'."
+case "$SDK_TYPE" in
+  flutter|react-native) ;;
+  *) error "SDK_TYPE must be 'flutter' or 'react-native', got '$SDK_TYPE'" ;;
+esac
 
 BUNDLE_ID="${BUNDLE_ID:-com.onesignal.example}"
 
@@ -126,6 +131,15 @@ if [[ "$SDK_TYPE" == "flutter" ]]; then
     APP_PATH="${APP_PATH:-$DEMO_DIR/build/ios/iphonesimulator/Runner.app}"
   else
     APP_PATH="${APP_PATH:-$DEMO_DIR/build/app/outputs/flutter-apk/app-debug.apk}"
+  fi
+elif [[ "$SDK_TYPE" == "react-native" ]]; then
+  RN_DIR="${RN_DIR:-$SDK_ROOT/react-native-onesignal}"
+  [[ -d "$RN_DIR" ]] || error "React Native SDK not found at $RN_DIR — set RN_DIR in .env"
+  DEMO_DIR="$RN_DIR/examples/demo"
+  if [[ "$PLATFORM" == "ios" ]]; then
+    APP_PATH="${APP_PATH:-$DEMO_DIR/ios/build/Build/Products/Debug-iphonesimulator/demo.app}"
+  else
+    APP_PATH="${APP_PATH:-$DEMO_DIR/android/app/build/outputs/apk/debug/app-debug.apk}"
   fi
 fi
 
@@ -189,6 +203,61 @@ EOF
   info "App built: $APP_PATH"
 }
 
+write_rn_demo_env() {
+  if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
+    info "Writing .env for demo app..."
+    cat > "$DEMO_DIR/.env" <<EOF
+ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
+ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
+E2E_MODE=true
+EOF
+  else
+    warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — skipping demo .env"
+  fi
+}
+
+setup_rn_sdk() {
+  info "Building React Native SDK & packing tarball..."
+  (cd "$RN_DIR" && bun run build)
+  (cd "$RN_DIR" && rm -f react-native-onesignal*.tgz && bun pm pack && mv react-native-onesignal-*.tgz react-native-onesignal.tgz)
+
+  info "Installing demo dependencies..."
+  (cd "$DEMO_DIR" && bun pm cache rm && bun remove react-native-onesignal && bun add file:../../react-native-onesignal.tgz)
+}
+
+build_rn_ios() {
+  write_rn_demo_env
+  setup_rn_sdk
+
+  info "Installing CocoaPods..."
+  (cd "$DEMO_DIR/ios" && pod install)
+
+  info "Building debug .app for simulator (this may take a few minutes)..."
+  (cd "$DEMO_DIR/ios" && xcodebuild \
+    -workspace demo.xcworkspace \
+    -scheme demo \
+    -configuration Debug \
+    -sdk iphonesimulator \
+    -derivedDataPath build \
+    CODE_SIGN_IDENTITY="" \
+    CODE_SIGNING_REQUIRED=NO \
+    CODE_SIGNING_ALLOWED=NO)
+
+  [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
+  info "App built: $APP_PATH"
+}
+
+build_rn_android() {
+  write_rn_demo_env
+  setup_rn_sdk
+
+  info "Building debug APK (this may take a few minutes)..."
+  (cd "$DEMO_DIR/android" && ./gradlew assembleDebug)
+
+  [[ -f "$APP_PATH" ]] || error ".apk not found after build at $APP_PATH"
+  info "App built: $APP_PATH"
+}
+
 build_app() {
   if [[ "$SKIP_BUILD" == true ]]; then
     if [[ "$PLATFORM" == "ios" && ! -d "$APP_PATH" ]] || [[ "$PLATFORM" == "android" && ! -f "$APP_PATH" ]]; then
@@ -198,10 +267,18 @@ build_app() {
     return
   fi
 
-  if [[ "$PLATFORM" == "ios" ]]; then
-    build_flutter_ios
-  else
-    build_flutter_android
+  if [[ "$SDK_TYPE" == "flutter" ]]; then
+    if [[ "$PLATFORM" == "ios" ]]; then
+      build_flutter_ios
+    else
+      build_flutter_android
+    fi
+  elif [[ "$SDK_TYPE" == "react-native" ]]; then
+    if [[ "$PLATFORM" == "ios" ]]; then
+      build_rn_ios
+    else
+      build_rn_android
+    fi
   fi
 }
 
