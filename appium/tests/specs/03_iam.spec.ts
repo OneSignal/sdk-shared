@@ -35,20 +35,20 @@ describe('In-App Messaging', () => {
     const toggle = await scrollToEl('Pause In-App', { by: 'text', partial: true, direction: 'up' });
 
     expect(await getToggleState(toggle)).toBe(false);
-    await toggle.click({ x: 0, y: 0 });
+    await toggle.click();
     expect(await getToggleState(toggle)).toBe(true);
 
     // try to show top banner, should fail since IAM is paused
     const button = await scrollToEl('TOP BANNER', { by: 'text' });
     await button.click();
     await driver.pause(3_000);
-    
+
     if (driver.isIOS) {
       expect(await isWebViewVisible()).toBe(false);
     }
 
     // reset back
-    await toggle.click({ x: 0, y: 0 });
+    await toggle.click();
     await checkInAppMessage({
       buttonLabel: 'TOP BANNER',
       expectedTitle: 'Top Banner',

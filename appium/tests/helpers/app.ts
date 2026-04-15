@@ -543,8 +543,9 @@ export async function checkInAppMessage(opts: {
       timeout: timeoutMs,
       timeoutMsg: 'IAM webview still visible after closing',
     });
+    await driver.pause(1_000);
   } else {
-    await driver.pause(3000);
+    await driver.pause(3_000);
   }
 }
 

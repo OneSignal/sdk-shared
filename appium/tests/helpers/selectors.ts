@@ -112,7 +112,7 @@ export function getTestData() {
 }
 
 export async function deleteUser(externalId: string) {
-  console.log(`Deleting user: ${externalId}`);
+  console.info(`Deleting user: ${externalId}`);
   try {
     const response = await fetch(
       `https://api.onesignal.com/apps/${process.env.ONESIGNAL_APP_ID}/users/by/external_id/${externalId}`,
@@ -127,13 +127,15 @@ export async function deleteUser(externalId: string) {
     if (!response.ok) {
       throw new Error(`Failed to delete user: ${response.statusText}`);
     }
-    console.log(`User deleted successfully`);
+    console.info(`User deleted successfully`);
   } catch (error) {
     console.error(`Failed to delete user: ${error}`);
   }
 }
 
-export async function getToggleState(el: { getAttribute(name: string): Promise<string | null> }): Promise<boolean> {
+export async function getToggleState(el: {
+  getAttribute(name: string): Promise<string | null>;
+}): Promise<boolean> {
   if (getPlatform() === 'ios') {
     return (await el.getAttribute('value')) === '1';
   }
@@ -172,8 +174,9 @@ function withFlutterAndroidFixes<T extends { getText(): Promise<string> }>(el: T
           for (const attr of attrs) {
             try {
               const val = (
-                await (target as unknown as { getAttribute(n: string): Promise<string | null> })
-                  .getAttribute(attr)
+                await (
+                  target as unknown as { getAttribute(n: string): Promise<string | null> }
+                ).getAttribute(attr)
               )?.trim();
               if (val) return val;
             } catch {
@@ -233,7 +236,5 @@ export async function byText(text: string, partial = false) {
     );
   }
 
-  return withFlutterAndroidFixes(
-    await $(`//*[@content-desc="${text}" or @text="${text}"]`),
-  );
+  return withFlutterAndroidFixes(await $(`//*[@content-desc="${text}" or @text="${text}"]`));
 }
