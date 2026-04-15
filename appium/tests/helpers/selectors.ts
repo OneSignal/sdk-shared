@@ -159,6 +159,25 @@ function withTextFallback<T extends TextReadableElement>(el: T): T {
         return async () => readElementText(target);
       }
 
+      if (prop === 'getAttribute') {
+        return async (name: string) => {
+          try {
+            const value = await target.getAttribute(name);
+            if (value !== null) return value;
+          } catch {
+            /* fall through to Android-specific fallback */
+          }
+
+          if (name === 'value') {
+            const checked = await target.getAttribute('checked');
+            if (checked === 'true') return '1';
+            if (checked === 'false') return '0';
+          }
+
+          return null;
+        };
+      }
+
       const value = Reflect.get(target, prop, receiver);
       if (typeof value === 'function') {
         return value.bind(target);

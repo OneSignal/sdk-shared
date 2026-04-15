@@ -312,20 +312,6 @@ export async function returnToApp() {
 }
 
 /**
- * Clear all notifications.
- * Android: uses the native clearAllNotifications command.
- * iOS: taps the app's "CLEAR ALL" button since XCUITest has no equivalent.
- */
-export async function clearAllNotifications() {
-  if (getPlatform() === 'android') {
-    await driver.execute('mobile: clearAllNotifications', {});
-  } else {
-    const clearButton = await scrollToEl('clear_all_button');
-    await clearButton.click();
-  }
-}
-
-/**
  * Wait for a notification to be received.
  *
  * Android: opens the notification shade, verifies the title (and optionally
@@ -470,7 +456,9 @@ export async function checkNotification(opts: {
   body?: string;
   expectImage?: boolean;
 }) {
-  await clearAllNotifications();
+  const clearButton = await scrollToEl('clear_all_button');
+  await clearButton.click();
+
   await driver.pause(1_000);
   const button = await scrollToEl(opts.buttonId);
   await button.click();
