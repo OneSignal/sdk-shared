@@ -1,5 +1,5 @@
-import { waitForAppReady, waitForAlert, scrollToEl, checkTooltip } from '../helpers/app.js';
-import { byText, getPlatform } from '../helpers/selectors.js';
+import { waitForAppReady, scrollToEl, checkTooltip, acceptAlert } from '../helpers/app.js';
+import { byText } from '../helpers/selectors.js';
 
 describe('Location', () => {
   before(async () => {
@@ -11,26 +11,19 @@ describe('Location', () => {
     await checkTooltip('location_info_icon', 'location');
   });
 
+  // Not an ideal test since we auto accept the system permission dialog
+  // If we have observable callbacks for ios & android, we can test this better
   it('can prompt for location', async () => {
+    // The system permission dialog is auto-accepted by Appium
+    // (`autoGrantPermissions` on Android, `autoAcceptAlerts` on iOS),
+    // so we just trigger the prompt and let Appium handle it.
     const promptButton = await scrollToEl('PROMPT LOCATION', { by: 'text' });
     await promptButton.click();
-
     await driver.pause(3_000);
-
-    if (getPlatform() === 'ios') {
-      const alert = await waitForAlert();
-      expect(alert).toContain('location');
-      await driver.execute('mobile: alert', {
-        action: 'accept',
-        buttonLabel: 'Allow While Using App',
-      });
-    } else {
-      const allowBtn = await byText('While using the app');
-      await allowBtn.waitForDisplayed({ timeout: 10_000 });
-      await allowBtn.click();
-    }
   });
 
+  // share location is a separate state where if location permission is allowed,
+  // then location details would be used for things like update user actions
   it('can share location', async () => {
     let checkSharedButton = await scrollToEl('CHECK LOCATION SHARED', { by: 'text' });
     await checkSharedButton.click();

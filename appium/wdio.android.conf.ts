@@ -12,7 +12,7 @@ export const config: WebdriverIO.Config = {
       'appium:platformVersion': process.env.OS_VERSION || '16.0',
       'appium:automationName': 'UiAutomator2',
       ...(process.env.BUNDLE_ID ? { 'appium:appPackage': process.env.BUNDLE_ID } : {}),
-      'appium:autoGrantPermissions': false,
+      'appium:autoGrantPermissions': true,
       'appium:noReset': true,
       ...(isLocal ? {} : { 'bstack:options': bstackOptions }),
 

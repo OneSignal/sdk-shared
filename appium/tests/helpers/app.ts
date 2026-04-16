@@ -15,7 +15,7 @@ async function stopScrolling() {
   if (platform === 'android') {
     // Android's scrollGesture already completes the gesture. A follow-up tap in
     // the center of the screen can hit interactive elements like LOGIN USER.
-    await driver.pause(150);
+    // await driver.pause(150);
     return;
   }
 
@@ -115,118 +115,14 @@ export async function scrollToEl(
 }
 
 /**
- * Wait for an iOS system alert to appear and return its text without
- * dismissing it. Returns null if no alert appears within the timeout.
- * iOS-only — used by the location spec which needs to accept with a
- * specific button label.
- */
-export async function waitForAlert(timeoutMs = 10_000): Promise<string | null> {
-  try {
-    await driver.waitUntil(
-      async () => {
-        try {
-          const buttons = await driver.execute('mobile: alert', { action: 'getButtons' });
-          return Array.isArray(buttons) && buttons.length > 0;
-        } catch {
-          return false;
-        }
-      },
-      { timeout: timeoutMs, interval: 250 },
-    );
-    return await driver.getAlertText();
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Wait for a native system alert/permission dialog, accept it, and return
- * its text. Returns null if no dialog appears within the timeout.
- *
- * iOS: uses XCUITest `mobile: alert` API.
- * Android: looks for the standard permission dialog "Allow" button via
- * UiAutomator (works for POST_NOTIFICATIONS, location, etc.). Handles
- * stock Android, Samsung (`com.samsung.android.permissioncontroller`),
- * and legacy `com.android.packageinstaller` package variants.
- */
-export async function acceptSystemAlert(timeoutMs = 10_000): Promise<string | null> {
-  const platform = getPlatform();
-
-  try {
-    if (platform === 'ios') {
-      const text = await waitForAlert(timeoutMs);
-      if (text) await driver.acceptAlert();
-      return text;
-    }
-
-    // Try resource-id first (most robust across OEMs), then fall back to
-    // text match. "Don't allow" contains "Allow" as a substring, so we
-    // must use exact `text()` rather than `textContains()`.
-    const allowSelectors = [
-      'new UiSelector().resourceIdMatches(".*:id/permission_allow_button")',
-      'new UiSelector().resourceIdMatches(".*:id/permission_allow_foreground_only_button")',
-      'new UiSelector().resourceIdMatches(".*:id/permission_allow_one_time_button")',
-      'new UiSelector().text("Allow")',
-      'new UiSelector().text("ALLOW")',
-      'new UiSelector().text("While using the app")',
-    ];
-
-    let allowBtn: Awaited<ReturnType<typeof $>> | null = null;
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      for (const sel of allowSelectors) {
-        const el = await $(`android=${sel}`);
-        if (await el.isDisplayed().catch(() => false)) {
-          allowBtn = el;
-          break;
-        }
-      }
-      if (allowBtn) break;
-      await driver.pause(250);
-    }
-
-    if (!allowBtn) return null;
-
-    let text = 'Permission dialog';
-    try {
-      const msgEl = await $(
-        'android=new UiSelector().resourceIdMatches(".*:id/permission_message")',
-      );
-      if (await msgEl.isDisplayed().catch(() => false)) {
-        text = await msgEl.getText();
-      }
-    } catch {
-      /* best-effort */
-    }
-    await allowBtn.click();
-    return text;
-  } catch {
-    return null;
-  }
-}
-
-async function acceptSystemAlerts(timeoutMs: number): Promise<void> {
-  await browser.waitUntil(
-    async () => {
-      const alertText = await acceptSystemAlert(500);
-      return !alertText;
-    },
-    { timeout: timeoutMs, interval: 500 },
-  );
-}
-
-/**
  * Wait for the app to fully launch and the home screen to be visible.
+ *
+ * System permission dialogs are handled automatically by Appium via the
+ * `autoGrantPermissions` (Android) and `autoAcceptAlerts` (iOS) capabilities,
+ * so no explicit dialog handling is needed here.
  */
 export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
   const { skipLogin = false } = opts;
-
-  const alertHandled = await browser.sharedStore.get('alertHandled');
-  if (!alertHandled) {
-    // Accept permission dialogs until the app UI is visible.
-    await acceptSystemAlerts(5_000);
-    await browser.sharedStore.set('alertHandled', true);
-  }
 
   const mainScroll = await byTestId('main_scroll_view');
   await mainScroll.waitForDisplayed({ timeout: 5_000 });
