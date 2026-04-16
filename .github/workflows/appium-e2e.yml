@@ -19,6 +19,11 @@ on:
         description: 'SDK type: react-native, flutter, capacitor, unity, cordova, dotnet, ios, or android'
         required: true
         type: string
+      runner:
+        description: 'Where to run: browserstack or local'
+        required: false
+        default: 'browserstack'
+        type: string
       device:
         description: 'BrowserStack device name'
         required: false
@@ -34,7 +39,9 @@ on:
 
 jobs:
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: >-
+      ${{ (inputs.runner == 'local' && inputs.platform == 'ios') && 'macos-26'
+          || 'ubuntu-latest' }}
     steps:
       - name: Download app artifact
         uses: actions/download-artifact@v4
@@ -51,6 +58,7 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       - name: Upload app to BrowserStack
+        if: inputs.runner == 'browserstack'
         id: bs-upload
         env:
           BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
@@ -72,7 +80,8 @@ jobs:
         working-directory: _sdk-shared/appium
         run: bun install --frozen-lockfile
 
-      - name: Run Appium tests
+      - name: Run Appium tests (BrowserStack)
+        if: inputs.runner == 'browserstack'
         working-directory: _sdk-shared/appium
         env:
           BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
@@ -86,6 +95,76 @@ jobs:
           ONESIGNAL_APP_ID: ${{ vars.APPIUM_ONESIGNAL_APP_ID }}
           ONESIGNAL_API_KEY: ${{ secrets.APPIUM_ONESIGNAL_API_KEY }}
         run: bunx wdio run "wdio.${PLATFORM}.conf.ts"
+
+      - name: Enable KVM
+        if: inputs.runner == 'local' && inputs.platform == 'android'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run Appium tests (local Android)
+        if: inputs.runner == 'local' && inputs.platform == 'android'
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          SDK_TYPE: ${{ inputs.sdk-type }}
+          PLATFORM: android
+          APP_PATH: ${{ github.workspace }}/${{ inputs.app-filename }}
+          ONESIGNAL_APP_ID: ${{ vars.APPIUM_ONESIGNAL_APP_ID }}
+          ONESIGNAL_API_KEY: ${{ secrets.APPIUM_ONESIGNAL_API_KEY }}
+        with:
+          api-level: 36
+          arch: x86_64
+          profile: medium_phone
+          force-avd-creation: false
+          emulator-options: -no-window -no-boot-anim -gpu swiftshader_indirect
+          working-directory: _sdk-shared/appium
+          script: |
+            bun add -g appium@3
+            appium driver install uiautomator2
+            appium --port 4723 --log-level error &
+            for i in {1..30}; do
+              curl -sf http://localhost:4723/status && break
+              sleep 1
+            done
+            bunx wdio run wdio.android.conf.ts
+
+      - name: Boot iPhone 17 simulator
+        if: inputs.runner == 'local' && inputs.platform == 'ios'
+        run: |
+          UDID=$(xcrun simctl list devices available -j | jq -r '
+            .devices | to_entries[]
+            | select(.key | contains("iOS-26"))
+            | .value[] | select(.name == "iPhone 17") | .udid' | head -1)
+          if [ -z "$UDID" ]; then
+            echo "::error::iPhone 17 (iOS 26) simulator not found on this runner"
+            xcrun simctl list devices available
+            exit 1
+          fi
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+
+      - name: Start Appium (local iOS)
+        if: inputs.runner == 'local' && inputs.platform == 'ios'
+        run: |
+          bun add -g appium@3
+          appium driver install xcuitest
+          appium --port 4723 --log-level error &
+          for i in {1..30}; do
+            curl -sf http://localhost:4723/status && break
+            sleep 1
+          done
+
+      - name: Run Appium tests (local iOS)
+        if: inputs.runner == 'local' && inputs.platform == 'ios'
+        working-directory: _sdk-shared/appium
+        env:
+          SDK_TYPE: ${{ inputs.sdk-type }}
+          PLATFORM: ios
+          APP_PATH: ${{ github.workspace }}/${{ inputs.app-filename }}
+          ONESIGNAL_APP_ID: ${{ vars.APPIUM_ONESIGNAL_APP_ID }}
+          ONESIGNAL_API_KEY: ${{ secrets.APPIUM_ONESIGNAL_API_KEY }}
+        run: bunx wdio run wdio.ios.conf.ts
 
       - name: Upload test results
         if: always()
