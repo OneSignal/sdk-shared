@@ -1,0 +1,135 @@
+name: 'Appium E2E - Local iOS'
+description: 'Boot an iPhone simulator, start Appium, and run the shared OneSignal Appium E2E tests against a local .app bundle.'
+
+inputs:
+  app-path:
+    description: 'Absolute path to the simulator .app bundle or a .app.zip containing it'
+    required: true
+  sdk-type:
+    description: 'SDK type passed to the tests (flutter, react-native, capacitor, unity, cordova, dotnet, ios, etc.)'
+    required: true
+  device:
+    description: 'Simulator device name'
+    required: false
+    default: 'iPhone 17'
+  os-version:
+    description: 'Simulator iOS major version (matched against iOS-<version> in simctl runtimes)'
+    required: false
+    default: '26'
+  onesignal-app-id:
+    description: 'OneSignal App ID for the test app'
+    required: true
+  onesignal-api-key:
+    description: 'OneSignal REST API key for the test app'
+    required: true
+  appium-port:
+    description: 'Port Appium listens on'
+    required: false
+    default: '4723'
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+
+    - name: Resolve appium dir
+      shell: bash
+      run: |
+        APPIUM_DIR=$(cd "${{ github.action_path }}/../../../appium" && pwd -P)
+        echo "APPIUM_DIR=$APPIUM_DIR" >> "$GITHUB_ENV"
+
+    - name: Unpack .app bundle if zipped
+      shell: bash
+      env:
+        APP_PATH_IN: ${{ inputs.app-path }}
+      run: |
+        if [[ "$APP_PATH_IN" == *.zip ]]; then
+          DEST_DIR=$(dirname "$APP_PATH_IN")
+          unzip -o -q "$APP_PATH_IN" -d "$DEST_DIR"
+          RESOLVED="${APP_PATH_IN%.zip}"
+        else
+          RESOLVED="$APP_PATH_IN"
+        fi
+        if [ ! -d "$RESOLVED" ]; then
+          echo "::error::Expected .app bundle directory at $RESOLVED"
+          exit 1
+        fi
+        echo "APP_PATH=$RESOLVED" >> "$GITHUB_ENV"
+
+    - name: Boot iOS simulator
+      shell: bash
+      env:
+        DEVICE: ${{ inputs.device }}
+        OS_MAJOR: ${{ inputs.os-version }}
+      run: |
+        UDID=$(xcrun simctl list devices available -j | jq -r --arg dev "$DEVICE" --arg os "iOS-$OS_MAJOR" '
+          .devices | to_entries[]
+          | select(.key | contains($os))
+          | .value[] | select(.name == $dev) | .udid' | head -1)
+        if [ -z "$UDID" ]; then
+          echo "::error::Simulator '$DEVICE' (iOS $OS_MAJOR) not found on this runner"
+          xcrun simctl list devices available
+          exit 1
+        fi
+        xcrun simctl boot "$UDID" 2>/dev/null || true
+        xcrun simctl bootstatus "$UDID" -b
+
+    - name: Install Appium and driver
+      shell: bash
+      run: |
+        bun add -g appium@3
+        appium driver install xcuitest
+
+    - name: Start Appium
+      shell: bash
+      env:
+        APPIUM_PORT: ${{ inputs.appium-port }}
+      run: |
+        appium --port "$APPIUM_PORT" --log-level error > appium.log 2>&1 &
+        echo "APPIUM_PID=$!" >> "$GITHUB_ENV"
+        for i in {1..30}; do
+          if curl -sf "http://localhost:$APPIUM_PORT/status" >/dev/null; then
+            echo "Appium ready"
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "::error::Appium did not become ready on port $APPIUM_PORT"
+        cat appium.log || true
+        exit 1
+
+    - name: Install test dependencies
+      shell: bash
+      working-directory: ${{ env.APPIUM_DIR }}
+      run: bun install --frozen-lockfile
+
+    - name: Run Appium tests
+      shell: bash
+      working-directory: ${{ env.APPIUM_DIR }}
+      env:
+        SDK_TYPE: ${{ inputs.sdk-type }}
+        PLATFORM: ios
+        DEVICE: ${{ inputs.device }}
+        OS_VERSION: ${{ inputs.os-version }}
+        ONESIGNAL_APP_ID: ${{ inputs.onesignal-app-id }}
+        ONESIGNAL_API_KEY: ${{ inputs.onesignal-api-key }}
+      run: bunx wdio run wdio.ios.conf.ts
+
+    - name: Stop Appium
+      if: always()
+      shell: bash
+      run: |
+        if [ -n "${APPIUM_PID:-}" ]; then
+          kill "$APPIUM_PID" 2>/dev/null || true
+        fi
+
+    - name: Upload Appium + test results
+      if: always()
+      uses: actions/upload-artifact@v5
+      with:
+        name: appium-local-ios-${{ inputs.sdk-type }}
+        path: |
+          ${{ env.APPIUM_DIR }}/results/
+          appium.log
+        if-no-files-found: ignore

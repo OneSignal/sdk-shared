@@ -1,0 +1,104 @@
+name: 'Appium E2E - Local Android'
+description: 'Boot an Android emulator (via reactivecircus/android-emulator-runner), start Appium, and run the shared OneSignal Appium E2E tests against a local .apk.'
+
+inputs:
+  app-path:
+    description: 'Absolute path to the .apk to install on the emulator'
+    required: true
+  sdk-type:
+    description: 'SDK type passed to the tests (flutter, react-native, capacitor, unity, cordova, dotnet, android, etc.)'
+    required: true
+  api-level:
+    description: 'Android API level for the AVD'
+    required: false
+    default: '36'
+  arch:
+    description: 'AVD architecture'
+    required: false
+    default: 'x86_64'
+  profile:
+    description: 'AVD device profile (as listed by `avdmanager list device`)'
+    required: false
+    default: 'medium_phone'
+  onesignal-app-id:
+    description: 'OneSignal App ID for the test app'
+    required: true
+  onesignal-api-key:
+    description: 'OneSignal REST API key for the test app'
+    required: true
+  appium-port:
+    description: 'Port Appium listens on'
+    required: false
+    default: '4723'
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+
+    - name: Enable KVM
+      shell: bash
+      run: |
+        echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+        sudo udevadm control --reload-rules
+        sudo udevadm trigger --name-match=kvm
+
+    - name: Install test dependencies
+      shell: bash
+      working-directory: ${{ github.action_path }}/../../../appium
+      run: bun install --frozen-lockfile
+
+    - name: Resolve appium dir
+      shell: bash
+      run: |
+        APPIUM_DIR=$(cd "${{ github.action_path }}/../../../appium" && pwd -P)
+        echo "APPIUM_DIR=$APPIUM_DIR" >> "$GITHUB_ENV"
+
+    - name: Run Appium tests on emulator
+      uses: reactivecircus/android-emulator-runner@v2
+      env:
+        SDK_TYPE: ${{ inputs.sdk-type }}
+        PLATFORM: android
+        APP_PATH: ${{ inputs.app-path }}
+        ONESIGNAL_APP_ID: ${{ inputs.onesignal-app-id }}
+        ONESIGNAL_API_KEY: ${{ inputs.onesignal-api-key }}
+        APPIUM_PORT: ${{ inputs.appium-port }}
+      with:
+        api-level: ${{ inputs.api-level }}
+        target: google_apis
+        arch: ${{ inputs.arch }}
+        profile: ${{ inputs.profile }}
+        force-avd-creation: false
+        disable-animations: true
+        ram-size: 4096M
+        heap-size: 1024M
+        emulator-boot-timeout: 900
+        emulator-options: -no-window -no-boot-anim -gpu swiftshader_indirect
+        working-directory: ${{ env.APPIUM_DIR }}
+        script: |
+          bun add -g appium@3
+          appium driver install uiautomator2
+          appium --port "$APPIUM_PORT" --log-level error > appium.log 2>&1 &
+          for i in {1..30}; do
+            if curl -sf "http://localhost:$APPIUM_PORT/status" >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          if ! curl -sf "http://localhost:$APPIUM_PORT/status" >/dev/null; then
+            echo "::error::Appium did not become ready on port $APPIUM_PORT"
+            cat appium.log || true
+            exit 1
+          fi
+          bunx wdio run wdio.android.conf.ts
+
+    - name: Upload Appium + test results
+      if: always()
+      uses: actions/upload-artifact@v5
+      with:
+        name: appium-local-android-${{ inputs.sdk-type }}
+        path: |
+          ${{ env.APPIUM_DIR }}/results/
+          ${{ env.APPIUM_DIR }}/appium.log
+        if-no-files-found: ignore
