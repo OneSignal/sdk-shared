@@ -1,4 +1,5 @@
 import { waitForAppReady, checkNotification, checkTooltip, scrollToEl } from '../helpers/app.js';
+import { getToggleState } from '../helpers/selectors.js';
 
 describe('Push Subscription', () => {
   before(async () => {
@@ -18,8 +19,8 @@ describe('Push Subscription', () => {
     expect(pushId.length).toBeGreaterThan(0);
 
     const toggleEl = await scrollToEl('Enabled', { by: 'text' });
-    const value = await toggleEl.getAttribute('value');
-    expect(value).toBe('1');
+    const value = await getToggleState(toggleEl);
+    expect(value).toBe(true);
   });
 
   it('can send an image notification', async () => {
