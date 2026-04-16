@@ -136,5 +136,5 @@ runs:
         name: appium-local-ios-${{ inputs.sdk-type }}
         path: |
           ${{ env.APPIUM_DIR }}/results/
-          appium.log
+          ${{ github.workspace }}/appium.log
         if-no-files-found: ignore

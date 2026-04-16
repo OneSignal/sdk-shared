@@ -45,11 +45,31 @@ runs:
     - name: Setup Bun
       uses: oven-sh/setup-bun@v2
 
-    - name: Resolve appium dir
+    - name: Resolve paths
       shell: bash
       run: |
         APPIUM_DIR=$(cd "${{ github.action_path }}/../../../appium" && pwd -P)
         echo "APPIUM_DIR=$APPIUM_DIR" >> "$GITHUB_ENV"
+
+        if [ -z "${ANDROID_HOME:-}" ]; then
+          if [ -n "${ANDROID_SDK_ROOT:-}" ]; then
+            ANDROID_HOME="$ANDROID_SDK_ROOT"
+          else
+            ANDROID_HOME="/usr/local/lib/android/sdk"
+          fi
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+        fi
+
+        CMDLINE_BIN=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin 2>/dev/null | tail -1 || true)
+        if [ -z "$CMDLINE_BIN" ]; then
+          echo "::error::No Android cmdline-tools found under $ANDROID_HOME/cmdline-tools/"
+          ls -la "$ANDROID_HOME/cmdline-tools" 2>/dev/null || true
+          exit 1
+        fi
+        echo "$CMDLINE_BIN" >> "$GITHUB_PATH"
+        echo "$ANDROID_HOME/emulator" >> "$GITHUB_PATH"
+        echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+        echo "Using cmdline-tools at: $CMDLINE_BIN"
 
     - name: Enable KVM
       shell: bash
@@ -191,6 +211,6 @@ runs:
         name: appium-local-android-${{ inputs.sdk-type }}
         path: |
           ${{ env.APPIUM_DIR }}/results/
-          emulator.log
-          appium.log
+          ${{ github.workspace }}/emulator.log
+          ${{ github.workspace }}/appium.log
         if-no-files-found: ignore
