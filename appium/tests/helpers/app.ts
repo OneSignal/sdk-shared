@@ -145,7 +145,9 @@ export async function waitForAlert(timeoutMs = 10_000): Promise<string | null> {
  *
  * iOS: uses XCUITest `mobile: alert` API.
  * Android: looks for the standard permission dialog "Allow" button via
- * UiAutomator (works for POST_NOTIFICATIONS, location, etc.).
+ * UiAutomator (works for POST_NOTIFICATIONS, location, etc.). Handles
+ * stock Android, Samsung (`com.samsung.android.permissioncontroller`),
+ * and legacy `com.android.packageinstaller` package variants.
  */
 export async function acceptSystemAlert(timeoutMs = 10_000): Promise<string | null> {
   const platform = getPlatform();
@@ -157,14 +159,42 @@ export async function acceptSystemAlert(timeoutMs = 10_000): Promise<string | nu
       return text;
     }
 
-    const allowBtn = await $('android=new UiSelector().text("Allow")');
-    await allowBtn.waitForDisplayed({ timeout: timeoutMs });
+    // Try resource-id first (most robust across OEMs), then fall back to
+    // text match. "Don't allow" contains "Allow" as a substring, so we
+    // must use exact `text()` rather than `textContains()`.
+    const allowSelectors = [
+      'new UiSelector().resourceIdMatches(".*:id/permission_allow_button")',
+      'new UiSelector().resourceIdMatches(".*:id/permission_allow_foreground_only_button")',
+      'new UiSelector().resourceIdMatches(".*:id/permission_allow_one_time_button")',
+      'new UiSelector().text("Allow")',
+      'new UiSelector().text("ALLOW")',
+      'new UiSelector().text("While using the app")',
+    ];
+
+    let allowBtn: Awaited<ReturnType<typeof $>> | null = null;
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      for (const sel of allowSelectors) {
+        const el = await $(`android=${sel}`);
+        if (await el.isDisplayed().catch(() => false)) {
+          allowBtn = el;
+          break;
+        }
+      }
+      if (allowBtn) break;
+      await driver.pause(250);
+    }
+
+    if (!allowBtn) return null;
+
     let text = 'Permission dialog';
     try {
       const msgEl = await $(
-        'android=new UiSelector().resourceId("com.android.permissioncontroller:id/permission_message")',
+        'android=new UiSelector().resourceIdMatches(".*:id/permission_message")',
       );
-      text = await msgEl.getText();
+      if (await msgEl.isDisplayed().catch(() => false)) {
+        text = await msgEl.getText();
+      }
     } catch {
       /* best-effort */
     }

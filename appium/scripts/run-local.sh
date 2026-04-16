@@ -233,7 +233,7 @@ build_rn_ios() {
   (cd "$DEMO_DIR/ios" && pod install)
 
   info "Building debug .app for simulator (this may take a few minutes)..."
-  (cd "$DEMO_DIR/ios" && xcodebuild \
+  (cd "$DEMO_DIR/ios" && FORCE_BUNDLING=1 xcodebuild \
     -workspace demo.xcworkspace \
     -scheme demo \
     -configuration Debug \
@@ -241,7 +241,8 @@ build_rn_ios() {
     -derivedDataPath build \
     CODE_SIGN_IDENTITY="" \
     CODE_SIGNING_REQUIRED=NO \
-    CODE_SIGNING_ALLOWED=NO)
+    CODE_SIGNING_ALLOWED=NO \
+    COMPILER_INDEX_STORE_ENABLE=NO)
 
   [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
   info "App built: $APP_PATH"
@@ -252,7 +253,7 @@ build_rn_android() {
   setup_rn_sdk
 
   info "Building debug APK (this may take a few minutes)..."
-  (cd "$DEMO_DIR/android" && ./gradlew assembleDebug)
+  (cd "$DEMO_DIR" && bunx react-native build-android --mode=debug)
 
   [[ -f "$APP_PATH" ]] || error ".apk not found after build at $APP_PATH"
   info "App built: $APP_PATH"

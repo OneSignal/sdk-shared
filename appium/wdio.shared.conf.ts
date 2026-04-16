@@ -21,7 +21,7 @@ const bstackOptions = {
   sessionName: process.env.SDK_TYPE || 'unknown',
   debug: true,
   networkLogs: true,
-  appiumVersion: '2.6',
+  appiumVersion: '3.2.0',
 };
 
 export const sharedConfig: WebdriverIO.Config = {
