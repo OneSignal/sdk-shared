@@ -44,13 +44,16 @@ runs:
       env:
         APP_PATH_IN: ${{ inputs.app-path }}
       run: |
-        if [[ "$APP_PATH_IN" == *.zip ]]; then
-          DEST_DIR=$(dirname "$APP_PATH_IN")
-          unzip -o -q "$APP_PATH_IN" -d "$DEST_DIR"
-          RESOLVED="${APP_PATH_IN%.zip}"
-        else
-          RESOLVED="$APP_PATH_IN"
-        fi
+        case "$APP_PATH_IN" in
+          *.zip)
+            DEST_DIR=$(dirname "$APP_PATH_IN")
+            unzip -o -q "$APP_PATH_IN" -d "$DEST_DIR"
+            RESOLVED="${APP_PATH_IN%.zip}"
+            ;;
+          *)
+            RESOLVED="$APP_PATH_IN"
+            ;;
+        esac
         if [ ! -d "$RESOLVED" ]; then
           echo "::error::Expected .app bundle directory at $RESOLVED"
           exit 1
@@ -88,12 +91,14 @@ runs:
       run: |
         appium --port "$APPIUM_PORT" --log-level error > appium.log 2>&1 &
         echo "APPIUM_PID=$!" >> "$GITHUB_ENV"
-        for i in {1..30}; do
+        i=0
+        while [ "$i" -lt 30 ]; do
           if curl -sf "http://localhost:$APPIUM_PORT/status" >/dev/null; then
             echo "Appium ready"
             exit 0
           fi
           sleep 1
+          i=$((i + 1))
         done
         echo "::error::Appium did not become ready on port $APPIUM_PORT"
         cat appium.log || true

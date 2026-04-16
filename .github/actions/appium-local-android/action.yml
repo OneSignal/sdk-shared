@@ -1,5 +1,5 @@
 name: 'Appium E2E - Local Android'
-description: 'Boot an Android emulator (via reactivecircus/android-emulator-runner), start Appium, and run the shared OneSignal Appium E2E tests against a local .apk.'
+description: 'Boot an Android emulator, start Appium, and run the shared OneSignal Appium E2E tests against a local .apk. Uses raw sdkmanager/avdmanager/emulator commands so each phase is a separate, cacheable, debuggable step.'
 
 inputs:
   app-path:
@@ -16,6 +16,10 @@ inputs:
     description: 'AVD architecture'
     required: false
     default: 'x86_64'
+  target:
+    description: 'System-image target (e.g. google_apis, default, google_apis_playstore)'
+    required: false
+    default: 'google_apis'
   profile:
     description: 'AVD device profile (as listed by `avdmanager list device`)'
     required: false
@@ -30,12 +34,22 @@ inputs:
     description: 'Port Appium listens on'
     required: false
     default: '4723'
+  boot-timeout-seconds:
+    description: 'Max seconds to wait for emulator boot completion'
+    required: false
+    default: '900'
 
 runs:
   using: composite
   steps:
     - name: Setup Bun
       uses: oven-sh/setup-bun@v2
+
+    - name: Resolve appium dir
+      shell: bash
+      run: |
+        APPIUM_DIR=$(cd "${{ github.action_path }}/../../../appium" && pwd -P)
+        echo "APPIUM_DIR=$APPIUM_DIR" >> "$GITHUB_ENV"
 
     - name: Enable KVM
       shell: bash
@@ -44,61 +58,139 @@ runs:
         sudo udevadm control --reload-rules
         sudo udevadm trigger --name-match=kvm
 
-    - name: Install test dependencies
-      shell: bash
-      working-directory: ${{ github.action_path }}/../../../appium
-      run: bun install --frozen-lockfile
+    - name: Cache Android system image
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.ANDROID_HOME }}/system-images/android-${{ inputs.api-level }}/${{ inputs.target }}/${{ inputs.arch }}
+        key: android-sysimg-${{ inputs.api-level }}-${{ inputs.target }}-${{ inputs.arch }}
 
-    - name: Resolve appium dir
+    - name: Install SDK packages
+      shell: bash
+      env:
+        API_LEVEL: ${{ inputs.api-level }}
+        TARGET: ${{ inputs.target }}
+        ARCH: ${{ inputs.arch }}
+      run: |
+        yes | sdkmanager --licenses >/dev/null 2>&1 || true
+        sdkmanager --install \
+          "platforms;android-$API_LEVEL" \
+          "system-images;android-$API_LEVEL;$TARGET;$ARCH" \
+          "emulator" \
+          "platform-tools" > /tmp/sdkmanager.log 2>&1 || {
+            echo "::error::sdkmanager install failed"
+            tail -40 /tmp/sdkmanager.log
+            exit 1
+          }
+
+    - name: Create AVD
+      shell: bash
+      env:
+        API_LEVEL: ${{ inputs.api-level }}
+        TARGET: ${{ inputs.target }}
+        ARCH: ${{ inputs.arch }}
+        PROFILE: ${{ inputs.profile }}
+      run: |
+        echo "no" | avdmanager create avd \
+          -n test \
+          -k "system-images;android-$API_LEVEL;$TARGET;$ARCH" \
+          -d "$PROFILE" \
+          --force
+
+    - name: Boot emulator
+      shell: bash
+      env:
+        BOOT_TIMEOUT: ${{ inputs.boot-timeout-seconds }}
+      run: |
+        nohup "$ANDROID_HOME/emulator/emulator" \
+          -avd test \
+          -no-window -no-audio -no-boot-anim \
+          -gpu swiftshader_indirect \
+          -no-snapshot-save \
+          -memory 4096 \
+          > emulator.log 2>&1 &
+        echo "EMULATOR_PID=$!" >> "$GITHUB_ENV"
+
+        adb wait-for-device
+
+        echo "Waiting for boot completion (timeout ${BOOT_TIMEOUT}s)..."
+        deadline=$(( $(date +%s) + BOOT_TIMEOUT ))
+        while :; do
+          boot=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
+          if [ "$boot" = "1" ]; then
+            break
+          fi
+          if [ "$(date +%s)" -ge "$deadline" ]; then
+            echo "::error::Emulator boot timed out"
+            echo "--- emulator.log (last 100 lines) ---"
+            tail -100 emulator.log || true
+            exit 1
+          fi
+          sleep 2
+        done
+        adb shell input keyevent 82 >/dev/null 2>&1 || true
+        echo "Emulator booted"
+
+    - name: Install Appium and driver
       shell: bash
       run: |
-        APPIUM_DIR=$(cd "${{ github.action_path }}/../../../appium" && pwd -P)
-        echo "APPIUM_DIR=$APPIUM_DIR" >> "$GITHUB_ENV"
+        bun add -g appium@3
+        appium driver install uiautomator2
 
-    - name: Run Appium tests on emulator
-      uses: reactivecircus/android-emulator-runner@v2
+    - name: Start Appium
+      shell: bash
+      env:
+        APPIUM_PORT: ${{ inputs.appium-port }}
+      run: |
+        appium --port "$APPIUM_PORT" --log-level error > appium.log 2>&1 &
+        echo "APPIUM_PID=$!" >> "$GITHUB_ENV"
+        i=0
+        while [ "$i" -lt 30 ]; do
+          if curl -sf "http://localhost:$APPIUM_PORT/status" >/dev/null; then
+            echo "Appium ready"
+            exit 0
+          fi
+          sleep 1
+          i=$((i + 1))
+        done
+        echo "::error::Appium did not become ready on port $APPIUM_PORT"
+        cat appium.log || true
+        exit 1
+
+    - name: Install test dependencies
+      shell: bash
+      working-directory: ${{ env.APPIUM_DIR }}
+      run: bun install --frozen-lockfile
+
+    - name: Run Appium tests
+      shell: bash
+      working-directory: ${{ env.APPIUM_DIR }}
       env:
         SDK_TYPE: ${{ inputs.sdk-type }}
         PLATFORM: android
         APP_PATH: ${{ inputs.app-path }}
         ONESIGNAL_APP_ID: ${{ inputs.onesignal-app-id }}
         ONESIGNAL_API_KEY: ${{ inputs.onesignal-api-key }}
-        APPIUM_PORT: ${{ inputs.appium-port }}
-      with:
-        api-level: ${{ inputs.api-level }}
-        target: google_apis
-        arch: ${{ inputs.arch }}
-        profile: ${{ inputs.profile }}
-        force-avd-creation: false
-        disable-animations: true
-        ram-size: 4096M
-        heap-size: 1024M
-        emulator-boot-timeout: 900
-        emulator-options: -no-window -no-boot-anim -gpu swiftshader_indirect
-        working-directory: ${{ env.APPIUM_DIR }}
-        script: |
-          bun add -g appium@3
-          appium driver install uiautomator2
-          appium --port "$APPIUM_PORT" --log-level error > appium.log 2>&1 &
-          for i in {1..30}; do
-            if curl -sf "http://localhost:$APPIUM_PORT/status" >/dev/null; then
-              break
-            fi
-            sleep 1
-          done
-          if ! curl -sf "http://localhost:$APPIUM_PORT/status" >/dev/null; then
-            echo "::error::Appium did not become ready on port $APPIUM_PORT"
-            cat appium.log || true
-            exit 1
-          fi
-          bunx wdio run wdio.android.conf.ts
+      run: bunx wdio run wdio.android.conf.ts
 
-    - name: Upload Appium + test results
+    - name: Shut down emulator and Appium
+      if: always()
+      shell: bash
+      run: |
+        adb emu kill 2>/dev/null || true
+        if [ -n "${APPIUM_PID:-}" ]; then
+          kill "$APPIUM_PID" 2>/dev/null || true
+        fi
+        if [ -n "${EMULATOR_PID:-}" ]; then
+          kill "$EMULATOR_PID" 2>/dev/null || true
+        fi
+
+    - name: Upload Appium + emulator logs
       if: always()
       uses: actions/upload-artifact@v5
       with:
         name: appium-local-android-${{ inputs.sdk-type }}
         path: |
           ${{ env.APPIUM_DIR }}/results/
-          ${{ env.APPIUM_DIR }}/appium.log
+          emulator.log
+          appium.log
         if-no-files-found: ignore
