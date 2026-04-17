@@ -1,0 +1,74 @@
+name: 'Setup iOS Demo Codesigning'
+description: 'Import the Appium signing cert and download provisioning profiles for the OneSignal demo app (main target + optional NSE and Widget) via the App Store Connect API. Call once per iOS build job in an SDK E2E workflow.'
+
+inputs:
+  p12-base64:
+    description: 'Base64-encoded .p12 signing certificate'
+    required: true
+  p12-password:
+    description: 'Password used when exporting the .p12'
+    required: true
+  asc-key-id:
+    description: 'App Store Connect API Key ID'
+    required: true
+  asc-issuer-id:
+    description: 'App Store Connect API Issuer ID'
+    required: true
+  asc-private-key:
+    description: 'App Store Connect API private key (.p8) contents, as raw PKCS8 PEM text'
+    required: true
+  main-bundle-id:
+    description: 'Main app bundle identifier'
+    required: false
+    default: 'com.onesignal.example'
+  nse-bundle-id:
+    description: 'Notification Service Extension bundle identifier. Leave empty to skip.'
+    required: false
+    default: 'com.onesignal.example.NSE'
+  widget-bundle-id:
+    description: 'Live Activity / Widget Extension bundle identifier. Leave empty to skip.'
+    required: false
+    default: 'com.onesignal.example.LA'
+  profile-type:
+    description: 'Provisioning profile type (IOS_APP_DEVELOPMENT, IOS_APP_ADHOC, IOS_APP_STORE)'
+    required: false
+    default: 'IOS_APP_DEVELOPMENT'
+
+runs:
+  using: composite
+  steps:
+    - name: Import signing certificate
+      uses: apple-actions/import-codesign-certs@v6
+      with:
+        p12-file-base64: ${{ inputs.p12-base64 }}
+        p12-password: ${{ inputs.p12-password }}
+        keychain-password: ci-keychain
+
+    - name: Download provisioning profile (main)
+      uses: apple-actions/download-provisioning-profiles@v5
+      with:
+        bundle-id: ${{ inputs.main-bundle-id }}
+        profile-type: ${{ inputs.profile-type }}
+        issuer-id: ${{ inputs.asc-issuer-id }}
+        api-key-id: ${{ inputs.asc-key-id }}
+        api-private-key: ${{ inputs.asc-private-key }}
+
+    - name: Download provisioning profile (NSE)
+      if: inputs.nse-bundle-id != ''
+      uses: apple-actions/download-provisioning-profiles@v5
+      with:
+        bundle-id: ${{ inputs.nse-bundle-id }}
+        profile-type: ${{ inputs.profile-type }}
+        issuer-id: ${{ inputs.asc-issuer-id }}
+        api-key-id: ${{ inputs.asc-key-id }}
+        api-private-key: ${{ inputs.asc-private-key }}
+
+    - name: Download provisioning profile (Widget)
+      if: inputs.widget-bundle-id != ''
+      uses: apple-actions/download-provisioning-profiles@v5
+      with:
+        bundle-id: ${{ inputs.widget-bundle-id }}
+        profile-type: ${{ inputs.profile-type }}
+        issuer-id: ${{ inputs.asc-issuer-id }}
+        api-key-id: ${{ inputs.asc-key-id }}
+        api-private-key: ${{ inputs.asc-private-key }}

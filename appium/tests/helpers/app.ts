@@ -189,9 +189,9 @@ export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
   // Want to login the user so we can clean up/delete its data on the next rerun.
   // `loggedIn` is module-local (worker-scoped) on purpose: each WDIO worker
   // runs in its own Node process and drives one device, so the cache reflects
-  // that device's state. Sharing across workers (e.g. via sharedStore) would
-  // lie when running parallels on BrowserStack.
-  const loggedIn = driver.sharedStore.get('loggedIn');
+  // that device's state.
+  // Browserstack runs each test in a new session, so we need to set the loggedIn flag to false.
+  const loggedIn = !process.env.BROWSERSTACK_USERNAME ? driver.sharedStore.get('loggedIn') : false;
   if (!loggedIn) {
     const testUserId = getTestExternalId();
     const userIdEl = await scrollToEl('user_external_id_value', { direction: 'up' });
@@ -199,7 +199,9 @@ export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
     if (sessionUserId !== testUserId) {
       await loginUser(testUserId);
     }
-    driver.sharedStore.set('loggedIn', true);
+    if (!process.env.BROWSERSTACK_USERNAME) {
+      driver.sharedStore.set('loggedIn', true);
+    }
   }
 }
 
