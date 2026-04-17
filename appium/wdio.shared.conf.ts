@@ -59,7 +59,11 @@ export const sharedConfig: WebdriverIO.Config = {
     const externalId = sdkType === platform ? `appium-${sdkType}` : `appium-${sdkType}-${platform}`;
     await deleteUser(externalId);
   },
+  // BrowserStack-only: report final session status to the BrowserStack
+  // dashboard. The `browserstack_executor:` script is unsupported by local
+  // Appium drivers and would otherwise log "Method is not implemented".
   after: async function (result) {
+    if (isLocal) return;
     const status = result === 0 ? 'passed' : 'failed';
     const reason = result === 0 ? 'All tests passed' : 'Test failures';
     await browser.executeScript(

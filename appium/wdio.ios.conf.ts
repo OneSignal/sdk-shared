@@ -12,10 +12,8 @@ export const config: WebdriverIO.Config = {
       'appium:platformVersion': process.env.OS_VERSION || '26',
       'appium:automationName': 'XCUITest',
       ...(process.env.BUNDLE_ID ? { 'appium:bundleId': process.env.BUNDLE_ID } : {}),
-      'appium:autoAcceptAlerts': true,
-
-      // Browserstack doesn't allow acceptAlerts and noReset at the same time
-      'appium:noReset': isLocal,
+      'appium:autoAcceptAlerts': false,
+      'appium:noReset': true,
 
       ...(isLocal ? {} : { 'bstack:options': bstackOptions }),
 

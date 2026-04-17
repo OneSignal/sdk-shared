@@ -114,6 +114,54 @@ export async function scrollToEl(
   throw new Error(`Element "${identifier}" not found after ${maxScrolls} scrolls`);
 }
 
+async function clickFirstExisting(selectors: string[], timeout = 1500) {
+  for (const selector of selectors) {
+    const el = $(selector);
+    try {
+      await el.waitForDisplayed({ timeout });
+      await el.click();
+      return true;
+    } catch {
+      // keep trying
+    }
+  }
+  return false;
+}
+
+export async function allowNotifications() {
+  if (driver.isIOS) {
+    await driver.updateSettings({
+      acceptAlertButtonSelector: '**/XCUIElementTypeButton[`label == "Allow" OR name == "Allow"`]',
+    });
+    if (await browser.isAlertOpen()) return browser.acceptAlert();
+    return clickFirstExisting(['~Allow']);
+  }
+
+  return clickFirstExisting([
+    'id=com.android.permissioncontroller:id/permission_allow_button',
+    'id=com.android.packageinstaller:id/permission_allow_button',
+    'android=new UiSelector().textMatches("(?i)allow|ok")',
+  ]);
+}
+
+export async function allowLocationWhileUsingApp() {
+  if (driver.isIOS) {
+    await driver.updateSettings({
+      acceptAlertButtonSelector:
+        '**/XCUIElementTypeButton[`label == "Allow While Using App" OR name == "Allow While Using App"`]',
+    });
+    if (await browser.isAlertOpen()) return browser.acceptAlert();
+    return clickFirstExisting(['~Allow While Using App', '~Allow Once']);
+  }
+
+  return clickFirstExisting([
+    'id=com.android.permissioncontroller:id/permission_allow_foreground_only_button',
+    'id=com.android.permissioncontroller:id/permission_allow_one_time_button',
+    'id=com.android.permissioncontroller:id/permission_allow_button',
+    'id=com.android.packageinstaller:id/permission_allow_button',
+    'android=new UiSelector().textMatches("(?i)while using the app|only this time|allow")',
+  ]);
+}
 /**
  * Wait for the app to fully launch and the home screen to be visible.
  *
@@ -123,6 +171,8 @@ export async function scrollToEl(
  */
 export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
   const { skipLogin = false } = opts;
+
+  await allowNotifications();
 
   const mainScroll = await byTestId('main_scroll_view');
   await mainScroll.waitForDisplayed({ timeout: 5_000 });

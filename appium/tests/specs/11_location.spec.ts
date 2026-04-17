@@ -1,4 +1,10 @@
-import { waitForAppReady, scrollToEl, checkTooltip, acceptAlert } from '../helpers/app.js';
+import {
+  waitForAppReady,
+  scrollToEl,
+  checkTooltip,
+  acceptAlert,
+  allowLocationWhileUsingApp,
+} from '../helpers/app.js';
 import { byText } from '../helpers/selectors.js';
 
 describe('Location', () => {
@@ -11,15 +17,12 @@ describe('Location', () => {
     await checkTooltip('location_info_icon', 'location');
   });
 
-  // Not an ideal test since we auto accept the system permission dialog
-  // If we have observable callbacks for ios & android, we can test this better
   it('can prompt for location', async () => {
-    // The system permission dialog is auto-accepted by Appium
-    // (`autoGrantPermissions` on Android, `autoAcceptAlerts` on iOS),
-    // so we just trigger the prompt and let Appium handle it.
     const promptButton = await scrollToEl('PROMPT LOCATION', { by: 'text' });
     await promptButton.click();
     await driver.pause(3_000);
+
+    await allowLocationWhileUsingApp();
   });
 
   // share location is a separate state where if location permission is allowed,

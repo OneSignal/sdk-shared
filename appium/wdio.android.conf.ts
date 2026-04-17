@@ -12,10 +12,8 @@ export const config: WebdriverIO.Config = {
       'appium:platformVersion': process.env.OS_VERSION || '16.0',
       'appium:automationName': 'UiAutomator2',
       ...(process.env.BUNDLE_ID ? { 'appium:appPackage': process.env.BUNDLE_ID } : {}),
-      'appium:autoGrantPermissions': true,
-
-      // Browserstack doesn't allow acceptAlerts and noReset at the same time
-      'appium:noReset': isLocal,
+      'appium:autoGrantPermissions': false,
+      'appium:noReset': true,
 
       ...(isLocal ? {} : { 'bstack:options': bstackOptions }),
 
