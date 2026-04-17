@@ -1,10 +1,4 @@
-import {
-  waitForAppReady,
-  scrollToEl,
-  checkTooltip,
-  acceptAlert,
-  allowLocationWhileUsingApp,
-} from '../helpers/app.js';
+import { waitForAppReady, scrollToEl, checkTooltip, allowLocation } from '../helpers/app.js';
 import { byText } from '../helpers/selectors.js';
 
 describe('Location', () => {
@@ -22,7 +16,7 @@ describe('Location', () => {
     await promptButton.click();
     await driver.pause(3_000);
 
-    await allowLocationWhileUsingApp();
+    await allowLocation();
   });
 
   // share location is a separate state where if location permission is allowed,

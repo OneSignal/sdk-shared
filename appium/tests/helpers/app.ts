@@ -128,23 +128,13 @@ async function clickFirstExisting(selectors: string[], timeout = 1500) {
   return false;
 }
 
-/** Best-effort accept of an iOS system alert; returns true if one was open. */
-async function tryAcceptIosAlert(): Promise<boolean> {
-  try {
-    await driver.acceptAlert();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export async function allowNotifications() {
   if (driver.isIOS) {
     await driver.updateSettings({
-      acceptAlertButtonSelector: '**/XCUIElementTypeButton[`label == "Allow" OR name == "Allow"`]',
+      acceptAlertButtonSelector: '**/XCUIElementTypeButton[`label == "Allow"`]',
     });
-    if (await tryAcceptIosAlert()) return true;
-    return clickFirstExisting(['~Allow']);
+    await driver.acceptAlert();
+    return true;
   }
 
   return clickFirstExisting([
@@ -154,14 +144,13 @@ export async function allowNotifications() {
   ]);
 }
 
-export async function allowLocationWhileUsingApp() {
+export async function allowLocation() {
   if (driver.isIOS) {
     await driver.updateSettings({
-      acceptAlertButtonSelector:
-        '**/XCUIElementTypeButton[`label == "Allow While Using App" OR name == "Allow While Using App"`]',
+      acceptAlertButtonSelector: '**/XCUIElementTypeButton[`label == "Allow While Using App"`]',
     });
-    if (await tryAcceptIosAlert()) return true;
-    return clickFirstExisting(['~Allow While Using App', '~Allow Once']);
+    await driver.acceptAlert();
+    return true;
   }
 
   return clickFirstExisting([
