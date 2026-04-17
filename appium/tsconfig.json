@@ -11,5 +11,5 @@
     "rootDir": ".",
     "types": ["node", "@wdio/globals/types", "@wdio/mocha-framework", "@wdio/shared-store-service"]
   },
-  "include": ["wdio.*.conf.ts", "tests/**/*.ts"]
+  "include": ["wdio.*.conf.ts", "tests/**/*.ts", "scripts/**/*.ts"]
 }

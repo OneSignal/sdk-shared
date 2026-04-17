@@ -2,3 +2,4 @@ node_modules/
 dist/
 results/
 .env
+*.p8
