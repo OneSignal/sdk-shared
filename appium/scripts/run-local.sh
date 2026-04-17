@@ -171,8 +171,8 @@ EOF
   info "Installing Flutter dependencies..."
   (cd "$FLUTTER_DIR" && flutter pub get)
 
-  info "Installing CocoaPods..."
-  (cd "$DEMO_DIR/ios" && pod install)
+  # info "Installing CocoaPods..."
+  # (cd "$DEMO_DIR/ios" && pod install)
 
   info "Building debug .app for simulator (this may take a few minutes)..."
   (cd "$DEMO_DIR" && flutter build ios --simulator --debug)

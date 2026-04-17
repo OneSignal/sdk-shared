@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { byTestId, byText, getPlatform, getSdkType, getTestExternalId } from './selectors.js';
+import { byTestId, byText, getPlatform, getTestExternalId } from './selectors.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const tooltipContent = JSON.parse(
@@ -128,13 +128,24 @@ async function clickFirstExisting(selectors: string[], timeout = 1500) {
   return false;
 }
 
+/**
+ * System permission dialogs live under SpringBoard on iOS, so treat them like
+ * regular UI and click the expected button if it is visible.
+ */
+async function clickIosSystemAlertButton(buttonLabel: string) {
+  await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
+  try {
+    return await clickFirstExisting([
+      `-ios class chain:**/XCUIElementTypeButton[\`label == "${buttonLabel}"\`]`,
+    ]);
+  } finally {
+    await driver.updateSettings({ defaultActiveApplication: 'auto' });
+  }
+}
+
 export async function allowNotifications() {
   if (driver.isIOS) {
-    await driver.updateSettings({
-      acceptAlertButtonSelector: '**/XCUIElementTypeButton[`label == "Allow"`]',
-    });
-    await driver.acceptAlert();
-    return true;
+    return clickIosSystemAlertButton('Allow');
   }
 
   return clickFirstExisting([
@@ -146,11 +157,7 @@ export async function allowNotifications() {
 
 export async function allowLocation() {
   if (driver.isIOS) {
-    await driver.updateSettings({
-      acceptAlertButtonSelector: '**/XCUIElementTypeButton[`label == "Allow While Using App"`]',
-    });
-    await driver.acceptAlert();
-    return true;
+    return clickIosSystemAlertButton('Allow While Using App');
   }
 
   return clickFirstExisting([
@@ -165,9 +172,9 @@ export async function allowLocation() {
 /**
  * Wait for the app to fully launch and the home screen to be visible.
  *
- * System permission dialogs are handled automatically by Appium via the
- * `autoGrantPermissions` (Android) and `autoAcceptAlerts` (iOS) capabilities,
- * so no explicit dialog handling is needed here.
+ * Accepts the notification permission dialog if present. Safe to call multiple
+ * times: on iOS the prompt only appears on first launch after install, and
+ * `allowNotifications` no-ops when the permission button isn't visible.
  */
 export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
   const { skipLogin = false } = opts;

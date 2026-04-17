@@ -1,4 +1,10 @@
-import { checkTooltip, expectPairInSection, scrollToEl, typeInto, waitForAppReady } from '../helpers/app';
+import {
+  checkTooltip,
+  expectPairInSection,
+  scrollToEl,
+  typeInto,
+  waitForAppReady,
+} from '../helpers/app';
 import { byTestId, byText } from '../helpers/selectors.js';
 
 describe('Aliases', () => {
