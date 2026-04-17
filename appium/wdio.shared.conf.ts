@@ -26,7 +26,6 @@ const bstackOptions = {
 
 export const sharedConfig: WebdriverIO.Config = {
   ...(isLocal ? localConnection : browserstackConnection),
-
   maxInstances: 1,
   logLevel: 'warn',
 
@@ -62,11 +61,14 @@ export const sharedConfig: WebdriverIO.Config = {
   // BrowserStack-only: report final session status to the BrowserStack
   // dashboard. The `browserstack_executor:` script is unsupported by local
   // Appium drivers and would otherwise log "Method is not implemented".
+  // We also no-op if the session never initialized (e.g. a queue-limit
+  // rejection during session create) — `browser.executeScript` won't exist.
   after: async function (result) {
     if (isLocal) return;
+    if (typeof driver?.executeScript !== 'function') return;
     const status = result === 0 ? 'passed' : 'failed';
     const reason = result === 0 ? 'All tests passed' : 'Test failures';
-    await browser.executeScript(
+    await driver.executeScript(
       `browserstack_executor: ${JSON.stringify({ action: 'setSessionStatus', arguments: { status, reason } })}`,
       [],
     );

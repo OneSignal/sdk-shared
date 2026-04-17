@@ -128,12 +128,22 @@ async function clickFirstExisting(selectors: string[], timeout = 1500) {
   return false;
 }
 
+/** Best-effort accept of an iOS system alert; returns true if one was open. */
+async function tryAcceptIosAlert(): Promise<boolean> {
+  try {
+    await driver.acceptAlert();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function allowNotifications() {
   if (driver.isIOS) {
     await driver.updateSettings({
       acceptAlertButtonSelector: '**/XCUIElementTypeButton[`label == "Allow" OR name == "Allow"`]',
     });
-    if (await browser.isAlertOpen()) return browser.acceptAlert();
+    if (await tryAcceptIosAlert()) return true;
     return clickFirstExisting(['~Allow']);
   }
 
@@ -150,7 +160,7 @@ export async function allowLocationWhileUsingApp() {
       acceptAlertButtonSelector:
         '**/XCUIElementTypeButton[`label == "Allow While Using App" OR name == "Allow While Using App"`]',
     });
-    if (await browser.isAlertOpen()) return browser.acceptAlert();
+    if (await tryAcceptIosAlert()) return true;
     return clickFirstExisting(['~Allow While Using App', '~Allow Once']);
   }
 
@@ -162,6 +172,7 @@ export async function allowLocationWhileUsingApp() {
     'android=new UiSelector().textMatches("(?i)while using the app|only this time|allow")',
   ]);
 }
+
 /**
  * Wait for the app to fully launch and the home screen to be visible.
  *
@@ -179,16 +190,20 @@ export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
 
   if (skipLogin) return;
 
-  // want to login user so we can't clean up/delete user data for the next rerun
-  const testUserId = getTestExternalId();
-  const loggedIn = await browser.sharedStore.get('loggedIn');
+  // Want to login the user so we can clean up/delete its data on the next rerun.
+  // `loggedIn` is module-local (worker-scoped) on purpose: each WDIO worker
+  // runs in its own Node process and drives one device, so the cache reflects
+  // that device's state. Sharing across workers (e.g. via sharedStore) would
+  // lie when running parallels on BrowserStack.
+  const loggedIn = driver.sharedStore.get('loggedIn');
   if (!loggedIn) {
+    const testUserId = getTestExternalId();
     const userIdEl = await scrollToEl('user_external_id_value', { direction: 'up' });
     const sessionUserId = await userIdEl.getText();
     if (sessionUserId !== testUserId) {
       await loginUser(testUserId);
     }
-    await browser.sharedStore.set('loggedIn', true);
+    driver.sharedStore.set('loggedIn', true);
   }
 }
 
