@@ -59,6 +59,14 @@ export const sharedConfig: WebdriverIO.Config = {
     const externalId = sdkType === platform ? `appium-${sdkType}` : `appium-${sdkType}-${platform}`;
     await deleteUser(externalId);
   },
+  after: async function (result) {
+    const status = result === 0 ? 'passed' : 'failed';
+    const reason = result === 0 ? 'All tests passed' : 'Test failures';
+    await browser.executeScript(
+      `browserstack_executor: ${JSON.stringify({ action: 'setSessionStatus', arguments: { status, reason } })}`,
+      [],
+    );
+  },
 };
 
 export { bstackOptions };

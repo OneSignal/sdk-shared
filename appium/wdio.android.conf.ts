@@ -13,7 +13,10 @@ export const config: WebdriverIO.Config = {
       'appium:automationName': 'UiAutomator2',
       ...(process.env.BUNDLE_ID ? { 'appium:appPackage': process.env.BUNDLE_ID } : {}),
       'appium:autoGrantPermissions': true,
-      'appium:noReset': true,
+
+      // Browserstack doesn't allow acceptAlerts and noReset at the same time
+      'appium:noReset': isLocal,
+
       ...(isLocal ? {} : { 'bstack:options': bstackOptions }),
 
       // Disable ID locator autocompletion to avoid Flutter's Semantics(container:true) wrapping inputs in a View.
