@@ -1,5 +1,5 @@
 name: 'Setup iOS Demo Codesigning'
-description: 'Import the Appium signing cert and download provisioning profiles for the OneSignal demo app (main target + optional NSE and Widget) via the App Store Connect API. Call once per iOS build job in an SDK E2E workflow.'
+description: 'Import the Appium signing cert and download provisioning profiles for the OneSignal demo app (main target, NSE, Live Activity widget) via the App Store Connect API. Call once per iOS build job in an SDK E2E workflow.'
 
 inputs:
   p12-base64:
@@ -44,31 +44,26 @@ runs:
         p12-password: ${{ inputs.p12-password }}
         keychain-password: ci-keychain
 
-    - name: Download provisioning profile (main)
-      uses: apple-actions/download-provisioning-profiles@v5
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
       with:
-        bundle-id: ${{ inputs.main-bundle-id }}
-        profile-type: ${{ inputs.profile-type }}
-        issuer-id: ${{ inputs.asc-issuer-id }}
-        api-key-id: ${{ inputs.asc-key-id }}
-        api-private-key: ${{ inputs.asc-private-key }}
+        bun-version: latest
 
-    - name: Download provisioning profile (NSE)
-      if: inputs.nse-bundle-id != ''
-      uses: apple-actions/download-provisioning-profiles@v5
-      with:
-        bundle-id: ${{ inputs.nse-bundle-id }}
-        profile-type: ${{ inputs.profile-type }}
-        issuer-id: ${{ inputs.asc-issuer-id }}
-        api-key-id: ${{ inputs.asc-key-id }}
-        api-private-key: ${{ inputs.asc-private-key }}
-
-    - name: Download provisioning profile (Widget)
-      if: inputs.widget-bundle-id != ''
-      uses: apple-actions/download-provisioning-profiles@v5
-      with:
-        bundle-id: ${{ inputs.widget-bundle-id }}
-        profile-type: ${{ inputs.profile-type }}
-        issuer-id: ${{ inputs.asc-issuer-id }}
-        api-key-id: ${{ inputs.asc-key-id }}
-        api-private-key: ${{ inputs.asc-private-key }}
+    - name: Download provisioning profiles
+      shell: bash
+      working-directory: ${{ github.action_path }}/../../..
+      env:
+        ASC_KEY_ID: ${{ inputs.asc-key-id }}
+        ASC_ISSUER_ID: ${{ inputs.asc-issuer-id }}
+        ASC_KEY_CONTENT: ${{ inputs.asc-private-key }}
+        PROFILE_TYPE: ${{ inputs.profile-type }}
+        MAIN_BUNDLE_ID: ${{ inputs.main-bundle-id }}
+        NSE_BUNDLE_ID: ${{ inputs.nse-bundle-id }}
+        WIDGET_BUNDLE_ID: ${{ inputs.widget-bundle-id }}
+      run: |
+        set -euo pipefail
+        BUNDLE_IDS=()
+        [ -n "$MAIN_BUNDLE_ID" ] && BUNDLE_IDS+=("$MAIN_BUNDLE_ID")
+        [ -n "$NSE_BUNDLE_ID" ] && BUNDLE_IDS+=("$NSE_BUNDLE_ID")
+        [ -n "$WIDGET_BUNDLE_ID" ] && BUNDLE_IDS+=("$WIDGET_BUNDLE_ID")
+        bun appium/scripts/download_profiles.ts "${BUNDLE_IDS[@]}"
