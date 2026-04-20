@@ -9,7 +9,7 @@ describe('User', () => {
 
   after(async () => {
     // login user back so we can clean up the user data for the next run
-    await driver.pause(3_000);
+    await driver.pause(2_000);
     await waitForAppReady();
   });
 
@@ -35,7 +35,7 @@ describe('User', () => {
     const externalId = await externalIdEl.getText();
     expect(externalId).toBe(getTestExternalId());
 
-    await driver.pause(3_000);
+    await driver.pause(2_000);
     await logoutUser();
 
     statusEl = await scrollToEl('user_status_value');

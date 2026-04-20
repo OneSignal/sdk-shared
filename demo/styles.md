@@ -200,8 +200,12 @@ When a list exceeds `maxVisible` items (default 5), the overflow is hidden behin
 
 - Bottom padding: 24
 
-## Loading Overlay
+## Loading State
 
-- Full-screen scrim over content
-- Background: osBackdrop (`rgba(0,0,0,0.54)`)
-- Centered spinner using the platform's native progress indicator
+Inline placeholder shown inside a list card while remote data is being fetched (e.g. aliases, tags, emails, SMS after login or cold start). Occupies the same slot as the empty-state message, so the layout does not shift when data arrives.
+
+- Container: same as Empty State (centered, 12 vertical padding)
+- Spinner: platform's native small progress indicator, color osPrimary
+- No accompanying text label (the spinner alone communicates intent; the surrounding section title provides context)
+
+Do **not** use a full-screen blocking overlay for these fetches — non-loading sections should remain interactive.

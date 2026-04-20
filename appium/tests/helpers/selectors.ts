@@ -201,10 +201,13 @@ function withFlutterAndroidFixes<T extends { getText(): Promise<string> }>(el: T
 /**
  * Select an element by its cross-platform test ID.
  *
- * Native iOS uses `accessibilityIdentifier`, native Android Compose uses
- * `testTag`, RN uses `testID` — all map to Appium accessibility id (`~`).
- * Flutter uses `Semantics(identifier:)` which maps to `accessibilityIdentifier`
- * on iOS (`~`) but to `resource-id` on Android (UiAutomator selector).
+ * iOS native / RN / Compose all surface as Appium accessibility id (`~`) on iOS.
+ * On Android the mapping varies by SDK:
+ *   - Flutter Semantics(identifier:) → resource-id (`id=`)
+ *   - React Native testID → resource-id (`id=`) under Fabric/new arch; the old
+ *     bridge surfaced it as content-desc but new arch sets it as the view tag,
+ *     which UiAutomator2 exposes via resource-id.
+ *   - Native Android Compose testTag → accessibility id (`~`)
  * Capacitor uses `data-testid` as a CSS attribute inside a WebView.
  */
 export async function byTestId(id: string) {
@@ -212,7 +215,7 @@ export async function byTestId(id: string) {
   const platform = getPlatform();
 
   if (sdkType === 'capacitor') return $(`[data-testid="${id}"]`);
-  if (sdkType === 'flutter' && platform === 'android')
+  if (platform === 'android' && (sdkType === 'flutter' || sdkType === 'react-native'))
     return withFlutterAndroidFixes(await $(`id=${id}`));
 
   return $(`~${id}`);

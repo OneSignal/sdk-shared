@@ -118,7 +118,7 @@ Register observers in state management layer:
 
 - Push subscription change
 - Notification permission change
-- User state change -> call fetchUserDataFromApi()
+- User state change -> log the new onesignalId/externalId, and when `onesignalId` is non-null, trigger `fetchUserDataFromApi()` so the post-login fetch runs once the SDK has actually assigned an id (see Phase 3.1). When `onesignalId` is null (logout), skip the fetch — the logout path already clears local lists.
 
 Clean up listeners on teardown (if platform requires it).
 
@@ -328,13 +328,18 @@ Launched by "NEXT SCREEN" button at bottom of main screen:
 
 ### Prompt 3.1 - Data Loading Flow
 
-Loading overlay: full-screen semi-transparent with centered spinner, driven by isLoading state.
-Add 100ms delay after populating data before hiding loader (ensures UI renders).
+Single boolean `isLoading` on the state container drives a per-section inline spinner (see styles.md "Loading State"). The spinner is rendered by the four list sections that depend on the API fetch (Aliases, Tags, Emails, SMS) in the same slot as their empty state, so non-loading sections (push, IAM, location, live activities, etc.) stay fully interactive. Do NOT use a full-screen blocking overlay.
 
-- **Cold start**: if onesignalId exists, show loading -> fetchUserDataFromApi() -> delay 100ms -> hide. If null, show empty state.
-- **Login**: show loading -> OneSignal.login() -> clear old data -> wait for onUserStateChange -> fetchUserDataFromApi() -> delay -> hide
-- **Logout**: show loading -> OneSignal.logout() -> clear lists -> hide
-- **onUserStateChange**: call fetchUserDataFromApi() to sync
+`fetchUserDataFromApi` is the single source of truth for refreshing user data and owns the `isLoading` toggle. On entry it bumps a monotonically-increasing `requestSequence` counter, sets `isLoading=true`, and notifies. In a try/finally it reads `getOnesignalId()` (returns early if null), calls `fetchUser`, and then writes the lists/externalId — but only if `requestSequence` still matches its captured value, so a stale fetch can't overwrite a newer one. The finally clears `isLoading` only when `requestSequence` still matches, so an in-flight call doesn't prematurely clear the spinner for a newer one.
+
+State transitions:
+
+- **Cold start**: if `onesignalId` exists, await `fetchUserDataFromApi()` (which manages its own `isLoading`). If `onesignalId` is null, leave `isLoading=false`; sections show their normal empty state. The `OneSignal.login(storedExternalUserId)` call inside cold start may also trigger the user-state observer, which fires its own fetch; the request-sequence guard collapses the race.
+- **Login**: clear aliases/tags/emails/sms/triggers lists immediately, set the optimistic external user id, and set `isLoading=true` so the four sections show the spinner without delay. Then call `OneSignal.login()` and persist the external user id. Do NOT call `fetchUserDataFromApi` from `loginUser` — the user-state observer drives it once the SDK assigns a new `onesignalId`, and the fetch's finally block clears `isLoading`. If `OneSignal.login()` itself throws synchronously, clear `isLoading` in the catch so the UI doesn't get stuck.
+- **Logout**: clear aliases/tags/emails/sms/triggers lists synchronously -> `OneSignal.logout()` -> clear persisted external user id. Do NOT toggle `isLoading`; logout is local-only. The user-state observer will fire with `onesignalId=null` and is a no-op in that case.
+- **onUserStateChange**: log the new `onesignalId`/`externalId`. When `onesignalId` is non-null, call `fetchUserDataFromApi()` — this is what drives the post-login refresh (the SDK only assigns the new `onesignalId` after `OneSignal.login()` queues its identify operation, so a synchronous fetch right after `login()` would race the assignment and return null). When `onesignalId` is null (logout), do not fetch — `logoutUser` has already cleared local lists.
+
+Caveat: if `OneSignal.login(sameExternalId)` does not emit a change event (e.g., logging in with the already-active external id), `isLoading` will stay true. Acceptable for the demo; per-action handlers still work via optimistic updates.
 
 REST API key is NOT required for fetchUser.
 
@@ -510,8 +515,7 @@ Single state container at app root. Holds all UI state with public getters. Expo
 - **SectionCard**: card with title, optional info icon, content slot, onInfoTap callback, optional `sectionKey` for accessibility identifiers (generates `{sectionKey}_section` on the container and `{sectionKey}_info_icon` on the info button)
 - **ToggleRow**: label, optional description, toggle control, optional `semanticsLabel` for accessibility identifier
 - **ActionButton**: PrimaryButton (filled) and DestructiveButton (outlined, for secondary/destructive actions), full-width, per styles.md. Both accept optional `semanticsLabel` for accessibility identifier.
-- **ListWidgets**: PairItem (key-value + optional delete), SingleItem (value + delete), EmptyState, CollapsibleList (5 items then expandable), PairList. All list widgets accept a required `sectionKey` for generating accessibility identifiers (e.g. `{sectionKey}_pair_key_{keyText}`, `{sectionKey}_remove_{keyText}`).
-- **LoadingOverlay**: full-screen spinner overlay per styles.md
+- **ListWidgets**: PairItem (key-value + optional delete), SingleItem (value + delete), EmptyState, LoadingState (inline spinner shown in the empty-state slot while a fetch is in flight, per styles.md), CollapsibleList (5 items then expandable; accepts an optional `loading` flag that swaps EmptyState for LoadingState when items is empty), PairList. All list widgets accept a required `sectionKey` for generating accessibility identifiers (e.g. `{sectionKey}_pair_key_{keyText}`, `{sectionKey}_remove_{keyText}`, `{sectionKey}_loading`).
 - **Dialogs**: all full-width with consistent padding. Dialogs accept optional semantics label parameters for key inputs and confirm buttons (e.g. `keySemanticsLabel`, `valueSemanticsLabel`, `confirmSemanticsLabel`).
   - SingleInputDialog, PairInputDialog (same row), MultiPairInputDialog (dynamic rows, dividers, X to delete, batch submit), MultiSelectRemoveDialog (checkboxes, batch remove)
   - LoginDialog, OutcomeDialog, TrackEventDialog, CustomNotificationDialog, TooltipDialog
