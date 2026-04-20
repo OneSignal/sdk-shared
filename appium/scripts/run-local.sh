@@ -139,7 +139,7 @@ elif [[ "$SDK_TYPE" == "react-native" ]]; then
   if [[ "$PLATFORM" == "ios" ]]; then
     APP_PATH="${APP_PATH:-$DEMO_DIR/ios/build/Build/Products/Debug-iphonesimulator/demo.app}"
   else
-    APP_PATH="${APP_PATH:-$DEMO_DIR/android/app/build/outputs/apk/debug/app-debug.apk}"
+    APP_PATH="${APP_PATH:-$DEMO_DIR/android/app/build/outputs/apk/release/app-release.apk}"
   fi
 fi
 
@@ -150,7 +150,7 @@ if [[ "$PLATFORM" == "ios" ]]; then
   IOS_SIMULATOR="${IOS_SIMULATOR:-$DEVICE}"
   IOS_RUNTIME="${IOS_RUNTIME:-iOS-26-2}"
 else
-  DEVICE="${DEVICE:-Samsung Galaxy S26}"
+  DEVICE="${DEVICE:-Android 16}"
   OS_VERSION="${OS_VERSION:-16}"
   AVD_NAME="${AVD_NAME:-${DEVICE// /_}}"
 fi
@@ -252,8 +252,8 @@ build_rn_android() {
   write_rn_demo_env
   setup_rn_sdk
 
-  info "Building debug APK (this may take a few minutes)..."
-  (cd "$DEMO_DIR" && bunx react-native build-android --mode=debug)
+  info "Building release APK (self-contained, no Metro required)..."
+  (cd "$DEMO_DIR/android" && ./gradlew assembleRelease)
 
   [[ -f "$APP_PATH" ]] || error ".apk not found after build at $APP_PATH"
   info "App built: $APP_PATH"
