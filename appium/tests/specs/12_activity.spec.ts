@@ -26,7 +26,7 @@ async function checkActivity(options: { orderId?: string; status: string; messag
 
 describe('Live Activities', () => {
   before(async function () {
-    await waitForAppReady({ skipLogin: true });
+    await waitForAppReady();
     if (getPlatform() !== 'ios') {
       return this.skip();
     }

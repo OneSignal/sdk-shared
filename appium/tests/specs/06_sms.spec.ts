@@ -17,7 +17,7 @@ describe('SMS', () => {
     const addButton = await scrollToEl('ADD SMS', { by: 'text' });
     await addButton.click();
 
-    const smsInput = await byTestId('SMS Number_input');
+    const smsInput = await byTestId('sms_input');
     await smsInput.waitForDisplayed({ timeout: 5_000 });
     await typeInto(smsInput, sms);
 
@@ -28,6 +28,7 @@ describe('SMS', () => {
     await el.waitForDisplayed({ timeout: 5_000 });
 
     // remove sms
+    await driver.pause(2_000);
     const removeButton = await byTestId(`sms_remove_${sms}`);
     await removeButton.click();
 

@@ -35,6 +35,7 @@ describe('Tags', () => {
     await expectPairInSection('tags', 'test_tag', 'test_tag_value');
 
     // remove tag
+    await driver.pause(2_000);
     const removeButton = await byTestId(`tags_remove_test_tag`);
     await removeButton.click();
 
@@ -47,21 +48,21 @@ describe('Tags', () => {
     await addButton.click();
 
     // add tags
-    const key0 = await byTestId('Key_input_0');
+    const key0 = await byTestId('multipair_key_0');
     await key0.waitForDisplayed({ timeout: 5_000 });
     await typeInto(key0, 'test_tag_2');
 
-    const value0 = await byTestId('Value_input_0');
+    const value0 = await byTestId('multipair_value_0');
     await typeInto(value0, 'test_tag_value_2');
 
     const addRowButton = await byText('Add Row');
     await addRowButton.click();
 
-    const key1 = await byTestId('Key_input_1');
+    const key1 = await byTestId('multipair_key_1');
     await key1.waitForDisplayed({ timeout: 5_000 });
     await typeInto(key1, 'test_tag_3');
 
-    const value1 = await byTestId('Value_input_1');
+    const value1 = await byTestId('multipair_value_1');
     await typeInto(value1, 'test_tag_value_3');
 
     let confirmButton = await byText('Add All');

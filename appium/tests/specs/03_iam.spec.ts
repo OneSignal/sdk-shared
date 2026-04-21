@@ -5,7 +5,7 @@ import {
   scrollToEl,
   waitForAppReady,
 } from '../helpers/app';
-import { getToggleState } from '../helpers/selectors';
+import { byTestId, getToggleState } from '../helpers/selectors';
 
 describe('In-App Messaging', () => {
   before(async () => {
@@ -32,7 +32,8 @@ describe('In-App Messaging', () => {
   }
 
   it('can pause iam', async () => {
-    const toggle = await scrollToEl('Pause In-App', { by: 'text', partial: true, direction: 'up' });
+    await scrollToEl('pause_iam_toggle', { direction: 'up' });
+    const toggle = await byTestId('pause_iam_toggle');
 
     expect(await getToggleState(toggle)).toBe(false);
     await toggle.click();

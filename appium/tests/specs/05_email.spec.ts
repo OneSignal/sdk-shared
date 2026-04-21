@@ -18,7 +18,7 @@ describe('Emails', () => {
     const addButton = await scrollToEl('ADD EMAIL', { by: 'text' });
     await addButton.click();
 
-    const emailInput = await byTestId('Email_input');
+    const emailInput = await byTestId('email_input');
     await emailInput.waitForDisplayed({ timeout: 5_000 });
     await typeInto(emailInput, email);
 
@@ -29,6 +29,7 @@ describe('Emails', () => {
     await el.waitForDisplayed({ timeout: 5_000 });
 
     // remove email
+    await driver.pause(2_000);
     const removeButton = await byTestId(`emails_remove_${email}`);
     await removeButton.click();
 

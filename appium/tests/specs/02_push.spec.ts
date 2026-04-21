@@ -1,5 +1,5 @@
 import { waitForAppReady, checkNotification, checkTooltip, scrollToEl } from '../helpers/app.js';
-import { getToggleState } from '../helpers/selectors.js';
+import { byTestId, getToggleState } from '../helpers/selectors.js';
 
 describe('Push Subscription', () => {
   before(async () => {
@@ -18,7 +18,8 @@ describe('Push Subscription', () => {
     expect(pushId).not.toBe('N/A');
     expect(pushId.length).toBeGreaterThan(0);
 
-    const toggleEl = await scrollToEl('Enabled', { by: 'text' });
+    await scrollToEl('push_enabled_toggle');
+    const toggleEl = await byTestId('push_enabled_toggle');
     const value = await getToggleState(toggleEl);
     expect(value).toBe(true);
   });

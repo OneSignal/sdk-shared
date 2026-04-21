@@ -41,19 +41,19 @@ describe('Aliases', () => {
     const addRowButton = await byText('Add Row');
     await addRowButton.click();
 
-    const label0 = await byTestId('Label_input_0');
+    const label0 = await byTestId('multipair_key_0');
     await label0.waitForDisplayed({ timeout: 5_000 });
     await typeInto(label0, 'test_label_2');
 
-    const id0 = await byTestId('ID_input_0');
+    const id0 = await byTestId('multipair_value_0');
     await id0.waitForDisplayed({ timeout: 5_000 });
     await typeInto(id0, 'test_id_2');
 
-    const label1 = await byTestId('Label_input_1');
+    const label1 = await byTestId('multipair_key_1');
     await label1.waitForDisplayed({ timeout: 5_000 });
     await typeInto(label1, 'test_label_3');
 
-    const id1 = await byTestId('ID_input_1');
+    const id1 = await byTestId('multipair_value_1');
     await id1.waitForDisplayed({ timeout: 5_000 });
     await typeInto(id1, 'test_id_3');
 

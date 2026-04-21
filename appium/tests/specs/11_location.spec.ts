@@ -1,9 +1,9 @@
 import { waitForAppReady, scrollToEl, checkTooltip, allowLocation } from '../helpers/app.js';
-import { byText } from '../helpers/selectors.js';
+import { byTestId, byText } from '../helpers/selectors.js';
 
 describe('Location', () => {
   before(async () => {
-    await waitForAppReady({ skipLogin: true });
+    await waitForAppReady();
     await scrollToEl('location_section');
   });
 
@@ -29,8 +29,9 @@ describe('Location', () => {
     await snackbar.waitForDisplayed({ timeout: 5_000 });
 
     // toggle location sharing on
-    const shareButton = await scrollToEl('Share device location', { by: 'text', partial: true });
-    await shareButton.click();
+    await scrollToEl('location_shared_toggle');
+    const shareToggle = await byTestId('location_shared_toggle');
+    await shareToggle.click();
 
     // verify it's now shared — re-fetch to avoid stale reference after scroll
     checkSharedButton = await scrollToEl('CHECK LOCATION SHARED', { by: 'text' });

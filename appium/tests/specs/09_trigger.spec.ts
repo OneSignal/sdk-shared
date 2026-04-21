@@ -14,17 +14,17 @@ async function addMultipleTriggers() {
   const addRowButton = await byText('Add Row');
   await addRowButton.click();
 
-  const key0 = await byTestId('Key_input_0');
+  const key0 = await byTestId('multipair_key_0');
   await key0.waitForDisplayed({ timeout: 5_000 });
   await typeInto(key0, 'test_trigger_key_2');
 
-  const value0 = await byTestId('Value_input_0');
+  const value0 = await byTestId('multipair_value_0');
   await typeInto(value0, 'test_trigger_value_2');
 
-  const key1 = await byTestId('Key_input_1');
+  const key1 = await byTestId('multipair_key_1');
   await typeInto(key1, 'test_trigger_key_3');
 
-  const value1 = await byTestId('Value_input_1');
+  const value1 = await byTestId('multipair_value_1');
   await typeInto(value1, 'test_trigger_value_3');
 
   let confirmButton = await byText('Add All');
