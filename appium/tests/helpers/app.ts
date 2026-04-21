@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { getValue, setValue } from '@wdio/shared-store-service';
+
 import { byTestId, byText, getPlatform, getTestExternalId } from './selectors.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -191,9 +193,7 @@ export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
   // runs in its own Node process and drives one device, so the cache reflects
   // that device's state.
   // Browserstack runs each test in a new session, so we need to set the loggedIn flag to false.
-  const loggedIn = !process.env.BROWSERSTACK_USERNAME
-    ? await driver.sharedStore.get('loggedIn')
-    : false;
+  const loggedIn = !process.env.BROWSERSTACK_USERNAME ? await getValue('loggedIn') : false;
   if (!loggedIn) {
     const testUserId = getTestExternalId();
     const userIdEl = await scrollToEl('user_external_id_value', { direction: 'up' });
@@ -202,7 +202,7 @@ export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
       await loginUser(testUserId);
     }
     if (!process.env.BROWSERSTACK_USERNAME) {
-      await driver.sharedStore.set('loggedIn', true);
+      await setValue('loggedIn', true);
     }
   }
 }
