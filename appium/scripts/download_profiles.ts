@@ -48,7 +48,7 @@ function requireEnv(name: string): string {
 if (process.argv.includes('-h') || process.argv.includes('--help')) {
   const banner = readFileSync(new URL(import.meta.url)).toString();
   const match = banner.match(/\/\*\*([\s\S]*?)\*\//);
-  console.log(match ? match[1].replace(/^\s*\* ?/gm, '') : banner);
+  console.info(match ? match[1].replace(/^\s*\* ?/gm, '') : banner);
   process.exit(0);
 }
 
@@ -145,8 +145,7 @@ async function findBundleIdByExactIdentifier(
   let path: string | null =
     `/bundleIds?filter%5Bidentifier%5D=${encodeURIComponent(identifier)}&limit=200`;
   while (path !== null) {
-    const page: ListResponse<BundleIdResource> =
-      await apiGet<ListResponse<BundleIdResource>>(path);
+    const page: ListResponse<BundleIdResource> = await apiGet<ListResponse<BundleIdResource>>(path);
     const hit = page.data.find((b) => b.attributes?.identifier === identifier);
     if (hit) return hit;
     const next: string | undefined = page.links?.next;
@@ -173,16 +172,14 @@ async function findActiveProfile(
     `?fields%5Bprofiles%5D=name,uuid,profileContent,profileState,profileType,expirationDate` +
     `&limit=200`;
   while (path !== null) {
-    const page: ListResponse<ProfileResource> =
-      await apiGet<ListResponse<ProfileResource>>(path);
+    const page: ListResponse<ProfileResource> = await apiGet<ListResponse<ProfileResource>>(path);
     all.push(...page.data);
     const next: string | undefined = page.links?.next;
     path = next !== undefined ? next.slice(API.length) : null;
   }
 
   const matches = all.filter(
-    (p) =>
-      p.attributes?.profileState === 'ACTIVE' && p.attributes?.profileType === profileType,
+    (p) => p.attributes?.profileState === 'ACTIVE' && p.attributes?.profileType === profileType,
   );
   if (matches.length === 0) return undefined;
   matches.sort((a, b) => {
@@ -195,19 +192,17 @@ async function findActiveProfile(
 
 async function main(): Promise<void> {
   mkdirSync(PROFILES_DIR, { recursive: true });
-  console.log(`Installing to: ${PROFILES_DIR}`);
-  console.log(`Profile type:  ${PROFILE_TYPE}`);
+  console.info(`Installing to: ${PROFILES_DIR}`);
+  console.info(`Profile type:  ${PROFILE_TYPE}`);
 
   for (const bundleId of BUNDLE_IDS) {
-    console.log(`\n=== ${bundleId} ===`);
+    console.info(`\n=== ${bundleId} ===`);
 
     const bundle = await findBundleIdByExactIdentifier(bundleId);
     if (!bundle) {
-      throw new Error(
-        `Bundle ID ${bundleId} is not registered in the Apple Developer portal.`,
-      );
+      throw new Error(`Bundle ID ${bundleId} is not registered in the Apple Developer portal.`);
     }
-    console.log(`  bundle record: ${bundle.id}`);
+    console.info(`  bundle record: ${bundle.id}`);
 
     const profile = await findActiveProfile(bundle.id, PROFILE_TYPE);
     if (!profile) {
@@ -225,7 +220,7 @@ async function main(): Promise<void> {
 
     const dest = join(PROFILES_DIR, `${uuid}.mobileprovision`);
     writeFileSync(dest, Buffer.from(content, 'base64'));
-    console.log(`  installed: ${profile.attributes?.name} → ${uuid}.mobileprovision`);
+    console.info(`  installed: ${profile.attributes?.name} → ${uuid}.mobileprovision`);
   }
 }
 

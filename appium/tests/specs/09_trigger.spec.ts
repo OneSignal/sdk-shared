@@ -8,10 +8,10 @@ import {
 import { byTestId, byText } from '../helpers/selectors.js';
 
 async function addMultipleTriggers() {
-  const addButton = await scrollToEl('ADD MULTIPLE TRIGGERS', { by: 'text' });
+  const addButton = await scrollToEl('add_multiple_triggers_button');
   await addButton.click();
 
-  const addRowButton = await byText('Add Row');
+  const addRowButton = await byTestId('multipair_add_row_button');
   await addRowButton.click();
 
   const key0 = await byTestId('multipair_key_0');
@@ -27,7 +27,7 @@ async function addMultipleTriggers() {
   const value1 = await byTestId('multipair_value_1');
   await typeInto(value1, 'test_trigger_value_3');
 
-  let confirmButton = await byText('Add All');
+  let confirmButton = await byTestId('multipair_confirm_button');
   await confirmButton.click();
 
   await expectPairInSection('triggers', 'test_trigger_key_2', 'test_trigger_value_2');
@@ -45,7 +45,7 @@ describe('Triggers', () => {
   });
 
   it('can add and remove trigger', async () => {
-    const addButton = await scrollToEl('ADD TRIGGER', { by: 'text' });
+    const addButton = await scrollToEl('add_trigger_button');
     await addButton.click();
 
     // add trigger
@@ -56,7 +56,7 @@ describe('Triggers', () => {
     const valueInput = await byTestId('trigger_value_input');
     await typeInto(valueInput, 'test_trigger_value');
 
-    const confirmButton = await byTestId('trigger_confirm_button');
+    const confirmButton = await byTestId('singlepair_confirm_button');
     await confirmButton.click();
 
     await expectPairInSection('triggers', 'test_trigger_key', 'test_trigger_value');
@@ -73,7 +73,7 @@ describe('Triggers', () => {
     await addMultipleTriggers();
 
     // remove triggers
-    const removeButton = await scrollToEl('REMOVE TRIGGERS', { by: 'text' });
+    const removeButton = await scrollToEl('remove_triggers_button');
     await removeButton.click();
 
     const trigger2Checkbox = await byTestId('remove_checkbox_test_trigger_key_2');
@@ -83,7 +83,7 @@ describe('Triggers', () => {
     const trigger3Checkbox = await byTestId('remove_checkbox_test_trigger_key_3');
     await trigger3Checkbox.click();
 
-    const confirmButton = await byText('Remove (2)');
+    const confirmButton = await byTestId('multiselect_confirm_button');
     await confirmButton.click();
 
     await scrollToEl('triggers_section', { direction: 'up' });
@@ -99,7 +99,7 @@ describe('Triggers', () => {
     await addMultipleTriggers();
 
     // clear all triggers
-    const clearButton = await scrollToEl('CLEAR ALL TRIGGERS', { by: 'text' });
+    const clearButton = await scrollToEl('clear_triggers_button');
     await clearButton.click();
 
     await scrollToEl('triggers_section', { direction: 'up' });

@@ -31,14 +31,14 @@ describe('Custom Events', () => {
 
   it('can send a custom event with no properties', async () => {
     const { customEvent } = getTestData();
-    const sendButton = await scrollToEl('TRACK EVENT', { by: 'text' });
+    const sendButton = await scrollToEl('track_event_button');
     await sendButton.click();
 
     const nameInput = await byTestId('event_name_input');
     await nameInput.waitForDisplayed({ timeout: 5_000 });
     await typeInto(nameInput, `${customEvent}_no_props`);
 
-    const trackBtn = await byText('Track');
+    const trackBtn = await byTestId('event_track_button');
     await trackBtn.click();
 
     const snackbar = await byText(`Event tracked: ${customEvent}_no_props`);
@@ -47,7 +47,7 @@ describe('Custom Events', () => {
 
   it('can send a custom event with properties', async () => {
     const { customEvent } = getTestData();
-    const sendButton = await scrollToEl('TRACK EVENT', { by: 'text' });
+    const sendButton = await scrollToEl('track_event_button');
     await sendButton.click();
 
     const nameInput = await byTestId('event_name_input');
@@ -58,7 +58,7 @@ describe('Custom Events', () => {
     const json = JSON.stringify(TEST_JSON);
     await typeInto(propertiesInput, json);
 
-    const trackBtn = await byText('Track');
+    const trackBtn = await byTestId('event_track_button');
     await trackBtn.click();
 
     const snackbar = await byText(`Event tracked: ${customEvent}_with_props`);

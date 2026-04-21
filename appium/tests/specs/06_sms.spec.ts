@@ -14,14 +14,14 @@ describe('SMS', () => {
   it('can add and remove sms', async () => {
     const { sms } = getTestData();
 
-    const addButton = await scrollToEl('ADD SMS', { by: 'text' });
+    const addButton = await scrollToEl('add_sms_button');
     await addButton.click();
 
     const smsInput = await byTestId('sms_input');
     await smsInput.waitForDisplayed({ timeout: 5_000 });
     await typeInto(smsInput, sms);
 
-    const confirmButton = await byText('Add');
+    const confirmButton = await byTestId('singleinput_confirm_button');
     await confirmButton.click();
 
     let el = await byText(sms);

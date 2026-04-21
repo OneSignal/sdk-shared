@@ -19,10 +19,10 @@ describe('In-App Messaging', () => {
   });
 
   const iamTypes = [
-    { buttonLabel: 'TOP BANNER', expectedTitle: 'Top Banner' },
-    { buttonLabel: 'BOTTOM BANNER', expectedTitle: 'Bottom Banner' },
-    { buttonLabel: 'CENTER MODAL', expectedTitle: 'Center Modal' },
-    { buttonLabel: 'FULL SCREEN', expectedTitle: 'Full Screen' },
+    { buttonId: 'send_iam_top_banner_button', expectedTitle: 'Top Banner' },
+    { buttonId: 'send_iam_bottom_banner_button', expectedTitle: 'Bottom Banner' },
+    { buttonId: 'send_iam_center_modal_button', expectedTitle: 'Center Modal' },
+    { buttonId: 'send_iam_full_screen_button', expectedTitle: 'Full Screen' },
   ];
 
   for (const iam of iamTypes) {
@@ -40,7 +40,7 @@ describe('In-App Messaging', () => {
     expect(await getToggleState(toggle)).toBe(true);
 
     // try to show top banner, should fail since IAM is paused
-    const button = await scrollToEl('TOP BANNER', { by: 'text' });
+    const button = await scrollToEl('send_iam_top_banner_button');
     await button.click();
     await driver.pause(3_000);
 
@@ -51,7 +51,7 @@ describe('In-App Messaging', () => {
     // reset back
     await toggle.click();
     await checkInAppMessage({
-      buttonLabel: 'TOP BANNER',
+      buttonId: 'send_iam_top_banner_button',
       expectedTitle: 'Top Banner',
       skipClick: true,
     });

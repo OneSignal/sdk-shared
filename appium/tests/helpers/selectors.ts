@@ -215,47 +215,43 @@ export async function byTestId(id: string) {
   const platform = getPlatform();
 
   if (sdkType === 'capacitor') return $(`[data-testid="${id}"]`);
-  if (platform === 'android' && sdkType === 'flutter')
-    return withFlutterAndroidFixes(await $(`id=${id}`));
-
+  if (platform === 'android') {
+    let el = await $(`id=${id}`);
+    if (sdkType === 'flutter') return withFlutterAndroidFixes(el);
+    return el;
+  }
   return $(`~${id}`);
 }
 
 /**
  * Select an element by visible text content.
  * Use partial: true to match elements that contain the text.
+ *
+ * Flutter on Android renders text into the `content-desc` attribute (via
+ * Semantics), not the `text` attribute that UiSelector().text() looks at,
+ * so we fall back to an XPath that matches either attribute.
  */
 export async function byText(identifier: string, partial = false) {
   const platform = getPlatform();
+  const sdkType = getSdkType();
 
-  let el: ChainablePromiseElement;
   if (platform === 'android') {
-    el = (await partial)
+    if (sdkType === 'flutter') {
+      const xpath = partial
+        ? `//*[contains(@content-desc, "${identifier}") or contains(@text, "${identifier}")]`
+        : `//*[@content-desc="${identifier}" or @text="${identifier}"]`;
+      return withFlutterAndroidFixes(await $(xpath));
+    }
+    return partial
       ? $(`android=new UiSelector().textContains("${identifier}")`)
       : $(`android=new UiSelector().text("${identifier}")`);
-  } else {
-    el = (await partial)
-      ? $(
-          `-ios predicate string:label CONTAINS "${identifier}" OR name CONTAINS "${identifier}" OR value CONTAINS "${identifier}"`,
-        )
-      : $(
-          `-ios predicate string:label == "${identifier}" OR name == "${identifier}" OR value == "${identifier}"`,
-        );
   }
 
-  return el;
-
-  // For Flutter
-  // if (platform === 'ios') {
-  //   const op = partial ? 'CONTAINS' : '==';
-  //   return $(`-ios predicate string:label ${op} "${text}"`);
-  // }
-
-  // if (partial) {
-  //   return withFlutterAndroidFixes(
-  //     await $(`//*[contains(@content-desc, "${text}") or contains(@text, "${text}")]`),
-  //   );
-  // }
-
-  // return withFlutterAndroidFixes(await $(`//*[@content-desc="${text}" or @text="${text}"]`));
+  return partial
+    ? $(
+        `-ios predicate string:label CONTAINS "${identifier}" OR name CONTAINS "${identifier}" OR value CONTAINS "${identifier}"`,
+      )
+    : $(
+        `-ios predicate string:label == "${identifier}" OR name == "${identifier}" OR value == "${identifier}"`,
+      );
 }

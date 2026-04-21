@@ -15,14 +15,14 @@ describe('Emails', () => {
     const { email } = getTestData();
 
     // add email
-    const addButton = await scrollToEl('ADD EMAIL', { by: 'text' });
+    const addButton = await scrollToEl('add_email_button');
     await addButton.click();
 
     const emailInput = await byTestId('email_input');
     await emailInput.waitForDisplayed({ timeout: 5_000 });
     await typeInto(emailInput, email);
 
-    const confirmButton = await byText('Add');
+    const confirmButton = await byTestId('singleinput_confirm_button');
     await confirmButton.click();
 
     let el = await byText(email);

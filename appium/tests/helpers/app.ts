@@ -82,11 +82,9 @@ export async function scrollToTop() {
 }
 
 /**
- * Scroll until a test-ID element appears in the accessibility tree, then
- * return it. Needed for Flutter where off-screen elements aren't in the
- * tree until scrolled into view.
- *
- * Scrolls to the top first, then searches downward.
+ * Scroll to the given element. For Flutter, we need to scroll the main content area until the element is visible.
+ * For all other platforms, we can just scroll the element into view.
+ * Defer to using by testId for all platforms and avoid getting by text.
  */
 export async function scrollToEl(
   identifier: string,
@@ -105,15 +103,9 @@ export async function scrollToEl(
   // For Flutter, we need to scroll the main content area until the element is visible.
   if (sdkType === 'flutter') {
     for (let i = 0; i < maxScrolls; i++) {
-      let el = await finder(identifier);
+      const el = await finder(identifier);
       if (await el.isDisplayed()) {
-        const { y } = await el.getLocation();
-        const { height } = await driver.getWindowSize();
-        if (y > height * 0.9) {
-          await swipeMainContent(direction, 'small');
-          el = await finder(identifier);
-        }
-        return el;
+        return await scrollExtraIfNeeded(el, () => finder(identifier), direction);
       }
       await swipeMainContent(direction);
     }
@@ -122,11 +114,45 @@ export async function scrollToEl(
 
   // For all other platforms, we can just scroll the element into view.
   const el = await finder(identifier);
+  const scrollable = await byTestId('main_scroll_view');
   await el.scrollIntoView({
     maxScrolls,
-    scrollableElement: await $(`~main_scroll_view`),
+    scrollableElement: scrollable,
+    direction: direction === 'up' ? 'down' : 'up',
+    percent: 0.5,
   });
 
+  return await scrollExtraIfNeeded(el, () => finder(identifier), direction);
+}
+
+/**
+ * If the element sits in the bottom portion of the viewport, swipe a small
+ * amount in the same direction so it lands further into safe territory, then
+ * re-fetch the (potentially staled) handle.
+ *
+ * `scrollIntoView` on native Appium has no notion of centering — it stops the
+ * moment the element first becomes visible, which on a downward scroll means
+ * the element lands at the bottom edge. Sitting there risks the tap being
+ * intercepted by snackbars, keyboard insets, or system gesture areas, and any
+ * modal that opens from the tap can race against those overlays before its
+ * accessibility tree fully registers.
+ */
+async function scrollExtraIfNeeded<T extends { getLocation(): Promise<{ y: number }> }>(
+  el: T,
+  refetch: () => Promise<T>,
+  direction: 'up' | 'down',
+  threshold = 0.8,
+): Promise<T> {
+  try {
+    const { y } = await el.getLocation();
+    const { height } = await driver.getWindowSize();
+    if (y > height * threshold) {
+      await swipeMainContent(direction, 'small');
+      return await refetch();
+    }
+  } catch {
+    /* best-effort: if location read fails, return original ref */
+  }
   return el;
 }
 
@@ -225,14 +251,14 @@ export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
  * Tap the login button, enter an external user ID, and confirm.
  */
 export async function loginUser(externalUserId: string) {
-  const loginButton = await byText('LOGIN USER');
+  const loginButton = await byTestId('login_user_button');
   await loginButton.click();
 
   const userIdInput = await byTestId('login_user_id_input');
   await userIdInput.waitForDisplayed({ timeout: 5_000 });
   await typeInto(userIdInput, externalUserId);
 
-  const confirmButton = await byTestId('login_confirm_button');
+  const confirmButton = await byTestId('singleinput_confirm_button');
   await confirmButton.click();
 }
 
@@ -515,20 +541,20 @@ async function switchToIAMWebView(expectedTitle: string, timeoutMs: number) {
 }
 
 export async function checkInAppMessage(opts: {
-  buttonLabel: string;
+  buttonId: string;
   expectedTitle: string;
   timeoutMs?: number;
   skipClick?: boolean;
 }) {
-  const { buttonLabel, expectedTitle, timeoutMs = 5_000 } = opts;
+  const { buttonId, expectedTitle, timeoutMs = 5_000 } = opts;
   if (!opts.skipClick) {
-    const button = await scrollToEl(buttonLabel, { by: 'text' });
+    const button = await scrollToEl(buttonId);
     await button.click();
   }
 
   await driver.waitUntil(() => isWebViewVisible(), {
     timeout: timeoutMs,
-    timeoutMsg: `IAM webview not shown after clicking "${buttonLabel}"`,
+    timeoutMsg: `IAM webview not shown after clicking "${buttonId}"`,
   });
   await driver.pause(1_000);
 
@@ -552,6 +578,18 @@ export async function checkInAppMessage(opts: {
   } else {
     await driver.pause(3_000);
   }
+}
+
+/**
+ * Asserts a transient snackbar/toast appears with the expected text, then waits
+ * for it to fully disappear. This prevents the next test from racing against a
+ * lingering toast that can intercept taps or block hit-testing on freshly
+ * opened modals (e.g. `react-native-toast-message` keeps toasts visible for
+ * ~4s by default).
+ */
+export async function expectSnackbar(text: string, timeoutMs = 5_000) {
+  const el = await byText(text);
+  await el.waitForDisplayed({ timeout: timeoutMs });
 }
 
 export async function checkTooltip(buttonId: string, key: string) {

@@ -38,11 +38,11 @@ describe('Live Activities', () => {
   });
 
   it('can start a live, update, and exit activity', async () => {
-    const startButton = await scrollToEl('START LIVE ACTIVITY', { by: 'text' });
+    const startButton = await scrollToEl('start_live_activity_button');
     await startButton.click();
 
-    const clickUpdateButton = async (status: string) => {
-      let updateButton = await scrollToEl(`UPDATE → ${status}`, { by: 'text' });
+    const clickUpdateButton = async () => {
+      const updateButton = await scrollToEl('update_live_activity_button');
       await updateButton.click();
       await driver.pause(3_000);
     };
@@ -53,7 +53,7 @@ describe('Live Activities', () => {
     });
 
     // update live activity to on the way
-    await clickUpdateButton('ON THE WAY');
+    await clickUpdateButton();
 
     await checkActivity({
       status: 'On the Way',
@@ -61,7 +61,7 @@ describe('Live Activities', () => {
     });
 
     // end live activity
-    const endButton = await scrollToEl('END LIVE ACTIVITY', { by: 'text' });
+    const endButton = await scrollToEl('end_live_activity_button');
     await endButton.click();
     await driver.pause(3_000);
     await lockScreen();

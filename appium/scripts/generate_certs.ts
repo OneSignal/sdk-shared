@@ -42,9 +42,9 @@ interface ProfileTarget {
 }
 
 const TARGETS: ProfileTarget[] = [
-  { bundleId: 'com.onesignal.example', profileName: 'Appium OneSignal Main' },
-  { bundleId: 'com.onesignal.example.NSE', profileName: 'Appium OneSignal NSE' },
-  { bundleId: 'com.onesignal.example.LA', profileName: 'Appium OneSignal LA' },
+  { bundleId: 'com.onesignal.example', profileName: 'Appium Demo - Main' },
+  { bundleId: 'com.onesignal.example.NSE', profileName: 'Appium Demo - NSE' },
+  { bundleId: 'com.onesignal.example.LA', profileName: 'Appium Demo - Live Activity' },
 ];
 
 const API = 'https://api.appstoreconnect.apple.com/v1';
@@ -63,7 +63,7 @@ function requireEnv(name: string): string {
 if (process.argv.includes('-h') || process.argv.includes('--help')) {
   const banner = readFileSync(new URL(import.meta.url)).toString();
   const match = banner.match(/\/\*\*([\s\S]*?)\*\//);
-  console.log(match ? match[1].replace(/^\s*\* ?/gm, '') : banner);
+  console.info(match ? match[1].replace(/^\s*\* ?/gm, '') : banner);
   process.exit(0);
 }
 
@@ -185,8 +185,7 @@ async function findBundleIdByExactIdentifier(
   let path: string | null =
     `/bundleIds?filter%5Bidentifier%5D=${encodeURIComponent(identifier)}&limit=200`;
   while (path !== null) {
-    const page: ListResponse<BundleIdResource> =
-      await apiGet<ListResponse<BundleIdResource>>(path);
+    const page: ListResponse<BundleIdResource> = await apiGet<ListResponse<BundleIdResource>>(path);
     const hit = page.data.find((b) => b.attributes?.identifier === identifier);
     if (hit) return hit;
     const next: string | undefined = page.links?.next;
@@ -196,7 +195,7 @@ async function findBundleIdByExactIdentifier(
 }
 
 async function main(): Promise<void> {
-  console.log('Fetching development certificates...');
+  console.info('Fetching development certificates...');
   const certs = await apiGet<ListResponse<CertificateResource>>(
     '/certificates?filter%5BcertificateType%5D=DEVELOPMENT&limit=200',
   );
@@ -204,9 +203,9 @@ async function main(): Promise<void> {
     throw new Error('No Development certificates found. Upload a dev cert first.');
   }
   const certIds = certs.data.map((c) => c.id);
-  console.log(`  found ${certIds.length} cert(s)`);
+  console.info(`  found ${certIds.length} cert(s)`);
 
-  console.log('Fetching enabled iOS devices...');
+  console.info('Fetching enabled iOS devices...');
   const devices = await apiGet<ListResponse<DeviceResource>>(
     '/devices?filter%5Bstatus%5D=ENABLED&filter%5Bplatform%5D=IOS&limit=200',
   );
@@ -214,10 +213,10 @@ async function main(): Promise<void> {
     throw new Error('No ENABLED iOS devices registered.');
   }
   const deviceIds = devices.data.map((d) => d.id);
-  console.log(`  found ${deviceIds.length} device(s)`);
+  console.info(`  found ${deviceIds.length} device(s)`);
 
   for (const target of TARGETS) {
-    console.log(`\n=== ${target.bundleId} ===`);
+    console.info(`\n=== ${target.bundleId} ===`);
 
     const bundleIdRecord = await findBundleIdByExactIdentifier(target.bundleId);
     if (!bundleIdRecord) {
@@ -226,13 +225,13 @@ async function main(): Promise<void> {
           `Register it (Explicit, with required capabilities) then re-run.`,
       );
     }
-    console.log(`  bundleId record: ${bundleIdRecord.id}`);
+    console.info(`  bundleId record: ${bundleIdRecord.id}`);
 
     const existing = await apiGet<ListResponse<ProfileResource>>(
       `/profiles?filter%5Bname%5D=${encodeURIComponent(target.profileName)}`,
     );
     for (const p of existing.data) {
-      console.log(`  deleting existing profile ${p.id}`);
+      console.info(`  deleting existing profile ${p.id}`);
       await apiDelete(`/profiles/${p.id}`);
     }
 
@@ -249,10 +248,10 @@ async function main(): Promise<void> {
     });
 
     const state = created.data.attributes?.profileState ?? 'unknown';
-    console.log(`  created profile ${created.data.id} (${target.profileName}) [state: ${state}]`);
+    console.info(`  created profile ${created.data.id} (${target.profileName}) [state: ${state}]`);
   }
 
-  console.log('\nDone. The E2E workflow will download these automatically on the next run.');
+  console.info('\nDone. The E2E workflow will download these automatically on the next run.');
 }
 
 main().catch((err: unknown) => {

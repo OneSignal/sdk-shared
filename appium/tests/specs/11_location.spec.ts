@@ -1,4 +1,10 @@
-import { waitForAppReady, scrollToEl, checkTooltip, allowLocation } from '../helpers/app.js';
+import {
+  waitForAppReady,
+  scrollToEl,
+  checkTooltip,
+  allowLocation,
+  expectSnackbar,
+} from '../helpers/app.js';
 import { byTestId, byText } from '../helpers/selectors.js';
 
 describe('Location', () => {
@@ -12,7 +18,7 @@ describe('Location', () => {
   });
 
   it('can prompt for location', async () => {
-    const promptButton = await scrollToEl('PROMPT LOCATION', { by: 'text' });
+    const promptButton = await scrollToEl('prompt_location_button');
     await promptButton.click();
     await driver.pause(3_000);
 
@@ -22,11 +28,10 @@ describe('Location', () => {
   // share location is a separate state where if location permission is allowed,
   // then location details would be used for things like update user actions
   it('can share location', async () => {
-    let checkSharedButton = await scrollToEl('CHECK LOCATION SHARED', { by: 'text' });
+    let checkSharedButton = await scrollToEl('check_location_button');
     await checkSharedButton.click();
 
-    let snackbar = await byText('Location shared: false');
-    await snackbar.waitForDisplayed({ timeout: 5_000 });
+    await expectSnackbar('Location shared: false');
 
     // toggle location sharing on
     await scrollToEl('location_shared_toggle');
@@ -34,9 +39,9 @@ describe('Location', () => {
     await shareToggle.click();
 
     // verify it's now shared — re-fetch to avoid stale reference after scroll
-    checkSharedButton = await scrollToEl('CHECK LOCATION SHARED', { by: 'text' });
+    checkSharedButton = await scrollToEl('check_location_button');
     await checkSharedButton.click();
-    snackbar = await byText('Location shared: true');
-    await snackbar.waitForDisplayed({ timeout: 5_000 });
+
+    await expectSnackbar('Location shared: true');
   });
 });

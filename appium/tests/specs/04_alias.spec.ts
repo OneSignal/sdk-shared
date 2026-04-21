@@ -5,7 +5,7 @@ import {
   typeInto,
   waitForAppReady,
 } from '../helpers/app';
-import { byTestId, byText } from '../helpers/selectors.js';
+import { byTestId } from '../helpers/selectors.js';
 
 describe('Aliases', () => {
   before(async () => {
@@ -18,7 +18,7 @@ describe('Aliases', () => {
   });
 
   it('can add an alias', async () => {
-    const addButton = await scrollToEl('ADD ALIAS', { by: 'text' });
+    const addButton = await scrollToEl('add_alias_button');
     await addButton.click();
 
     const labelInput = await byTestId('alias_label_input');
@@ -28,17 +28,17 @@ describe('Aliases', () => {
     const idInput = await byTestId('alias_id_input');
     await typeInto(idInput, 'test_id');
 
-    const confirmButton = await byText('Add');
+    const confirmButton = await byTestId('singlepair_confirm_button');
     await confirmButton.click();
 
     await expectPairInSection('aliases', 'test_label', 'test_id');
   });
 
   it('can add multiple aliases', async () => {
-    const addButton = await scrollToEl('ADD MULTIPLE ALIASES', { by: 'text' });
+    const addButton = await scrollToEl('add_multiple_aliases_button');
     await addButton.click();
 
-    const addRowButton = await byText('Add Row');
+    const addRowButton = await byTestId('multipair_add_row_button');
     await addRowButton.click();
 
     const label0 = await byTestId('multipair_key_0');
@@ -57,9 +57,10 @@ describe('Aliases', () => {
     await id1.waitForDisplayed({ timeout: 5_000 });
     await typeInto(id1, 'test_id_3');
 
-    const confirmButton = await byText('Add All');
+    const confirmButton = await byTestId('multipair_confirm_button');
     await confirmButton.click();
 
+    await scrollToEl('aliases_section', { direction: 'up' });
     await expectPairInSection('aliases', 'test_label_2', 'test_id_2');
     await expectPairInSection('aliases', 'test_label_3', 'test_id_3');
   });

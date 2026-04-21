@@ -137,7 +137,7 @@ elif [[ "$SDK_TYPE" == "react-native" ]]; then
   [[ -d "$RN_DIR" ]] || error "React Native SDK not found at $RN_DIR — set RN_DIR in .env"
   DEMO_DIR="$RN_DIR/examples/demo"
   if [[ "$PLATFORM" == "ios" ]]; then
-    APP_PATH="${APP_PATH:-$DEMO_DIR/ios/build/Build/Products/Debug-iphonesimulator/demo.app}"
+    APP_PATH="${APP_PATH:-$DEMO_DIR/ios/build/Build/Products/Release-iphonesimulator/demo.app}"
   else
     APP_PATH="${APP_PATH:-$DEMO_DIR/android/app/build/outputs/apk/release/app-release.apk}"
   fi
@@ -268,11 +268,11 @@ build_rn_ios() {
     info "Pods up to date, skipping pod install"
   fi
 
-  info "Building debug .app for simulator (this may take a few minutes)..."
-  (cd "$DEMO_DIR/ios" && FORCE_BUNDLING=1 xcodebuild \
+  info "Building release .app for simulator (self-contained, no Metro required)..."
+  (cd "$DEMO_DIR/ios" && xcodebuild \
     -workspace demo.xcworkspace \
     -scheme demo \
-    -configuration Debug \
+    -configuration Release \
     -sdk iphonesimulator \
     -derivedDataPath build \
     -quiet \

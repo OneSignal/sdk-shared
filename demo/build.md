@@ -462,27 +462,29 @@ Section keys: `app`, `user`, `push`, `send_push`, `iam`, `send_iam`, `aliases`, 
 
 **Dialog inputs** (passed as parameters to reusable dialog components):
 
-| Identifier                | Dialog field                           |
-| ------------------------- | -------------------------------------- |
-| `login_user_id_input`     | Login External User Id                 |
-| `login_confirm_button`    | Login confirm                          |
-| `alias_label_input`       | Add Alias label field                  |
-| `alias_id_input`          | Add Alias ID field                     |
-| `alias_confirm_button`    | Add Alias confirm                      |
-| `tag_key_input`           | Add Tag key field                      |
-| `tag_value_input`         | Add Tag value field                    |
-| `tag_confirm_button`      | Add Tag confirm                        |
-| `trigger_key_input`       | Add Trigger key field                  |
-| `trigger_value_input`     | Add Trigger value field                |
-| `trigger_confirm_button`  | Add Trigger confirm                    |
-| `outcome_name_input`      | Outcome name field                     |
-| `outcome_value_input`     | Outcome value field                    |
-| `outcome_send_button`     | Outcome send button                    |
-| `event_name_input`        | Custom Event name field                |
-| `event_properties_input`  | Custom Event properties field          |
-| `event_track_button`      | Custom Event track button              |
-| `tooltip_title`           | Tooltip dialog title                   |
-| `tooltip_description`     | Tooltip dialog description             |
+Confirm buttons on the shared single-input and single-pair dialog components are generic; descriptive ids name only what's *inside* the dialog (the input field).
+
+| Identifier                    | Dialog field                           |
+| ----------------------------- | -------------------------------------- |
+| `singleinput_confirm_button`  | Confirm on any SingleInput dialog (login, email, sms, ...) |
+| `singlepair_confirm_button`   | Confirm on any SinglePair dialog (alias, tag, trigger, ...) |
+| `multipair_confirm_button`    | Confirm on the MultiPair dialog        |
+| `multipair_add_row_button`    | Add row inside the MultiPair dialog    |
+| `login_user_id_input`         | Login External User Id                 |
+| `alias_label_input`           | Add Alias label field                  |
+| `alias_id_input`              | Add Alias ID field                     |
+| `tag_key_input`               | Add Tag key field                      |
+| `tag_value_input`             | Add Tag value field                    |
+| `trigger_key_input`           | Add Trigger key field                  |
+| `trigger_value_input`         | Add Trigger value field                |
+| `outcome_name_input`          | Outcome name field                     |
+| `outcome_value_input`         | Outcome value field                    |
+| `outcome_send_button`         | Outcome send button                    |
+| `event_name_input`            | Custom Event name field                |
+| `event_properties_input`      | Custom Event properties field          |
+| `event_track_button`          | Custom Event track button              |
+| `tooltip_title`               | Tooltip dialog title                   |
+| `tooltip_description`         | Tooltip dialog description             |
 
 **List items**: Generated from `sectionKey` parameter:
 - Key-value pairs: `{sectionKey}_pair_key_{keyText}`, `{sectionKey}_pair_value_{keyText}`

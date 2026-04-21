@@ -8,7 +8,6 @@ describe('Push Subscription', () => {
   });
 
   it('should show correct tooltip info', async () => {
-    console.clear();
     await checkTooltip('push_info_icon', 'push');
     await checkTooltip('send_push_info_icon', 'sendPushNotification');
   });
@@ -21,11 +20,14 @@ describe('Push Subscription', () => {
 
     await scrollToEl('push_enabled_toggle');
     const toggleEl = await byTestId('push_enabled_toggle');
-    const value = await getToggleState(toggleEl);
-    expect(value).toBe(true);
+    await driver.waitUntil(async () => (await getToggleState(toggleEl)) === true, {
+      timeout: 5_000,
+      timeoutMsg: 'Expected push enabled toggle to be true',
+    });
   });
 
   it('can send an image notification', async () => {
+    console.info('sending image notification');
     await checkNotification({
       buttonId: 'send_image_button',
       title: 'Image Notification',

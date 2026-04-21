@@ -18,7 +18,7 @@ describe('Tags', () => {
   });
 
   it('can add and remove a tag', async () => {
-    const addButton = await scrollToEl('ADD TAG', { by: 'text' });
+    const addButton = await scrollToEl('add_tag_button');
     await addButton.click();
 
     // add tag
@@ -29,7 +29,7 @@ describe('Tags', () => {
     const valueInput = await byTestId('tag_value_input');
     await typeInto(valueInput, 'test_tag_value');
 
-    const confirmButton = await byTestId('tag_confirm_button');
+    const confirmButton = await byTestId('singlepair_confirm_button');
     await confirmButton.click();
 
     await expectPairInSection('tags', 'test_tag', 'test_tag_value');
@@ -44,7 +44,7 @@ describe('Tags', () => {
   });
 
   it('can add and remove multiple tags', async () => {
-    const addButton = await scrollToEl('ADD MULTIPLE TAGS', { by: 'text' });
+    const addButton = await scrollToEl('add_multiple_tags_button');
     await addButton.click();
 
     // add tags
@@ -55,7 +55,7 @@ describe('Tags', () => {
     const value0 = await byTestId('multipair_value_0');
     await typeInto(value0, 'test_tag_value_2');
 
-    const addRowButton = await byText('Add Row');
+    const addRowButton = await byTestId('multipair_add_row_button');
     await addRowButton.click();
 
     const key1 = await byTestId('multipair_key_1');
@@ -65,14 +65,14 @@ describe('Tags', () => {
     const value1 = await byTestId('multipair_value_1');
     await typeInto(value1, 'test_tag_value_3');
 
-    let confirmButton = await byText('Add All');
+    let confirmButton = await byTestId('multipair_confirm_button');
     await confirmButton.click();
 
     await expectPairInSection('tags', 'test_tag_2', 'test_tag_value_2');
     await expectPairInSection('tags', 'test_tag_3', 'test_tag_value_3');
 
     // remove tags
-    const removeButton = await scrollToEl('REMOVE TAGS', { by: 'text' });
+    const removeButton = await scrollToEl('remove_tags_button');
     await removeButton.click();
 
     const tag2Checkbox = await byTestId('remove_checkbox_test_tag_2');
@@ -82,7 +82,7 @@ describe('Tags', () => {
     const tag3Checkbox = await byTestId('remove_checkbox_test_tag_3');
     await tag3Checkbox.click();
 
-    confirmButton = await byText('Remove (2)');
+    confirmButton = await byTestId('multiselect_confirm_button');
     await confirmButton.click();
 
     // wait for tags to be removed
