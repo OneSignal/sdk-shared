@@ -35,7 +35,7 @@ describe('User', () => {
     const externalId = await externalIdEl.getText();
     expect(externalId).toBe(getTestExternalId());
 
-    await driver.pause(2_000);
+    await driver.pause(1_500);
     await logoutUser();
 
     statusEl = await scrollToEl('user_status_value');

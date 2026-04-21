@@ -217,20 +217,56 @@ EOF
 }
 
 setup_rn_sdk() {
+  local stamp="$RN_DIR/.rn-sdk-source.stamp"
+  local installed_dir="$DEMO_DIR/node_modules/react-native-onesignal"
+  local tarball="$RN_DIR/react-native-onesignal.tgz"
+
+  local src_hash
+  src_hash=$(find "$RN_DIR/src" "$RN_DIR/ios" "$RN_DIR/android" \
+                  "$RN_DIR/package.json" "$RN_DIR/tsconfig.json" \
+                  "$RN_DIR"/*.podspec \
+             -type f 2>/dev/null \
+             | sort \
+             | xargs shasum 2>/dev/null \
+             | shasum \
+             | awk '{print $1}')
+
+  if [[ -d "$installed_dir" ]] && [[ -f "$stamp" ]] && [[ "$(cat "$stamp")" == "$src_hash" ]]; then
+    info "RN SDK source unchanged, skipping rebuild"
+    return
+  fi
+
   info "Building React Native SDK & packing tarball..."
   (cd "$RN_DIR" && bun run build)
   (cd "$RN_DIR" && rm -f react-native-onesignal*.tgz && bun pm pack && mv react-native-onesignal-*.tgz react-native-onesignal.tgz)
 
-  info "Installing demo dependencies..."
-  (cd "$DEMO_DIR" && bun pm cache rm && bun remove react-native-onesignal && bun add file:../../react-native-onesignal.tgz)
+  if [[ ! -d "$installed_dir" ]]; then
+    info "First install — running bun add to register tarball in lockfile..."
+    (cd "$DEMO_DIR" && bun add file:../../react-native-onesignal.tgz)
+  else
+    info "Extracting tarball into demo's node_modules (respects package.json files)..."
+    rm -rf "$installed_dir"/*
+    rm -rf "$installed_dir"/.[!.]* 2>/dev/null || true
+    tar -xzf "$tarball" -C "$installed_dir" --strip-components=1
+  fi
+
+  echo "$src_hash" > "$stamp"
 }
 
 build_rn_ios() {
   write_rn_demo_env
   setup_rn_sdk
 
-  info "Installing CocoaPods..."
-  (cd "$DEMO_DIR/ios" && pod install)
+  local lock="$DEMO_DIR/ios/Podfile.lock"
+  local stamp="$DEMO_DIR/ios/build/.podfile.lock.stamp"
+  if [[ ! -f "$lock" ]] || [[ ! -f "$stamp" ]] || ! cmp -s "$lock" "$stamp"; then
+    info "Installing CocoaPods..."
+    (cd "$DEMO_DIR/ios" && pod install)
+    mkdir -p "$(dirname "$stamp")"
+    cp "$lock" "$stamp" 2>/dev/null || true
+  else
+    info "Pods up to date, skipping pod install"
+  fi
 
   info "Building debug .app for simulator (this may take a few minutes)..."
   (cd "$DEMO_DIR/ios" && FORCE_BUNDLING=1 xcodebuild \
@@ -239,10 +275,13 @@ build_rn_ios() {
     -configuration Debug \
     -sdk iphonesimulator \
     -derivedDataPath build \
-    CODE_SIGN_IDENTITY="" \
-    CODE_SIGNING_REQUIRED=NO \
-    CODE_SIGNING_ALLOWED=NO \
-    COMPILER_INDEX_STORE_ENABLE=NO)
+    -quiet \
+    ONLY_ACTIVE_ARCH=YES \
+    ENABLE_USER_SCRIPT_SANDBOXING=NO \
+    COMPILER_INDEX_STORE_ENABLE=NO \
+    SWIFT_INDEX_STORE_ENABLE=NO \
+    CODE_SIGN_IDENTITY="-" \
+    CODE_SIGNING_ALLOWED=YES)
 
   [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
   info "App built: $APP_PATH"

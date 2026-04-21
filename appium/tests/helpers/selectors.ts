@@ -215,7 +215,7 @@ export async function byTestId(id: string) {
   const platform = getPlatform();
 
   if (sdkType === 'capacitor') return $(`[data-testid="${id}"]`);
-  if (platform === 'android' && (sdkType === 'flutter' || sdkType === 'react-native'))
+  if (platform === 'android' && sdkType === 'flutter')
     return withFlutterAndroidFixes(await $(`id=${id}`));
 
   return $(`~${id}`);
@@ -225,19 +225,37 @@ export async function byTestId(id: string) {
  * Select an element by visible text content.
  * Use partial: true to match elements that contain the text.
  */
-export async function byText(text: string, partial = false) {
+export async function byText(identifier: string, partial = false) {
   const platform = getPlatform();
 
-  if (platform === 'ios') {
-    const op = partial ? 'CONTAINS' : '==';
-    return $(`-ios predicate string:label ${op} "${text}"`);
+  let el: ChainablePromiseElement;
+  if (platform === 'android') {
+    el = (await partial)
+      ? $(`android=new UiSelector().textContains("${identifier}")`)
+      : $(`android=new UiSelector().text("${identifier}")`);
+  } else {
+    el = (await partial)
+      ? $(
+          `-ios predicate string:label CONTAINS "${identifier}" OR name CONTAINS "${identifier}" OR value CONTAINS "${identifier}"`,
+        )
+      : $(
+          `-ios predicate string:label == "${identifier}" OR name == "${identifier}" OR value == "${identifier}"`,
+        );
   }
 
-  if (partial) {
-    return withFlutterAndroidFixes(
-      await $(`//*[contains(@content-desc, "${text}") or contains(@text, "${text}")]`),
-    );
-  }
+  return el;
 
-  return withFlutterAndroidFixes(await $(`//*[@content-desc="${text}" or @text="${text}"]`));
+  // For Flutter
+  // if (platform === 'ios') {
+  //   const op = partial ? 'CONTAINS' : '==';
+  //   return $(`-ios predicate string:label ${op} "${text}"`);
+  // }
+
+  // if (partial) {
+  //   return withFlutterAndroidFixes(
+  //     await $(`//*[contains(@content-desc, "${text}") or contains(@text, "${text}")]`),
+  //   );
+  // }
+
+  // return withFlutterAndroidFixes(await $(`//*[@content-desc="${text}" or @text="${text}"]`));
 }

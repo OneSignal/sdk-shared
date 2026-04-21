@@ -8,6 +8,7 @@ describe('Push Subscription', () => {
   });
 
   it('should show correct tooltip info', async () => {
+    console.clear();
     await checkTooltip('push_info_icon', 'push');
     await checkTooltip('send_push_info_icon', 'sendPushNotification');
   });

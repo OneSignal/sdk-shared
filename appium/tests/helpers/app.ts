@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { getValue, setValue } from '@wdio/shared-store-service';
 
-import { byTestId, byText, getPlatform, getTestExternalId } from './selectors.js';
+import { byTestId, byText, getPlatform, getSdkType, getTestExternalId } from './selectors.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const tooltipContent = JSON.parse(
@@ -97,23 +97,37 @@ export async function scrollToEl(
     maxScrolls?: number;
   } = {},
 ) {
+  const sdkType = getSdkType();
+
   const { by = 'testId', partial = false, direction = 'down', maxScrolls = 20 } = opts;
   const finder = (id: string) => (by === 'text' ? byText(id, partial) : byTestId(id));
 
-  for (let i = 0; i < maxScrolls; i++) {
-    let el = await finder(identifier);
-    if (await el.isDisplayed()) {
-      const { y } = await el.getLocation();
-      const { height } = await driver.getWindowSize();
-      if (y > height * 0.9) {
-        await swipeMainContent(direction, 'small');
-        el = await finder(identifier);
+  // For Flutter, we need to scroll the main content area until the element is visible.
+  if (sdkType === 'flutter') {
+    for (let i = 0; i < maxScrolls; i++) {
+      let el = await finder(identifier);
+      if (await el.isDisplayed()) {
+        const { y } = await el.getLocation();
+        const { height } = await driver.getWindowSize();
+        if (y > height * 0.9) {
+          await swipeMainContent(direction, 'small');
+          el = await finder(identifier);
+        }
+        return el;
       }
-      return el;
+      await swipeMainContent(direction);
     }
-    await swipeMainContent(direction);
+    throw new Error(`Element "${identifier}" not found after ${maxScrolls} scrolls`);
   }
-  throw new Error(`Element "${identifier}" not found after ${maxScrolls} scrolls`);
+
+  // For all other platforms, we can just scroll the element into view.
+  const el = await finder(identifier);
+  await el.scrollIntoView({
+    maxScrolls,
+    scrollableElement: await $(`~main_scroll_view`),
+  });
+
+  return el;
 }
 
 async function clickFirstExisting(selectors: string[], timeout = 1500) {
