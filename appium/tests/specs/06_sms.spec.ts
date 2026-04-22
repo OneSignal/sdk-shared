@@ -24,6 +24,7 @@ describe('SMS', () => {
     const confirmButton = await byTestId('singleinput_confirm_button');
     await confirmButton.click();
 
+    await scrollToEl('sms_section', { direction: 'up' });
     let el = await byText(sms);
     await el.waitForDisplayed({ timeout: 5_000 });
 

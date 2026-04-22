@@ -40,6 +40,10 @@ describe('Triggers', () => {
     await scrollToEl('triggers_section');
   });
 
+  afterEach(async () => {
+    await scrollToEl('triggers_section', { direction: 'up' });
+  });
+
   it('should show correct tooltip info', async () => {
     await checkTooltip('triggers_info_icon', 'triggers');
   });

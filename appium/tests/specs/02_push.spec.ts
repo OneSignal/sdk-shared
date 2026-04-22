@@ -10,6 +10,7 @@ describe('Push Subscription', () => {
   it('should show correct tooltip info', async () => {
     await checkTooltip('push_info_icon', 'push');
     await checkTooltip('send_push_info_icon', 'sendPushNotification');
+    await scrollToEl('push_section', { direction: 'up' });
   });
 
   it('should have push ID and be enabled initially', async () => {
@@ -27,7 +28,6 @@ describe('Push Subscription', () => {
   });
 
   it('can send an image notification', async () => {
-    console.info('sending image notification');
     await checkNotification({
       buttonId: 'send_image_button',
       title: 'Image Notification',

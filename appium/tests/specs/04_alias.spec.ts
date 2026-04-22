@@ -13,6 +13,10 @@ describe('Aliases', () => {
     await scrollToEl('aliases_section');
   });
 
+  afterEach(async () => {
+    await scrollToEl('aliases_section', { direction: 'up' });
+  });
+
   it('should show correct tooltip info', async () => {
     await checkTooltip('aliases_info_icon', 'aliases');
   });

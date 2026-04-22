@@ -13,6 +13,10 @@ describe('In-App Messaging', () => {
     await scrollToEl('iam_section');
   });
 
+  afterEach(async () => {
+    await scrollToEl('iam_section', { direction: 'up' });
+  });
+
   it('should show correct tooltip info', async () => {
     await checkTooltip('iam_info_icon', 'inAppMessaging');
     await checkTooltip('send_iam_info_icon', 'sendInAppMessage');
@@ -32,7 +36,7 @@ describe('In-App Messaging', () => {
   }
 
   it('can pause iam', async () => {
-    await scrollToEl('pause_iam_toggle', { direction: 'up' });
+    await scrollToEl('pause_iam_toggle');
     const toggle = await byTestId('pause_iam_toggle');
 
     expect(await getToggleState(toggle)).toBe(false);

@@ -55,22 +55,22 @@ async function swipeMainContent(
   distance: 'small' | 'normal' | 'large' = 'normal',
 ) {
   const distances = { small: 0.2, normal: 0.5, large: 1.0 };
-  const platform = getPlatform();
-  const invertedDirection = direction === 'up' ? 'down' : 'up';
 
-  if (platform === 'ios') {
-    await driver.execute('mobile: swipe', { direction: invertedDirection });
-  } else {
-    const { width, height } = await driver.getWindowSize();
-    await driver.execute('mobile: scrollGesture', {
-      left: 0,
-      top: Math.round(height * 0.1),
-      width,
-      height: Math.round(height * 0.8),
-      direction,
-      percent: distances[distance],
-    });
-  }
+  const { width, height } = await driver.getWindowSize();
+  const swipeArea = height * 0.8;
+  const swipeDistance = swipeArea * distances[distance];
+  const centerX = width / 2;
+  const startY = direction === 'down' ? height * 0.85 : height * 0.15;
+  const endY = direction === 'down' ? startY - swipeDistance : startY + swipeDistance;
+  await browser
+    .action('pointer', { parameters: { pointerType: 'touch' } })
+    .move({ x: centerX, y: startY })
+    .down()
+    .pause(50)
+    .move({ duration: 300, x: centerX, y: endY })
+    .up()
+    .perform();
+
   await stopScrolling();
 }
 
@@ -83,7 +83,7 @@ export async function scrollToTop() {
 
 /**
  * Scroll to the given element. For Flutter, we need to scroll the main content area until the element is visible.
- * For all other platforms, we can just scroll the element into view.
+ * For all other platforms, we will just do the same though we could use scrollIntoView.
  * Defer to using by testId for all platforms and avoid getting by text.
  */
 export async function scrollToEl(
@@ -95,34 +95,17 @@ export async function scrollToEl(
     maxScrolls?: number;
   } = {},
 ) {
-  const sdkType = getSdkType();
-
   const { by = 'testId', partial = false, direction = 'down', maxScrolls = 20 } = opts;
   const finder = (id: string) => (by === 'text' ? byText(id, partial) : byTestId(id));
 
-  // For Flutter, we need to scroll the main content area until the element is visible.
-  if (sdkType === 'flutter') {
-    for (let i = 0; i < maxScrolls; i++) {
-      const el = await finder(identifier);
-      if (await el.isDisplayed()) {
-        return await scrollExtraIfNeeded(el, () => finder(identifier), direction);
-      }
-      await swipeMainContent(direction);
+  for (let i = 0; i < maxScrolls; i++) {
+    const el = await finder(identifier);
+    if (await el.isDisplayed()) {
+      return await scrollExtraIfNeeded(el, () => finder(identifier), direction);
     }
-    throw new Error(`Element "${identifier}" not found after ${maxScrolls} scrolls`);
+    await swipeMainContent(direction);
   }
-
-  // For all other platforms, we can just scroll the element into view.
-  const el = await finder(identifier);
-  const scrollable = await byTestId('main_scroll_view');
-  await el.scrollIntoView({
-    maxScrolls,
-    scrollableElement: scrollable,
-    direction: direction === 'up' ? 'down' : 'up',
-    percent: 0.5,
-  });
-
-  return await scrollExtraIfNeeded(el, () => finder(identifier), direction);
+  throw new Error(`Element "${identifier}" not found after ${maxScrolls} scrolls`);
 }
 
 /**
@@ -141,7 +124,7 @@ async function scrollExtraIfNeeded<T extends { getLocation(): Promise<{ y: numbe
   el: T,
   refetch: () => Promise<T>,
   direction: 'up' | 'down',
-  threshold = 0.8,
+  threshold = 0.9,
 ): Promise<T> {
   try {
     const { y } = await el.getLocation();
@@ -315,6 +298,8 @@ export async function addTag(key: string, value: string) {
  * Keys must be unique within the section (no duplicate keys in one list).
  */
 export async function expectPairInSection(sectionId: string, key: string, value: string) {
+  await scrollToEl(`${sectionId}_section`, { direction: 'up' });
+
   const keyEl = await byTestId(`${sectionId}_pair_key_${key}`);
   await keyEl.waitForDisplayed({ timeout: 5_000 });
   const keyText = await keyEl.getText();
@@ -479,7 +464,7 @@ export async function checkNotification(opts: {
   await clearButton.click();
 
   await driver.pause(1_000);
-  const button = await scrollToEl(opts.buttonId);
+  const button = await scrollToEl(opts.buttonId, { direction: 'up' });
   await button.click();
   await driver.pause(3_000);
   await waitForNotification({

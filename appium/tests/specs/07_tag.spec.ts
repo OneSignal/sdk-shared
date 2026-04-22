@@ -13,6 +13,10 @@ describe('Tags', () => {
     await scrollToEl('tags_section');
   });
 
+  afterEach(async () => {
+    await scrollToEl('tags_section', { direction: 'up' });
+  });
+
   it('should show correct tooltip info', async () => {
     await checkTooltip('tags_info_icon', 'tags');
   });

@@ -1,4 +1,10 @@
-import { checkTooltip, expectSnackbar, scrollToEl, typeInto, waitForAppReady } from '../helpers/app';
+import {
+  checkTooltip,
+  expectSnackbar,
+  scrollToEl,
+  typeInto,
+  waitForAppReady,
+} from '../helpers/app';
 import { byTestId } from '../helpers/selectors.js';
 
 describe('Outcomes', () => {
