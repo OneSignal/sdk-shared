@@ -4,8 +4,10 @@ import {
   checkTooltip,
   allowLocation,
   expectSnackbar,
+  ensureMainWebViewContext,
+  switchToNativeContext,
 } from '../helpers/app.js';
-import { byTestId, byText } from '../helpers/selectors.js';
+import { byTestId } from '../helpers/selectors.js';
 
 describe('Location', () => {
   before(async () => {
@@ -22,7 +24,9 @@ describe('Location', () => {
     await promptButton.click();
     await driver.pause(3_000);
 
+    await switchToNativeContext();
     await allowLocation();
+    await ensureMainWebViewContext();
   });
 
   // share location is a separate state where if location permission is allowed,

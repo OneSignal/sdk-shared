@@ -136,10 +136,40 @@ export async function deleteUser(externalId: string) {
 export async function getToggleState(el: {
   getAttribute(name: string): Promise<string | null>;
 }): Promise<boolean> {
+  const sdkType = getSdkType();
+
+  // Capacitor/Cordova render the toggle as an <ion-toggle> custom element in
+  // the WebView. `getAttribute('checked')` doesn't reliably return 'true' for
+  // a reflected boolean attribute, so prefer ARIA semantics with a
+  // presence-based fallback on the boolean `checked` attribute.
+  if (sdkType === 'capacitor' || sdkType === 'cordova') {
+    const ariaChecked = await el.getAttribute('aria-checked');
+    if (ariaChecked !== null) return ariaChecked === 'true';
+    return (await el.getAttribute('checked')) !== null;
+  }
+
   if (getPlatform() === 'ios') {
     return (await el.getAttribute('value')) === '1';
   }
   return (await el.getAttribute('checked')) === 'true';
+}
+
+/**
+ * Polls `getToggleState(el)` until it equals `expected`. Use this instead of a
+ * synchronous `expect(await getToggleState(el)).toBe(...)` after a click, since
+ * Ionic's <ion-toggle> reflects `aria-checked` only after Stencil's next render
+ * tick and WebDriver clicks on the host can take a beat to register.
+ */
+export async function expectToggleState(
+  el: { getAttribute(name: string): Promise<string | null> },
+  expected: boolean,
+  timeoutMs = 5_000,
+): Promise<void> {
+  await driver.waitUntil(async () => (await getToggleState(el)) === expected, {
+    timeout: timeoutMs,
+    interval: 100,
+    timeoutMsg: `Expected toggle state to be ${expected}`,
+  });
 }
 
 export function getSdkType(): SdkType {
@@ -214,7 +244,7 @@ export async function byTestId(id: string) {
   const sdkType = getSdkType();
   const platform = getPlatform();
 
-  if (sdkType === 'capacitor') return $(`[data-testid="${id}"]`);
+  if (sdkType === 'capacitor' || sdkType === 'cordova') return $(`[data-testid="${id}"]`);
   if (platform === 'android') {
     let el = await $(`id=${id}`);
     if (sdkType === 'flutter') return withFlutterAndroidFixes(el);

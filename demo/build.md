@@ -485,6 +485,7 @@ Confirm buttons on the shared single-input and single-pair dialog components are
 | `event_track_button`          | Custom Event track button              |
 | `tooltip_title`               | Tooltip dialog title                   |
 | `tooltip_description`         | Tooltip dialog description             |
+| `tooltip_ok_button`           | Tooltip dialog OK/confirm button       |
 
 **List items**: Generated from `sectionKey` parameter:
 - Key-value pairs: `{sectionKey}_pair_key_{keyText}`, `{sectionKey}_pair_value_{keyText}`

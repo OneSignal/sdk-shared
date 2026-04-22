@@ -1,5 +1,6 @@
 import {
   checkTooltip,
+  confirmModal,
   expectPairInSection,
   scrollToEl,
   typeInto,
@@ -32,8 +33,7 @@ describe('Aliases', () => {
     const idInput = await byTestId('alias_id_input');
     await typeInto(idInput, 'test_id');
 
-    const confirmButton = await byTestId('singlepair_confirm_button');
-    await confirmButton.click();
+    await confirmModal('singlepair_confirm_button');
 
     await expectPairInSection('aliases', 'test_label', 'test_id');
   });
@@ -61,8 +61,7 @@ describe('Aliases', () => {
     await id1.waitForDisplayed({ timeout: 5_000 });
     await typeInto(id1, 'test_id_3');
 
-    const confirmButton = await byTestId('multipair_confirm_button');
-    await confirmButton.click();
+    await confirmModal('multipair_confirm_button');
 
     await scrollToEl('aliases_section', { direction: 'up' });
     await expectPairInSection('aliases', 'test_label_2', 'test_id_2');

@@ -1,5 +1,5 @@
-import { checkTooltip, scrollToEl, typeInto, waitForAppReady } from '../helpers/app';
-import { byTestId, byText, getTestData } from '../helpers/selectors.js';
+import { checkTooltip, confirmModal, scrollToEl, typeInto, waitForAppReady } from '../helpers/app';
+import { byTestId, getTestData } from '../helpers/selectors.js';
 
 describe('SMS', () => {
   before(async () => {
@@ -21,11 +21,10 @@ describe('SMS', () => {
     await smsInput.waitForDisplayed({ timeout: 5_000 });
     await typeInto(smsInput, sms);
 
-    const confirmButton = await byTestId('singleinput_confirm_button');
-    await confirmButton.click();
+    await confirmModal('singleinput_confirm_button');
 
     await scrollToEl('sms_section', { direction: 'up' });
-    let el = await byText(sms);
+    let el = await byTestId(`sms_value_${sms}`);
     await el.waitForDisplayed({ timeout: 5_000 });
 
     // remove sms
@@ -33,7 +32,7 @@ describe('SMS', () => {
     const removeButton = await byTestId(`sms_remove_${sms}`);
     await removeButton.click();
 
-    el = await byText(sms);
+    el = await byTestId(`sms_value_${sms}`);
     await el.waitForDisplayed({ timeout: 5_000, reverse: true });
   });
 });

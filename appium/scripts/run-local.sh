@@ -52,7 +52,7 @@ via flags or env vars.
 
 Options:
   --platform=P     ios | android
-  --sdk=S          flutter | react-native
+  --sdk=S          flutter | react-native | cordova
   --device=NAME    Device/simulator/AVD name (default: iPhone 17 / Samsung Galaxy S26)
   --skip           Skip build, device launch, and app reset (rerun tests only)
   --skip-build     Skip app build (reuse existing)
@@ -68,6 +68,7 @@ Env vars (set in .env or export):
   ONESIGNAL_API_KEY  OneSignal REST API key (written to demo app .env)
   FLUTTER_DIR        Flutter SDK repo root (default: ../../OneSignal-Flutter-SDK)
   RN_DIR             React Native SDK repo root (default: ../../react-native-onesignal)
+  CORDOVA_DIR        Cordova SDK repo root (default: ../../OneSignal-Cordova-SDK)
   OS_VERSION         Platform version (default: 26.2 / 16)
   IOS_SIMULATOR      iOS simulator name (default: iPhone 17)
   IOS_RUNTIME        simctl runtime id (default: iOS-26-2)
@@ -109,7 +110,7 @@ prompt_choice() {
 }
 
 prompt_choice PLATFORM "Select platform:" ios android
-prompt_choice SDK_TYPE "Select SDK type:" flutter react-native
+prompt_choice SDK_TYPE "Select SDK type:" flutter react-native cordova
 
 case "$PLATFORM" in
   ios|android) ;;
@@ -117,8 +118,8 @@ case "$PLATFORM" in
 esac
 
 case "$SDK_TYPE" in
-  flutter|react-native) ;;
-  *) error "SDK_TYPE must be 'flutter' or 'react-native', got '$SDK_TYPE'" ;;
+  flutter|react-native|cordova) ;;
+  *) error "SDK_TYPE must be 'flutter', 'react-native', or 'cordova', got '$SDK_TYPE'" ;;
 esac
 
 BUNDLE_ID="${BUNDLE_ID:-com.onesignal.example}"
@@ -140,6 +141,15 @@ elif [[ "$SDK_TYPE" == "react-native" ]]; then
     APP_PATH="${APP_PATH:-$DEMO_DIR/ios/build/Build/Products/Release-iphonesimulator/demo.app}"
   else
     APP_PATH="${APP_PATH:-$DEMO_DIR/android/app/build/outputs/apk/release/app-release.apk}"
+  fi
+elif [[ "$SDK_TYPE" == "cordova" ]]; then
+  CORDOVA_DIR="${CORDOVA_DIR:-$SDK_ROOT/OneSignal-Cordova-SDK}"
+  [[ -d "$CORDOVA_DIR" ]] || error "Cordova SDK not found at $CORDOVA_DIR — set CORDOVA_DIR in .env"
+  DEMO_DIR="$CORDOVA_DIR/examples/demo"
+  if [[ "$PLATFORM" == "ios" ]]; then
+    APP_PATH="${APP_PATH:-$DEMO_DIR/ios/App/build/Build/Products/Release-iphonesimulator/App.app}"
+  else
+    APP_PATH="${APP_PATH:-$DEMO_DIR/android/app/build/outputs/apk/debug/app-debug.apk}"
   fi
 fi
 
@@ -298,6 +308,162 @@ build_rn_android() {
   info "App built: $APP_PATH"
 }
 
+write_cordova_demo_env() {
+  if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
+    info "Writing .env for demo app..."
+    cat > "$DEMO_DIR/.env" <<EOF
+VITE_ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
+VITE_ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
+VITE_E2E_MODE=true
+EOF
+  else
+    warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — skipping demo .env"
+  fi
+}
+
+setup_cordova_sdk() {
+  local stamp="$CORDOVA_DIR/.cordova-sdk-source.stamp"
+  local installed_dir="$DEMO_DIR/node_modules/onesignal-cordova-plugin"
+  local tarball="$CORDOVA_DIR/onesignal-cordova-plugin.tgz"
+
+  CORDOVA_SDK_SRC_HASH=$(find "$CORDOVA_DIR/src" "$CORDOVA_DIR/www" \
+                              "$CORDOVA_DIR/package.json" "$CORDOVA_DIR/plugin.xml" \
+                              "$CORDOVA_DIR/build-extras-onesignal.gradle" \
+                         -type f 2>/dev/null \
+                         | sort \
+                         | xargs shasum 2>/dev/null \
+                         | shasum \
+                         | awk '{print $1}')
+
+  if [[ -d "$installed_dir" ]] && [[ -f "$stamp" ]] && [[ "$(cat "$stamp")" == "$CORDOVA_SDK_SRC_HASH" ]]; then
+    info "Cordova SDK source unchanged, skipping rebuild"
+    return
+  fi
+
+  info "Building Cordova plugin & packing tarball..."
+  (cd "$CORDOVA_DIR" && bun run build)
+  (cd "$CORDOVA_DIR" && rm -f onesignal-cordova-plugin*.tgz && bun pm pack && mv onesignal-cordova-plugin-*.tgz onesignal-cordova-plugin.tgz)
+
+  if [[ ! -d "$installed_dir" ]]; then
+    info "First install — running bun add to register tarball in lockfile..."
+    (cd "$DEMO_DIR" && bun add file:../../onesignal-cordova-plugin.tgz)
+  else
+    info "Extracting tarball into demo's node_modules (respects package.json files)..."
+    rm -rf "$installed_dir"/*
+    rm -rf "$installed_dir"/.[!.]* 2>/dev/null || true
+    tar -xzf "$tarball" -C "$installed_dir" --strip-components=1
+  fi
+
+  echo "$CORDOVA_SDK_SRC_HASH" > "$stamp"
+}
+
+# Hash of everything that affects `cap sync <platform>` output. Used to skip
+# the (slow) sync — which internally runs `pod install` + `xcodebuild clean`
+# on iOS, and Gradle plugin wiring on Android — when nothing relevant changed.
+#
+# We deliberately hash the web bundle *sources* (src/, index.html, configs,
+# lockfile) instead of `dist/`. Vite's legacy plugin emits content-hashed
+# chunk filenames whose order/hashes can drift slightly between identical
+# builds, which would invalidate the stamp on every run.
+cap_sync_inputs_hash() {
+  local platform_dir="$1"  # ios/App | android
+  local content_hash
+  content_hash=$(find "$DEMO_DIR/src" "$DEMO_DIR/index.html" \
+                      "$DEMO_DIR/capacitor.config.ts" "$DEMO_DIR/vite.config.ts" \
+                      "$DEMO_DIR/package.json" "$DEMO_DIR/bun.lock" \
+                      "$DEMO_DIR/$platform_dir" \
+                 -type f \
+                 ! -path "*/node_modules/*" \
+                 ! -path "*/Pods/*" \
+                 ! -path "*/build/*" \
+                 ! -path "*/DerivedData/*" \
+                 ! -path "*/xcuserdata/*" \
+                 \( -name "Podfile" -o -name "build.gradle" \
+                    -o -name "*.ts" -o -name "*.tsx" \
+                    -o -name "*.json" -o -name "*.html" -o -name "*.js" \
+                    -o -name "*.css" -o -name "*.svg" -o -name "*.xml" \
+                    -o -name "*.lock" \) \
+                 2>/dev/null \
+                 | sort \
+                 | xargs shasum 2>/dev/null \
+                 | shasum \
+                 | awk '{print $1}')
+  # Tie to plugin source so plugin changes always trigger a re-sync.
+  echo "${content_hash}-${CORDOVA_SDK_SRC_HASH:-none}"
+}
+
+build_cordova_ios() {
+  write_cordova_demo_env
+  setup_cordova_sdk
+
+  info "Building web bundle (vite)..."
+  (cd "$DEMO_DIR" && bun run build)
+
+  local sync_stamp="$DEMO_DIR/ios/App/build/.cap-sync.stamp"
+  local sync_hash
+  sync_hash=$(cap_sync_inputs_hash "ios/App")
+  if [[ -d "$DEMO_DIR/ios/App/App/public" ]] && [[ -f "$sync_stamp" ]] && [[ "$(cat "$sync_stamp")" == "$sync_hash" ]]; then
+    info "Capacitor sync inputs unchanged, skipping cap sync"
+  else
+    # Capacitor's Cordova plugin generator runs `xcodebuild -project App.xcodeproj clean`
+    # during `cap sync`. Modern Xcode refuses to clean a dir that lacks the
+    # `com.apple.xcode.CreatedByBuildSystem` xattr (safety check). Our prior xcodebuild
+    # creates `ios/App/build/` without that xattr, so subsequent syncs fail unless we
+    # stamp it. Pre-create + tag here so the next sync's clean is always allowed.
+    mkdir -p "$DEMO_DIR/ios/App/build"
+    xattr -w com.apple.xcode.CreatedByBuildSystem true "$DEMO_DIR/ios/App/build" 2>/dev/null || true
+
+    info "Syncing Capacitor (also installs/updates Pods)..."
+    (cd "$DEMO_DIR" && bunx cap sync ios)
+    mkdir -p "$(dirname "$sync_stamp")"
+    echo "$sync_hash" > "$sync_stamp"
+  fi
+
+  info "Building release .app for simulator..."
+  (cd "$DEMO_DIR/ios/App" && xcodebuild \
+    -workspace App.xcworkspace \
+    -scheme App \
+    -configuration Release \
+    -sdk iphonesimulator \
+    -derivedDataPath build \
+    -quiet \
+    ONLY_ACTIVE_ARCH=YES \
+    ENABLE_USER_SCRIPT_SANDBOXING=NO \
+    COMPILER_INDEX_STORE_ENABLE=NO \
+    SWIFT_INDEX_STORE_ENABLE=NO \
+    CODE_SIGN_IDENTITY="-" \
+    CODE_SIGNING_ALLOWED=YES)
+
+  [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
+  info "App built: $APP_PATH"
+}
+
+build_cordova_android() {
+  write_cordova_demo_env
+  setup_cordova_sdk
+
+  info "Building web bundle (vite)..."
+  (cd "$DEMO_DIR" && bun run build)
+
+  local sync_stamp="$DEMO_DIR/android/build/.cap-sync.stamp"
+  local sync_hash
+  sync_hash=$(cap_sync_inputs_hash "android")
+  if [[ -d "$DEMO_DIR/android/app/src/main/assets/public" ]] && [[ -f "$sync_stamp" ]] && [[ "$(cat "$sync_stamp")" == "$sync_hash" ]]; then
+    info "Capacitor sync inputs unchanged, skipping cap sync"
+  else
+    info "Syncing Capacitor..."
+    (cd "$DEMO_DIR" && bunx cap sync android)
+    mkdir -p "$(dirname "$sync_stamp")"
+    echo "$sync_hash" > "$sync_stamp"
+  fi
+
+  info "Building debug APK (release has no signing config)..."
+  (cd "$DEMO_DIR/android" && ./gradlew assembleDebug)
+
+  [[ -f "$APP_PATH" ]] || error ".apk not found after build at $APP_PATH"
+  info "App built: $APP_PATH"
+}
+
 build_app() {
   if [[ "$SKIP_BUILD" == true ]]; then
     if [[ "$PLATFORM" == "ios" && ! -d "$APP_PATH" ]] || [[ "$PLATFORM" == "android" && ! -f "$APP_PATH" ]]; then
@@ -318,6 +484,12 @@ build_app() {
       build_rn_ios
     else
       build_rn_android
+    fi
+  elif [[ "$SDK_TYPE" == "cordova" ]]; then
+    if [[ "$PLATFORM" == "ios" ]]; then
+      build_cordova_ios
+    else
+      build_cordova_android
     fi
   fi
 }
@@ -365,8 +537,10 @@ start_android_emulator() {
     return
   fi
 
-  info "Starting emulator '$AVD_NAME'..."
-  emulator -avd "$AVD_NAME" -no-audio -no-boot-anim &
+  local emulator_log="/tmp/emulator-${AVD_NAME}.log"
+  info "Starting emulator '$AVD_NAME' (logs: $emulator_log)..."
+  emulator -avd "$AVD_NAME" -no-audio -no-boot-anim \
+    >"$emulator_log" 2>&1 &
 
   info "Waiting for emulator to boot..."
   adb wait-for-device

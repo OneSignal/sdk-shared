@@ -29,12 +29,13 @@ export const sharedConfig: WebdriverIO.Config = {
   maxInstances: 1,
   logLevel: 'warn',
 
-  specs: ['./tests/specs/**/*.spec.ts'],
+  // run all tests in one group/session
+  specs: [['./tests/specs/**/*.spec.ts']],
 
   capabilities: [],
 
   framework: 'mocha',
-  mochaOpts: { timeout: 120_000, bail: true },
+  mochaOpts: { timeout: 120_000, bail: isLocal },
   reporters: [
     'spec',
     [

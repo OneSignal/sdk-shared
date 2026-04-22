@@ -1,5 +1,11 @@
-import { checkTooltip, scrollToEl, typeInto, waitForAppReady } from '../helpers/app';
-import { byTestId, byText, getTestData } from '../helpers/selectors.js';
+import {
+  checkTooltip,
+  expectSnackbar,
+  scrollToEl,
+  typeInto,
+  waitForAppReady,
+} from '../helpers/app';
+import { byTestId, getTestData } from '../helpers/selectors.js';
 
 const TEST_JSON = {
   someNum: 123,
@@ -41,8 +47,7 @@ describe('Custom Events', () => {
     const trackBtn = await byTestId('event_track_button');
     await trackBtn.click();
 
-    const snackbar = await byText(`Event tracked: ${customEvent}_no_props`);
-    await snackbar.waitForDisplayed({ timeout: 5_000 });
+    await expectSnackbar(`Event tracked: ${customEvent}_no_props`);
   });
 
   it('can send a custom event with properties', async () => {
@@ -61,7 +66,6 @@ describe('Custom Events', () => {
     const trackBtn = await byTestId('event_track_button');
     await trackBtn.click();
 
-    const snackbar = await byText(`Event tracked: ${customEvent}_with_props`);
-    await snackbar.waitForDisplayed({ timeout: 5_000 });
+    await expectSnackbar(`Event tracked: ${customEvent}_with_props`);
   });
 });

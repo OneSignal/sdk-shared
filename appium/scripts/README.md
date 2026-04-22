@@ -67,7 +67,7 @@ Run a single spec file:
 ./run-local.sh --platform=ios --sdk=flutter --spec="tests/specs/01_user.spec.ts"
 
 # partial
-./run-local.sh --platform=ios --sdk=flutter --spec="01"
+./run-local.sh --platform=ios --sdk=flutter --spec="01_"
 ```
 
 Run multiple spec files:
@@ -76,7 +76,7 @@ Run multiple spec files:
 ./run-local.sh --platform=ios --sdk=flutter --spec="tests/specs/{01_user,08_outcome}.spec.ts"
 
 # partial
-./run-local.sh --platform=ios --sdk=flutter --spec="tests/specs/{01,08}*"
+./run-local.sh --platform=ios --sdk=flutter --spec="tests/specs/{01_,08_}*"
 ```
 
 Re-run tests without rebuilding or relaunching the simulator:

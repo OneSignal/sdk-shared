@@ -5,7 +5,7 @@ import {
   scrollToEl,
   waitForAppReady,
 } from '../helpers/app';
-import { byTestId, getToggleState } from '../helpers/selectors';
+import { byTestId, expectToggleState } from '../helpers/selectors';
 
 describe('In-App Messaging', () => {
   before(async () => {
@@ -39,9 +39,9 @@ describe('In-App Messaging', () => {
     await scrollToEl('pause_iam_toggle');
     const toggle = await byTestId('pause_iam_toggle');
 
-    expect(await getToggleState(toggle)).toBe(false);
+    await expectToggleState(toggle, false);
     await toggle.click();
-    expect(await getToggleState(toggle)).toBe(true);
+    await expectToggleState(toggle, true);
 
     // try to show top banner, should fail since IAM is paused
     const button = await scrollToEl('send_iam_top_banner_button');

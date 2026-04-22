@@ -1,11 +1,12 @@
 import {
   checkTooltip,
+  confirmModal,
   expectPairInSection,
   scrollToEl,
   typeInto,
   waitForAppReady,
 } from '../helpers/app';
-import { byTestId, byText } from '../helpers/selectors.js';
+import { byTestId } from '../helpers/selectors.js';
 
 describe('Tags', () => {
   before(async () => {
@@ -33,8 +34,7 @@ describe('Tags', () => {
     const valueInput = await byTestId('tag_value_input');
     await typeInto(valueInput, 'test_tag_value');
 
-    const confirmButton = await byTestId('singlepair_confirm_button');
-    await confirmButton.click();
+    await confirmModal('singlepair_confirm_button');
 
     await expectPairInSection('tags', 'test_tag', 'test_tag_value');
 
@@ -43,7 +43,7 @@ describe('Tags', () => {
     const removeButton = await byTestId(`tags_remove_test_tag`);
     await removeButton.click();
 
-    const el = await byText('test_tag');
+    const el = await byTestId('tags_pair_key_test_tag');
     await el.waitForDisplayed({ timeout: 5_000, reverse: true });
   });
 
@@ -69,8 +69,7 @@ describe('Tags', () => {
     const value1 = await byTestId('multipair_value_1');
     await typeInto(value1, 'test_tag_value_3');
 
-    let confirmButton = await byTestId('multipair_confirm_button');
-    await confirmButton.click();
+    await confirmModal('multipair_confirm_button');
 
     await expectPairInSection('tags', 'test_tag_2', 'test_tag_value_2');
     await expectPairInSection('tags', 'test_tag_3', 'test_tag_value_3');
@@ -86,13 +85,12 @@ describe('Tags', () => {
     const tag3Checkbox = await byTestId('remove_checkbox_test_tag_3');
     await tag3Checkbox.click();
 
-    confirmButton = await byTestId('multiselect_confirm_button');
-    await confirmButton.click();
+    await confirmModal('multiselect_confirm_button');
 
     // wait for tags to be removed
     await scrollToEl('tags_section', { direction: 'up' });
-    const tag2El = await byText('test_tag_2');
-    const tag3El = await byText('test_tag_3');
+    const tag2El = await byTestId('tags_pair_key_test_tag_2');
+    const tag3El = await byTestId('tags_pair_key_test_tag_3');
     await tag2El.waitForDisplayed({ timeout: 5_000, reverse: true });
     await tag3El.waitForDisplayed({ timeout: 5_000, reverse: true });
   });

@@ -1,5 +1,5 @@
 import { waitForAppReady, checkNotification, checkTooltip, scrollToEl } from '../helpers/app.js';
-import { byTestId, getToggleState } from '../helpers/selectors.js';
+import { byTestId, expectToggleState } from '../helpers/selectors.js';
 
 describe('Push Subscription', () => {
   before(async () => {
@@ -21,10 +21,7 @@ describe('Push Subscription', () => {
 
     await scrollToEl('push_enabled_toggle');
     const toggleEl = await byTestId('push_enabled_toggle');
-    await driver.waitUntil(async () => (await getToggleState(toggleEl)) === true, {
-      timeout: 5_000,
-      timeoutMsg: 'Expected push enabled toggle to be true',
-    });
+    await expectToggleState(toggleEl, true);
   });
 
   it('can send an image notification', async () => {

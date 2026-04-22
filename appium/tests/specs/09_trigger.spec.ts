@@ -1,11 +1,12 @@
 import {
   checkTooltip,
+  confirmModal,
   expectPairInSection,
   scrollToEl,
   typeInto,
   waitForAppReady,
 } from '../helpers/app';
-import { byTestId, byText } from '../helpers/selectors.js';
+import { byTestId } from '../helpers/selectors.js';
 
 async function addMultipleTriggers() {
   const addButton = await scrollToEl('add_multiple_triggers_button');
@@ -27,8 +28,7 @@ async function addMultipleTriggers() {
   const value1 = await byTestId('multipair_value_1');
   await typeInto(value1, 'test_trigger_value_3');
 
-  let confirmButton = await byTestId('multipair_confirm_button');
-  await confirmButton.click();
+  await confirmModal('multipair_confirm_button');
 
   await expectPairInSection('triggers', 'test_trigger_key_2', 'test_trigger_value_2');
   await expectPairInSection('triggers', 'test_trigger_key_3', 'test_trigger_value_3');
@@ -60,20 +60,20 @@ describe('Triggers', () => {
     const valueInput = await byTestId('trigger_value_input');
     await typeInto(valueInput, 'test_trigger_value');
 
-    const confirmButton = await byTestId('singlepair_confirm_button');
-    await confirmButton.click();
+    await confirmModal('singlepair_confirm_button');
 
     await expectPairInSection('triggers', 'test_trigger_key', 'test_trigger_value');
 
     // remove trigger
+    await driver.pause(1_000);
     const removeButton = await byTestId(`triggers_remove_test_trigger_key`);
     await removeButton.click();
 
-    const el = await byText('test_trigger_key');
+    const el = await byTestId('triggers_pair_key_test_trigger_key');
     await el.waitForDisplayed({ timeout: 5_000, reverse: true });
   });
 
-  it('can add multiple triggers', async () => {
+  it('can add and remove multiple triggers', async () => {
     await addMultipleTriggers();
 
     // remove triggers
@@ -87,14 +87,13 @@ describe('Triggers', () => {
     const trigger3Checkbox = await byTestId('remove_checkbox_test_trigger_key_3');
     await trigger3Checkbox.click();
 
-    const confirmButton = await byTestId('multiselect_confirm_button');
-    await confirmButton.click();
+    await confirmModal('multiselect_confirm_button');
 
     await scrollToEl('triggers_section', { direction: 'up' });
 
     // wait for triggers to be removed
-    const trigger2El = await byText('test_trigger_key_2');
-    const trigger3El = await byText('test_trigger_key_3');
+    const trigger2El = await byTestId('triggers_pair_key_test_trigger_key_2');
+    const trigger3El = await byTestId('triggers_pair_key_test_trigger_key_3');
     await trigger2El.waitForDisplayed({ timeout: 5_000, reverse: true });
     await trigger3El.waitForDisplayed({ timeout: 5_000, reverse: true });
   });
@@ -102,12 +101,15 @@ describe('Triggers', () => {
   it('can clear all triggers', async () => {
     await addMultipleTriggers();
 
+    await driver.pause(1_000);
+
     // clear all triggers
     const clearButton = await scrollToEl('clear_triggers_button');
     await clearButton.click();
 
     await scrollToEl('triggers_section', { direction: 'up' });
-    const el = await byText('No triggers added');
+    const el = await byTestId('triggers_empty');
     await el.waitForDisplayed({ timeout: 5_000 });
+    expect(await el.getText()).toContain('No triggers added');
   });
 });

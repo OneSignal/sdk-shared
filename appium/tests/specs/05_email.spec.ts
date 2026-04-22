@@ -1,5 +1,5 @@
-import { checkTooltip, scrollToEl, typeInto, waitForAppReady } from '../helpers/app';
-import { byTestId, byText, getTestData } from '../helpers/selectors.js';
+import { checkTooltip, confirmModal, scrollToEl, typeInto, waitForAppReady } from '../helpers/app';
+import { byTestId, getTestData } from '../helpers/selectors.js';
 
 describe('Emails', () => {
   before(async () => {
@@ -21,11 +21,9 @@ describe('Emails', () => {
     const emailInput = await byTestId('email_input');
     await emailInput.waitForDisplayed({ timeout: 5_000 });
     await typeInto(emailInput, email);
+    await confirmModal('singleinput_confirm_button');
 
-    const confirmButton = await byTestId('singleinput_confirm_button');
-    await confirmButton.click();
-
-    let el = await byText(email);
+    let el = await byTestId(`emails_value_${email}`);
     await el.waitForDisplayed({ timeout: 5_000 });
 
     // remove email
@@ -33,7 +31,7 @@ describe('Emails', () => {
     const removeButton = await byTestId(`emails_remove_${email}`);
     await removeButton.click();
 
-    el = await byText(email);
+    el = await byTestId(`emails_value_${email}`);
     await el.waitForDisplayed({ timeout: 5_000, reverse: true });
   });
 });
