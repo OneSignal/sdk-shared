@@ -507,8 +507,11 @@ export async function returnToApp() {
  * Android: opens the notification shade, verifies the title (and optionally
  * body) are visible, then closes the shade.
  *
- * iOS: swipes down from the top-left to open the notification center,
- * verifies the notification, then returns to the app.
+ * iOS: asserts against the foreground notification banner that SpringBoard
+ * overlays on the app while it's in foreground. No home press, no
+ * Notification Center swipe, no lock-screen path. Requires the SDK demo's
+ * `notificationWillDisplay` handler to allow display (the OneSignal demos
+ * default to this).
  */
 export async function waitForNotification(opts: {
   title: string;
@@ -548,83 +551,55 @@ export async function waitForNotification(opts: {
     return;
   }
 
-  // iOS: swipe down from the top-left to open notification center
-  // (top-right opens Control Center on iOS 16+).
+  // iOS: query the foreground banner SpringBoard renders over the app.
   // Native predicate selectors (`-ios predicate string:...`) only resolve in
-  // NATIVE_APP. WebView SDKs (Capacitor/Cordova) are parked in a `WEBVIEW_*`
-  // context by `waitForAppReady`, so the predicate query hangs until the
-  // command timeout. Swap to native for the shade work and restore on exit.
+  // NATIVE_APP, and the banner lives in SpringBoard's UI tree, so we point
+  // `defaultActiveApplication` at SpringBoard for the query and restore the
+  // app on the way out.
+  const caps = driver.capabilities as Record<string, unknown>;
+  const bundleId = (caps['bundleId'] ?? caps['appium:bundleId']) as string;
   await switchToNativeContext();
   try {
     await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
 
-    await driver.execute('mobile: pressButton', { name: 'home' });
-    await driver.pause(1_000);
-
-    const { width, height } = await driver.getWindowSize();
-    await driver.performActions([
-      {
-        type: 'pointer',
-        id: 'finger1',
-        parameters: { pointerType: 'touch' },
-        actions: [
-          { type: 'pointerMove', duration: 0, x: Math.round(width * 0.1), y: 5 },
-          { type: 'pointerDown', button: 0 },
-          { type: 'pause', duration: 100 },
-          {
-            type: 'pointerMove',
-            duration: 500,
-            x: Math.round(width * 0.1),
-            y: Math.round(height * 0.6),
-          },
-          { type: 'pointerUp', button: 0 },
-        ],
-      },
-    ]);
-    await driver.releaseActions();
-    await driver.pause(2_000);
-
     const predicate = body
       ? `label CONTAINS "${title}" AND label CONTAINS "${body}"`
       : `label CONTAINS "${title}"`;
-    const notification = await $(`-ios predicate string:${predicate}`);
-    await notification.waitForDisplayed({ timeout: timeoutMs });
+    const banner = await $(`-ios predicate string:${predicate}`);
+    await banner.waitForDisplayed({ timeout: timeoutMs });
 
     if (expectImage) {
-      const location = await notification.getLocation();
-      const size = await notification.getSize();
-      const startX = Math.round(location.x + size.width * 0.8);
-      const endX = Math.round(location.x + size.width * 0.2);
-      const centerY = Math.round(location.y + size.height / 2);
+      // The collapsed banner only shows title/body; the image attachment
+      // is rendered when the banner is expanded. Predicate filters on size
+      // are brittle across WDA versions, so instead we count XCUIElementTypeImage
+      // elements before vs. after the touch-and-hold expansion — if an
+      // attachment is present, expanding the banner adds at least one image
+      // element (the attachment) on top of whatever was already on screen
+      // (e.g. the app icon).
+      const imagesBefore = await $$('-ios class chain:**/XCUIElementTypeImage');
+      const beforeCount = imagesBefore.length;
 
-      await driver.performActions([
-        {
-          type: 'pointer',
-          id: 'finger1',
-          parameters: { pointerType: 'touch' },
-          actions: [
-            { type: 'pointerMove', duration: 0, x: startX, y: centerY },
-            { type: 'pointerDown', button: 0 },
-            { type: 'pause', duration: 100 },
-            { type: 'pointerMove', duration: 300, x: endX, y: centerY },
-            { type: 'pointerUp', button: 0 },
-          ],
+      await driver.execute('mobile: touchAndHold', {
+        elementId: banner.elementId,
+        duration: 1.0,
+      });
+      await driver.pause(750);
+
+      await driver.waitUntil(
+        async () => {
+          const imagesAfter = await $$('-ios class chain:**/XCUIElementTypeImage');
+          return imagesAfter.length > beforeCount;
         },
-      ]);
-      await driver.releaseActions();
-      await driver.pause(300);
-
-      const viewButton = await $(`-ios predicate string:label == "View"`);
-      await viewButton.waitForDisplayed({ timeout: 5_000 });
-      await viewButton.click();
-      await driver.pause(500);
-
-      const image = await $('-ios class chain:**/XCUIElementTypeImage');
-      await image.waitForDisplayed({ timeout: 5_000 });
+        {
+          timeout: 5_000,
+          timeoutMsg: `Expected expanded banner to add an image element (had ${beforeCount} before expand)`,
+        },
+      );
     }
-
-    await returnToApp();
   } finally {
+    if (bundleId) {
+      await driver.updateSettings({ defaultActiveApplication: bundleId });
+    }
     await ensureMainWebViewContext();
   }
 }
