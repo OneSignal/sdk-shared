@@ -186,7 +186,7 @@ const ANDROID_PERMISSION_PACKAGES = new Set([
 
 async function clickAndroidPermissionButton(
   selectors: string[],
-  timeoutMs = 2000,
+  timeoutMs = 10_000,
 ): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -213,7 +213,7 @@ async function clickAndroidPermissionButton(
  * System permission dialogs live under SpringBoard on iOS, so treat them like
  * regular UI and click the expected button if it is visible.
  */
-async function clickIosPermissionButton(buttonLabel: string, timeoutMs = 1500) {
+async function clickIosPermissionButton(buttonLabel: string, timeoutMs = 10_000) {
   await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
   try {
     const button = await $(

@@ -5,12 +5,13 @@ const isDotNet = process.env.SDK_TYPE === 'dotnet';
 
 // .NET MAUI compiles Android activities with CRC-hashed Java class names (e.g.
 // `crc64126b3a41c71c5f27.MainActivity`) instead of the C# namespace path, so
-// Appium's launchable-activity wait check fails and the session times out.
-// Wildcard the wait-activity match and give MAUI's slower startup more headroom.
+// Appium's launchable-activity wait check can't validate the launch and times
+// out. Skip that check (`appWaitForLaunch: false`) and rely on the per-test
+// `waitForAppReady` element wait to confirm the app is up. MAUI's cold install
+// also takes longer than the defaults, so widen the install/launch budgets.
 const dotnetAndroidCaps = isDotNet
   ? {
-      'appium:appWaitActivity': '*',
-      'appium:appWaitForLaunch': true,
+      'appium:appWaitForLaunch': false,
       'appium:appWaitDuration': 120_000,
       'appium:androidInstallTimeout': 180_000,
     }
@@ -34,8 +35,12 @@ export const config: WebdriverIO.Config = {
       ...(isLocal ? {} : { 'bstack:options': bstackOptions }),
 
       // Disable ID locator autocompletion to avoid Flutter's Semantics(container:true) wrapping inputs in a View.
+      // .NET MAUI exposes AutomationId as the Android resource-id but namespaced
+      // (e.g. `com.onesignal.example:id/main_scroll_view`); the test suite
+      // queries by short id, so leave autocompletion ON for dotnet so Appium
+      // prepends the package automatically.
       // @ts-expect-error - Appium types are not fully compatible with WebdriverIO types
-      'appium:settings[disableIdLocatorAutocompletion]': true,
+      'appium:settings[disableIdLocatorAutocompletion]': !isDotNet,
 
       // Hide keyboard during session
       'appium:hideKeyboard': true,

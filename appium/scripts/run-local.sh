@@ -495,33 +495,31 @@ EOF
   fi
 }
 
-# Hash everything that influences the .NET MAUI build output for the given
-# platform. Used to skip the (slow) `dotnet build` when nothing has changed.
-# Inputs: managed sources, csproj/props, native binding metadata, demo
-# resources, and the bundled .env (which is baked into the app via MauiAsset).
-dotnet_inputs_hash() {
+# SDK + binding source roots for a given platform. The SDK rarely changes on
+# day-to-day demo work, so we hash and build it independently from the demo and
+# fold its hash into the demo input hash so SDK edits still cascade-invalidate.
+dotnet_sdk_paths() {
   local platform="$1"  # ios | android
-  local sdk_paths=(
-    "$DOTNET_DIR/OneSignalSDK.DotNet"
-    "$DOTNET_DIR/OneSignalSDK.DotNet.Core"
-    "$DOTNET_DIR/Directory.Build.props"
-  )
+  echo "$DOTNET_DIR/OneSignalSDK.DotNet"
+  echo "$DOTNET_DIR/OneSignalSDK.DotNet.Core"
+  echo "$DOTNET_DIR/Directory.Build.props"
   if [[ "$platform" == "ios" ]]; then
-    sdk_paths+=(
-      "$DOTNET_DIR/OneSignalSDK.DotNet.iOS"
-      "$DOTNET_DIR/OneSignalSDK.DotNet.iOS.Binding"
-    )
+    echo "$DOTNET_DIR/OneSignalSDK.DotNet.iOS"
+    echo "$DOTNET_DIR/OneSignalSDK.DotNet.iOS.Binding"
   else
-    sdk_paths+=(
-      "$DOTNET_DIR/OneSignalSDK.DotNet.Android"
-      "$DOTNET_DIR/OneSignalSDK.DotNet.Android.Core.Binding"
-      "$DOTNET_DIR/OneSignalSDK.DotNet.Android.InAppMessages.Binding"
-      "$DOTNET_DIR/OneSignalSDK.DotNet.Android.Location.Binding"
-      "$DOTNET_DIR/OneSignalSDK.DotNet.Android.Notifications.Binding"
-    )
+    echo "$DOTNET_DIR/OneSignalSDK.DotNet.Android"
+    echo "$DOTNET_DIR/OneSignalSDK.DotNet.Android.Core.Binding"
+    echo "$DOTNET_DIR/OneSignalSDK.DotNet.Android.InAppMessages.Binding"
+    echo "$DOTNET_DIR/OneSignalSDK.DotNet.Android.Location.Binding"
+    echo "$DOTNET_DIR/OneSignalSDK.DotNet.Android.Notifications.Binding"
   fi
+}
 
-  find "${sdk_paths[@]}" "$DEMO_DIR" \
+# Hash any source/metadata file under the given roots that can affect compiled
+# output. Used by both the SDK and demo hashes; centralised so the inclusion
+# rules stay in sync.
+dotnet_hash_paths() {
+  find "$@" \
        -type f \
        ! -path "*/bin/*" \
        ! -path "*/obj/*" \
@@ -537,6 +535,22 @@ dotnet_inputs_hash() {
        | awk '{print $1}'
 }
 
+dotnet_sdk_inputs_hash() {
+  local platform="$1"
+  local roots=()
+  while IFS= read -r p; do roots+=("$p"); done < <(dotnet_sdk_paths "$platform")
+  dotnet_hash_paths "${roots[@]}"
+}
+
+# Demo hash folds in the SDK hash so an SDK edit busts the demo cache too.
+dotnet_demo_inputs_hash() {
+  local platform="$1"
+  local sdk_hash="$2"
+  local demo_hash
+  demo_hash=$(dotnet_hash_paths "$DEMO_DIR")
+  printf '%s\n%s\n' "$sdk_hash" "$demo_hash" | shasum | awk '{print $1}'
+}
+
 # Returns 0 if a previous build's stamp matches the current input hash AND the
 # expected output artifact still exists, in which case the caller should skip.
 dotnet_build_is_cached() {
@@ -547,29 +561,61 @@ dotnet_build_is_cached() {
   return 0
 }
 
+# Build only the SDK + binding projects for the given platform. The demo's
+# csproj has a ProjectReference to `OneSignalSDK.DotNet`, so building that one
+# project transitively builds every binding it pulls in for the target TFM.
+# Cached separately so demo-only edits don't pay the SDK build cost.
+build_dotnet_sdk() {
+  local platform="$1"  # ios | android
+  local tfm="${DOTNET_TFM}-${platform}"
+  local sdk_proj="$DOTNET_DIR/OneSignalSDK.DotNet/OneSignalSDK.DotNet.csproj"
+  local sdk_dll="$DOTNET_DIR/OneSignalSDK.DotNet/bin/Debug/${tfm}/OneSignalSDK.DotNet.dll"
+  local stamp="$DOTNET_DIR/OneSignalSDK.DotNet/bin/Debug/.sdk-build-${platform}.stamp"
+  local hash="$2"
+
+  if dotnet_build_is_cached "$stamp" "$sdk_dll" "$hash"; then
+    info ".NET SDK unchanged, skipping SDK rebuild"
+    return
+  fi
+
+  info "Building .NET SDK + bindings for ${tfm}..."
+  dotnet build "$sdk_proj" -c Debug -f "$tfm"
+
+  [[ -f "$sdk_dll" ]] || error "SDK build did not produce $sdk_dll"
+  mkdir -p "$(dirname "$stamp")"
+  echo "$hash" > "$stamp"
+}
+
 build_dotnet_ios() {
   write_dotnet_demo_env
 
   command -v dotnet >/dev/null 2>&1 || error "dotnet CLI not found in PATH — install the .NET SDK"
 
+  local sdk_hash demo_hash
+  sdk_hash=$(dotnet_sdk_inputs_hash ios)
+  demo_hash=$(dotnet_demo_inputs_hash ios "$sdk_hash")
+
   local stamp="$DEMO_DIR/bin/Debug/.dotnet-build-ios-${DOTNET_IOS_RID}.stamp"
-  local hash
-  hash=$(dotnet_inputs_hash ios)
-  if dotnet_build_is_cached "$stamp" "$APP_PATH" "$hash"; then
+  if dotnet_build_is_cached "$stamp" "$APP_PATH" "$demo_hash"; then
     info ".NET SDK + demo source unchanged, skipping rebuild"
     info "App: $APP_PATH"
     return
   fi
 
-  info "Building Debug .app for iOS simulator (${DOTNET_IOS_RID}, this may take a few minutes)..."
+  build_dotnet_sdk ios "$sdk_hash"
+
+  # --no-dependencies: SDK is already built (and cached) by build_dotnet_sdk,
+  # so MSBuild can skip even checking referenced projects for up-to-date.
+  info "Building Debug .app for iOS simulator (${DOTNET_IOS_RID})..."
   (cd "$DEMO_DIR" && dotnet build demo.csproj \
     -c Debug \
     -f "${DOTNET_TFM}-ios" \
-    -p:RuntimeIdentifier="${DOTNET_IOS_RID}")
+    -p:RuntimeIdentifier="${DOTNET_IOS_RID}" \
+    --no-dependencies)
 
   [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
   mkdir -p "$(dirname "$stamp")"
-  echo "$hash" > "$stamp"
+  echo "$demo_hash" > "$stamp"
   info "App built: $APP_PATH"
 }
 
@@ -578,30 +624,45 @@ build_dotnet_android() {
 
   command -v dotnet >/dev/null 2>&1 || error "dotnet CLI not found in PATH — install the .NET SDK"
 
+  local sdk_hash demo_hash
+  sdk_hash=$(dotnet_sdk_inputs_hash android)
+  demo_hash=$(dotnet_demo_inputs_hash android "$sdk_hash")
+
   local stamp="$DEMO_DIR/bin/Debug/.dotnet-build-android.stamp"
-  local hash
-  hash=$(dotnet_inputs_hash android)
-  if dotnet_build_is_cached "$stamp" "$APP_PATH" "$hash"; then
+  if dotnet_build_is_cached "$stamp" "$APP_PATH" "$demo_hash"; then
     info ".NET SDK + demo source unchanged, skipping rebuild"
     info "App: $APP_PATH"
     return
   fi
+
+  build_dotnet_sdk android "$sdk_hash"
 
   # EmbedAssembliesIntoApk=true: by default `dotnet build -c Debug` for Android
   # uses Fast Deployment, which leaves the managed assemblies *out* of the APK
   # and pushes them live to /data/.../files/.__override__/<abi>/ via
   # `-t:Run`. Appium just installs the APK, so without this flag monodroid
   # aborts at startup with "No assemblies found in ... Fast Deployment. Exiting".
-  info "Building Debug signed APK with embedded assemblies (this may take a few minutes)..."
+  #
+  # AndroidLinkMode=None: skips the IL linker/trimmer pass on every demo edit.
+  # The linker normally trims unused IL across SDK + bindings + demo, which is
+  # ~15-25s of fixed cost per build. Debug builds don't need it (slightly larger
+  # APK is fine on the dev loop) and turning it off keeps incremental rebuilds
+  # of demo-only changes well under a minute.
+  #
+  # --no-dependencies: SDK already built above, so we skip MSBuild's
+  # up-to-date check on every referenced project.
+  info "Building Debug signed APK with embedded assemblies..."
   (cd "$DEMO_DIR" && dotnet build demo.csproj \
     -c Debug \
     -f "${DOTNET_TFM}-android" \
     -p:EmbedAssembliesIntoApk=true \
-    -p:AndroidUseFastDeployment=false)
+    -p:AndroidUseFastDeployment=false \
+    -p:AndroidLinkMode=None \
+    --no-dependencies)
 
   [[ -f "$APP_PATH" ]] || error ".apk not found after build at $APP_PATH"
   mkdir -p "$(dirname "$stamp")"
-  echo "$hash" > "$stamp"
+  echo "$demo_hash" > "$stamp"
   info "App built: $APP_PATH"
 }
 

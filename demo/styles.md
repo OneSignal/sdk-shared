@@ -141,15 +141,15 @@ Standalone bordered inputs used in dialogs.
 
 Borderless label + input pairs displayed inside a card (e.g. Live Activity fields). The card provides the outer border; individual inputs have no border.
 
-| Property        | Value                                |
-| --------------- | ------------------------------------ |
+| Property        | Value                                    |
+| --------------- | ---------------------------------------- |
 | Layout          | Horizontal row (label left, input right) |
-| Row spacing     | 4 vertical between rows              |
-| Label style     | bodyMedium (14), color osGrey600     |
-| Label min-width | 80                                   |
-| Input style     | bodyMedium (14), default text color  |
-| Input alignment | Right-aligned, flex fill             |
-| Input border    | None                                 |
+| Row spacing     | 4 vertical between rows                  |
+| Label style     | bodyMedium (14), color osGrey600         |
+| Label min-width | 80                                       |
+| Input style     | bodyMedium (14), default text color      |
+| Input alignment | Right-aligned, flex fill                 |
+| Input border    | None                                     |
 
 ## Warning Banner
 

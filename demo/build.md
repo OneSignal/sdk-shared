@@ -10,7 +10,7 @@ Prompts and requirements to build the OneSignal {{PLATFORM}} Sample App from scr
 
 Create a new {{PLATFORM}} project at `examples/demo/` (relative to the SDK repo root).
 
-- Clean architecture: repository pattern with platform-idiomatic state management
+- Clean architecture: platform-idiomatic state container that calls the OneSignal SDK directly — a `useOneSignal` hook for React (react-native, react), Cordova, and Capacitor; an `AppViewModel` for .NET MAUI (C#) and Flutter. No repository wrapper layer.
 - App name: "OneSignal Demo"
 - Top app bar: centered title with OneSignal logo SVG + "{{PLATFORM}}" text
 - Android package name / iOS bundle identifier: `com.onesignal.example`
@@ -35,9 +35,9 @@ Reference the OneSignal SDK from the parent repo using a local path/file depende
 - Navigation (if needed)
 - Icon library (Material icons)
 
-### Prompt 1.3 - OneSignal Repository
+### Prompt 1.3 - OneSignal SDK Operations
 
-Plain class (not tied to UI framework) injected into the state management layer. Centralizes all OneSignal SDK calls:
+Call the OneSignal SDK directly from the state container — a `useOneSignal` hook for React (react-native, react), Cordova, and Capacitor; an `AppViewModel` for .NET MAUI (C#) and Flutter. Do not introduce a repository/wrapper layer. The state container should expose the operations below as actions/methods:
 
 - **User**: loginUser(externalUserId) -> async, logoutUser() -> async
 - **Aliases**: addAlias(label, id), addAliases(map)
@@ -332,6 +332,13 @@ Single boolean `isLoading` on the state container drives a per-section inline sp
 
 `fetchUserDataFromApi` is the single source of truth for refreshing user data and owns the `isLoading` toggle. On entry it bumps a monotonically-increasing `requestSequence` counter, sets `isLoading=true`, and notifies. In a try/finally it reads `getOnesignalId()` (returns early if null), calls `fetchUser`, and then writes the lists/externalId — but only if `requestSequence` still matches its captured value, so a stale fetch can't overwrite a newer one. The finally clears `isLoading` only when `requestSequence` still matches, so an in-flight call doesn't prematurely clear the spinner for a newer one.
 
+Merge, don't replace. When the fetch returns, write each remote list into local state via merge helpers rather than wholesale assignment:
+
+- `mergePairs(prev, next)` for key/value lists (aliases, tags): upsert each remote key into the existing list. Existing keys keep their position; remote values overwrite local ones for the same key; keys present locally but missing remotely are kept (so an optimistic add issued during the in-flight fetch is not dropped before the SDK has flushed it).
+- `mergeUnique(prev, next)` for flat string lists (emails, smsNumbers): union of `prev` and `next` preserving order and de-duplicating.
+
+This keeps the UI stable: rows don't flicker/re-order when the fetch completes, and an item added locally a moment before the response arrives stays visible. The same `mergePairs`/`mergeUnique` helpers are reused by the per-action add handlers (addAlias, addTag, addEmail, ...) so optimistic updates and remote refreshes share one code path.
+
 State transitions:
 
 - **Cold start**: if `onesignalId` exists, await `fetchUserDataFromApi()` (which manages its own `isLoading`). If `onesignalId` is null, leave `isLoading=false`; sections show their normal empty state. The `OneSignal.login(storedExternalUserId)` call inside cold start may also trigger the user-state observer, which fires its own fetch; the request-sequence guard collapses the race.
@@ -423,7 +430,7 @@ Add Multiple dialogs use the same values for the first row and support multiple 
 
 ### Prompt 6.2 - Accessibility Identifiers (Appium)
 
-Use the platform's accessibility/test ID mechanism (e.g. `Semantics(identifier:)` in Flutter, `accessibilityIdentifier` in iOS, `testID` in React Native). These identifiers allow Appium to locate elements reliably.
+Use the platform's accessibility/test ID mechanism (e.g. `Semantics(identifier:)` in Flutter, `accessibilityIdentifier` in iOS, `testID` in React Native, `data-testid` in Cordova/Capacitor web, `AutomationId` in .NET MAUI). These identifiers allow Appium to locate elements reliably and MUST match exactly across platforms — the shared Appium suite under `sdk-shared/appium/tests/` selects elements by these ids.
 
 **Scroll view**: `main_scroll_view`
 
@@ -433,65 +440,97 @@ Section keys: `app`, `user`, `push`, `send_push`, `iam`, `send_iam`, `aliases`, 
 
 **Value displays**:
 
-| Identifier             | Element                           |
-| ---------------------- | --------------------------------- |
-| `app_id_value`         | App ID text                       |
-| `push_id_value`        | Push Subscription ID text         |
-| `user_status_value`    | User status (Anonymous/Logged In) |
-| `user_external_id_value` | External ID text                |
+| Identifier               | Element                           |
+| ------------------------ | --------------------------------- |
+| `app_id_value`           | App ID text                       |
+| `push_id_value`          | Push Subscription ID text         |
+| `user_status_value`      | User status (Anonymous/Logged In) |
+| `user_external_id_value` | External ID text                  |
 
 **Buttons**:
 
-| Identifier              | Button                                  |
-| ------------------------ | --------------------------------------- |
-| `login_user_button`      | Login / Switch User                     |
-| `logout_user_button`     | Logout User                             |
-| `send_simple_button`     | Simple notification                     |
-| `send_image_button`      | Image notification                      |
-| `send_sound_button`      | Sound notification                      |
-| `send_custom_button`     | Custom notification                     |
-| `clear_all_button`       | Clear all notifications                 |
-| `add_tag_button`         | Add Tag                                 |
+| Identifier                                                                                                                  | Button                                                                     |
+| --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `login_user_button`                                                                                                         | Login / Switch User                                                        |
+| `logout_user_button`                                                                                                        | Logout User                                                                |
+| `prompt_push_button`                                                                                                        | Prompt Push (only when permission not granted)                             |
+| `send_simple_button`                                                                                                        | Send Simple notification                                                   |
+| `send_image_button`                                                                                                         | Send Image notification                                                    |
+| `send_sound_button`                                                                                                         | Send Sound notification                                                    |
+| `send_custom_button`                                                                                                        | Send Custom notification (opens dialog)                                    |
+| `clear_all_button`                                                                                                          | Clear all notifications                                                    |
+| `send_iam_top_banner_button`, `send_iam_bottom_banner_button`, `send_iam_center_modal_button`, `send_iam_full_screen_button` | Send In-App Message (one per IAM type — pattern: `send_iam_{type}_button`) |
+| `add_alias_button`, `add_multiple_aliases_button`                                                                           | Aliases section actions                                                    |
+| `add_email_button`                                                                                                          | Add Email (opens dialog)                                                   |
+| `add_sms_button`                                                                                                            | Add SMS (opens dialog)                                                     |
+| `add_tag_button`, `add_multiple_tags_button`, `remove_tags_button`                                                          | Tags section actions                                                       |
+| `add_trigger_button`, `add_multiple_triggers_button`, `remove_triggers_button`, `clear_triggers_button`                     | Triggers section actions                                                   |
+| `send_outcome_button`                                                                                                       | Send Outcome (opens dialog)                                                |
+| `track_event_button`                                                                                                        | Track Event (opens dialog)                                                 |
+| `prompt_location_button`, `check_location_button`                                                                           | Location section actions                                                   |
+| `start_live_activity_button`, `update_live_activity_button`, `end_live_activity_button`                                     | Live Activities section actions (iOS only)                                 |
+| `next_screen_button`                                                                                                        | Bottom NEXT SCREEN navigation button                                       |
 
 **Toggles**:
 
-| Identifier              | Toggle                                  |
-| ------------------------ | --------------------------------------- |
-| `push_enabled_toggle`    | Push Enabled                            |
-| `pause_iam_toggle`       | Pause In-App Messages                   |
+| Identifier                | Toggle                                                  |
+| ------------------------- | ------------------------------------------------------- |
+| `consent_required_toggle` | Consent Required (App section)                          |
+| `privacy_consent_toggle`  | Privacy Consent (only visible when consent required on) |
+| `push_enabled_toggle`     | Push Enabled (Push section)                             |
+| `pause_iam_toggle`        | Pause In-App Messages                                   |
+| `location_shared_toggle`  | Location Shared                                         |
 
-**Dialog inputs** (passed as parameters to reusable dialog components):
+**Dialog inputs and confirm buttons** (passed as parameters to reusable dialog components):
 
-Confirm buttons on the shared single-input and single-pair dialog components are generic; descriptive ids name only what's *inside* the dialog (the input field).
+Confirm buttons on the shared SingleInput, SinglePair, MultiPair and MultiSelectRemove dialog components are generic; descriptive ids name only what's _inside_ the dialog (the input fields).
 
-| Identifier                    | Dialog field                           |
-| ----------------------------- | -------------------------------------- |
-| `singleinput_confirm_button`  | Confirm on any SingleInput dialog (login, email, sms, ...) |
-| `singlepair_confirm_button`   | Confirm on any SinglePair dialog (alias, tag, trigger, ...) |
-| `multipair_confirm_button`    | Confirm on the MultiPair dialog        |
-| `multipair_add_row_button`    | Add row inside the MultiPair dialog    |
-| `login_user_id_input`         | Login External User Id                 |
-| `alias_label_input`           | Add Alias label field                  |
-| `alias_id_input`              | Add Alias ID field                     |
-| `tag_key_input`               | Add Tag key field                      |
-| `tag_value_input`             | Add Tag value field                    |
-| `trigger_key_input`           | Add Trigger key field                  |
-| `trigger_value_input`         | Add Trigger value field                |
-| `outcome_name_input`          | Outcome name field                     |
-| `outcome_value_input`         | Outcome value field                    |
-| `outcome_send_button`         | Outcome send button                    |
-| `event_name_input`            | Custom Event name field                |
-| `event_properties_input`      | Custom Event properties field          |
-| `event_track_button`          | Custom Event track button              |
-| `tooltip_title`               | Tooltip dialog title                   |
-| `tooltip_description`         | Tooltip dialog description             |
-| `tooltip_ok_button`           | Tooltip dialog OK/confirm button       |
+| Identifier                         | Dialog field / control                                      |
+| ---------------------------------- | ----------------------------------------------------------- |
+| `singleinput_confirm_button`       | Confirm on any SingleInput dialog (login, email, sms, ...)  |
+| `singlepair_confirm_button`        | Confirm on any SinglePair dialog (alias, tag, trigger, ...) |
+| `multipair_confirm_button`         | Confirm on any MultiPair dialog                             |
+| `multipair_add_row_button`         | Add row inside any MultiPair dialog                         |
+| `multipair_key_{idx}`              | Key field of MultiPair row N (0-indexed)                    |
+| `multipair_value_{idx}`            | Value field of MultiPair row N (0-indexed)                  |
+| `multiselect_confirm_button`       | Confirm on the MultiSelectRemove dialog                     |
+| `remove_checkbox_{key}`            | Checkbox in MultiSelectRemove dialog (one per item)         |
+| `login_user_id_input`              | Login External User Id field                                |
+| `alias_label_input`                | Add Alias label field                                       |
+| `alias_id_input`                   | Add Alias ID field                                          |
+| `email_input`                      | Add Email field                                             |
+| `sms_input`                        | Add SMS field                                               |
+| `tag_key_input`                    | Add Tag key field                                           |
+| `tag_value_input`                  | Add Tag value field                                         |
+| `trigger_key_input`                | Add Trigger key field                                       |
+| `trigger_value_input`              | Add Trigger value field                                     |
+| `outcome_name_input`               | Outcome name field                                          |
+| `outcome_value_input`              | Outcome value field                                         |
+| `outcome_type_normal_radio`        | Outcome dialog: Normal radio option                         |
+| `outcome_type_unique_radio`        | Outcome dialog: Unique radio option                         |
+| `outcome_type_value_radio`         | Outcome dialog: With Value radio option                     |
+| `outcome_send_button`              | Outcome send/confirm button                                 |
+| `event_name_input`                 | Custom Event name field                                     |
+| `event_properties_input`           | Custom Event properties field                               |
+| `event_track_button`               | Custom Event track/confirm button                           |
+| `custom_notification_title_input`  | Custom Notification title field                             |
+| `custom_notification_body_input`   | Custom Notification body field                              |
+| `live_activity_id_input`           | Live Activity ID input (iOS only)                           |
+| `live_activity_order_number_input` | Live Activity Order # input (iOS only)                      |
+| `tooltip_title`                    | Tooltip dialog title                                        |
+| `tooltip_description`              | Tooltip dialog description                                  |
+| `tooltip_ok_button`                | Tooltip dialog OK/confirm button                            |
 
-**List items**: Generated from `sectionKey` parameter:
-- Key-value pairs: `{sectionKey}_pair_key_{keyText}`, `{sectionKey}_pair_value_{keyText}`
-- Remove buttons: `{sectionKey}_remove_{keyText}` or `{sectionKey}_remove_{text}`
-- Multi-select checkboxes: `remove_checkbox_{key}`
-- Multi-pair rows: `{keyLabel}_input_{index}`, `{valueLabel}_input_{index}`
+**List items and per-section list state**: Generated from each section's `sectionKey`. The four list sections that depend on the API fetch (Aliases, Tags, Emails, SMS) render either a loading spinner or an empty state in the same slot, so both must be addressable.
+
+| Identifier pattern                                              | Element                                                                               |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `{sectionKey}_loading`                                          | Inline loading spinner in the list slot (Aliases, Tags, Emails, SMS)                  |
+| `{sectionKey}_empty`                                            | Empty-state text in the list slot (e.g. `aliases_empty`, `tags_empty`)                |
+| `{sectionKey}_pair_key_{keyText}`                               | Key cell of a key-value list row (Aliases, Tags, Triggers)                            |
+| `{sectionKey}_pair_value_{keyText}`                             | Value cell of a key-value list row                                                    |
+| `{sectionKey}_value_{value}`                                    | Single-value list row (Emails -> `emails_value_{email}`, SMS -> `sms_value_{number}`) |
+| `{sectionKey}_remove_{keyText}` / `{sectionKey}_remove_{value}` | Per-row remove (X) button                                                             |
 
 ---
 
@@ -511,7 +550,7 @@ Auto-request in home screen's init/mount lifecycle. PROMPT PUSH button as fallba
 
 ### Prompt 8.1 - State Management
 
-Single state container at app root. Holds all UI state with public getters. Exposes action methods that update state and notify UI. Receives OneSignalRepository + PreferencesService via injection. Initialize SDK before rendering. Fetch tooltips in background.
+Single state container at app root. Holds all UI state with public getters. Exposes action methods that update state and notify UI. Implementation is platform-idiomatic: a `useOneSignal` hook for React (react-native, react), Cordova, and Capacitor; an `AppViewModel` for .NET MAUI (C#) and Flutter. The state container calls the OneSignal SDK directly (no repository wrapper) and depends only on `PreferencesService` and `OneSignalApiService`. Initialize SDK before rendering. Fetch tooltips in background.
 
 ### Prompt 8.2 - Reusable Components
 
@@ -558,7 +597,11 @@ Only the following actions show snackbar feedback from the UI:
 - Custom Events: "Event tracked: {name}"
 - Location check: "Location shared: {bool}"
 
-All other actions (add/remove items, notifications, IAM, live activities, etc.) use `debugPrint()` / console logging only -- no snackbar. The state management layer should NOT hold snackbar state or expose snackbar messages. Use `debugPrint()` for all internal logging instead of a custom LogManager.
+All other actions (add/remove items, notifications, IAM, live activities, etc.) use the platform's standard logging primitive only -- no snackbar. The state management layer should NOT hold snackbar state or expose snackbar messages.
+
+Logging:
+
+- Use the platform's built-in logging primitive directly (`console.log`/`console.error` for JS/TS, `debugPrint` for Dart, `System.Diagnostics.Debug.WriteLine` for C#, `print`/`NSLog` for Swift, `Log.d`/`Log.e` for Kotlin/Java).
 
 ---
 
