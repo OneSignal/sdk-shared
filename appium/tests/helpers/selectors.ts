@@ -238,6 +238,8 @@ function withFlutterAndroidFixes<T extends { getText(): Promise<string> }>(el: T
  *     bridge surfaced it as content-desc but new arch sets it as the view tag,
  *     which UiAutomator2 exposes via resource-id.
  *   - Native Android Compose testTag → accessibility id (`~`)
+ *   - .NET MAUI AutomationId → content-description, surfaced by UiAutomator2
+ *     as accessibility id (`~`).
  * Capacitor uses `data-testid` as a CSS attribute inside a WebView.
  */
 export async function byTestId(id: string) {
@@ -246,6 +248,7 @@ export async function byTestId(id: string) {
 
   if (sdkType === 'capacitor' || sdkType === 'cordova') return $(`[data-testid="${id}"]`);
   if (platform === 'android') {
+    if (sdkType === 'dotnet') return $(`~${id}`);
     let el = await $(`id=${id}`);
     if (sdkType === 'flutter') return withFlutterAndroidFixes(el);
     return el;

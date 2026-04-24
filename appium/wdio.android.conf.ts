@@ -1,6 +1,20 @@
 import { sharedConfig, bstackOptions } from './wdio.shared.conf.js';
 
 const isLocal = !process.env.BROWSERSTACK_USERNAME;
+const isDotNet = process.env.SDK_TYPE === 'dotnet';
+
+// .NET MAUI compiles Android activities with CRC-hashed Java class names (e.g.
+// `crc64126b3a41c71c5f27.MainActivity`) instead of the C# namespace path, so
+// Appium's launchable-activity wait check fails and the session times out.
+// Wildcard the wait-activity match and give MAUI's slower startup more headroom.
+const dotnetAndroidCaps = isDotNet
+  ? {
+      'appium:appWaitActivity': '*',
+      'appium:appWaitForLaunch': true,
+      'appium:appWaitDuration': 120_000,
+      'appium:androidInstallTimeout': 180_000,
+    }
+  : {};
 
 export const config: WebdriverIO.Config = {
   ...sharedConfig,
@@ -14,6 +28,8 @@ export const config: WebdriverIO.Config = {
       ...(process.env.BUNDLE_ID ? { 'appium:appPackage': process.env.BUNDLE_ID } : {}),
       'appium:autoGrantPermissions': false,
       'appium:noReset': true,
+
+      ...dotnetAndroidCaps,
 
       ...(isLocal ? {} : { 'bstack:options': bstackOptions }),
 

@@ -52,7 +52,7 @@ via flags or env vars.
 
 Options:
   --platform=P     ios | android
-  --sdk=S          flutter | react-native | cordova
+  --sdk=S          flutter | react-native | cordova | dotnet
   --device=NAME    Device/simulator/AVD name (default: iPhone 17 / Samsung Galaxy S26)
   --skip           Skip build, device launch, and app reset (rerun tests only)
   --skip-build     Skip app build (reuse existing)
@@ -69,6 +69,8 @@ Env vars (set in .env or export):
   FLUTTER_DIR        Flutter SDK repo root (default: ../../OneSignal-Flutter-SDK)
   RN_DIR             React Native SDK repo root (default: ../../react-native-onesignal)
   CORDOVA_DIR        Cordova SDK repo root (default: ../../OneSignal-Cordova-SDK)
+  DOTNET_DIR         .NET MAUI SDK repo root (default: ../../DotNet/OneSignal-DotNet-SDK)
+  DOTNET_TFM         .NET target framework moniker base (default: net10.0)
   OS_VERSION         Platform version (default: 26.2 / 16)
   IOS_SIMULATOR      iOS simulator name (default: iPhone 17)
   IOS_RUNTIME        simctl runtime id (default: iOS-26-2)
@@ -110,7 +112,7 @@ prompt_choice() {
 }
 
 prompt_choice PLATFORM "Select platform:" ios android
-prompt_choice SDK_TYPE "Select SDK type:" flutter react-native cordova
+prompt_choice SDK_TYPE "Select SDK type:" flutter react-native cordova dotnet
 
 case "$PLATFORM" in
   ios|android) ;;
@@ -118,8 +120,8 @@ case "$PLATFORM" in
 esac
 
 case "$SDK_TYPE" in
-  flutter|react-native|cordova) ;;
-  *) error "SDK_TYPE must be 'flutter', 'react-native', or 'cordova', got '$SDK_TYPE'" ;;
+  flutter|react-native|cordova|dotnet) ;;
+  *) error "SDK_TYPE must be 'flutter', 'react-native', 'cordova', or 'dotnet', got '$SDK_TYPE'" ;;
 esac
 
 BUNDLE_ID="${BUNDLE_ID:-com.onesignal.example}"
@@ -150,6 +152,22 @@ elif [[ "$SDK_TYPE" == "cordova" ]]; then
     APP_PATH="${APP_PATH:-$DEMO_DIR/ios/App/build/Build/Products/Release-iphonesimulator/App.app}"
   else
     APP_PATH="${APP_PATH:-$DEMO_DIR/android/app/build/outputs/apk/debug/app-debug.apk}"
+  fi
+elif [[ "$SDK_TYPE" == "dotnet" ]]; then
+  DOTNET_DIR="${DOTNET_DIR:-$SDK_ROOT/DotNet/OneSignal-DotNet-SDK}"
+  [[ -d "$DOTNET_DIR" ]] || error ".NET MAUI SDK not found at $DOTNET_DIR — set DOTNET_DIR in .env"
+  DEMO_DIR="$DOTNET_DIR/examples/demo"
+  DOTNET_TFM="${DOTNET_TFM:-net10.0}"
+  if [[ "$PLATFORM" == "ios" ]]; then
+    # iOS simulator RID is arch-specific; auto-detect host arch (Apple Silicon vs Intel).
+    case "$(uname -m)" in
+      arm64) DOTNET_IOS_RID="${DOTNET_IOS_RID:-iossimulator-arm64}" ;;
+      x86_64) DOTNET_IOS_RID="${DOTNET_IOS_RID:-iossimulator-x64}" ;;
+      *) error "Unsupported host arch for .NET iOS sim build: $(uname -m)" ;;
+    esac
+    APP_PATH="${APP_PATH:-$DEMO_DIR/bin/Debug/${DOTNET_TFM}-ios/${DOTNET_IOS_RID}/demo.app}"
+  else
+    APP_PATH="${APP_PATH:-$DEMO_DIR/bin/Debug/${DOTNET_TFM}-android/com.onesignal.example-Signed.apk}"
   fi
 fi
 
@@ -464,6 +482,129 @@ build_cordova_android() {
   info "App built: $APP_PATH"
 }
 
+write_dotnet_demo_env() {
+  if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
+    info "Writing .env for demo app..."
+    cat > "$DEMO_DIR/.env" <<EOF
+ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
+ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
+E2E_MODE=true
+EOF
+  else
+    warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — skipping demo .env"
+  fi
+}
+
+# Hash everything that influences the .NET MAUI build output for the given
+# platform. Used to skip the (slow) `dotnet build` when nothing has changed.
+# Inputs: managed sources, csproj/props, native binding metadata, demo
+# resources, and the bundled .env (which is baked into the app via MauiAsset).
+dotnet_inputs_hash() {
+  local platform="$1"  # ios | android
+  local sdk_paths=(
+    "$DOTNET_DIR/OneSignalSDK.DotNet"
+    "$DOTNET_DIR/OneSignalSDK.DotNet.Core"
+    "$DOTNET_DIR/Directory.Build.props"
+  )
+  if [[ "$platform" == "ios" ]]; then
+    sdk_paths+=(
+      "$DOTNET_DIR/OneSignalSDK.DotNet.iOS"
+      "$DOTNET_DIR/OneSignalSDK.DotNet.iOS.Binding"
+    )
+  else
+    sdk_paths+=(
+      "$DOTNET_DIR/OneSignalSDK.DotNet.Android"
+      "$DOTNET_DIR/OneSignalSDK.DotNet.Android.Core.Binding"
+      "$DOTNET_DIR/OneSignalSDK.DotNet.Android.InAppMessages.Binding"
+      "$DOTNET_DIR/OneSignalSDK.DotNet.Android.Location.Binding"
+      "$DOTNET_DIR/OneSignalSDK.DotNet.Android.Notifications.Binding"
+    )
+  fi
+
+  find "${sdk_paths[@]}" "$DEMO_DIR" \
+       -type f \
+       ! -path "*/bin/*" \
+       ! -path "*/obj/*" \
+       ! -path "*/artifacts/*" \
+       \( -name "*.cs" -o -name "*.csproj" -o -name "*.props" \
+          -o -name "*.targets" -o -name "*.xaml" -o -name "*.plist" \
+          -o -name "*.xml" -o -name "*.json" -o -name "*.png" \
+          -o -name "*.aar" -o -name "*.jar" -o -name ".env" \) \
+       2>/dev/null \
+       | sort \
+       | xargs shasum 2>/dev/null \
+       | shasum \
+       | awk '{print $1}'
+}
+
+# Returns 0 if a previous build's stamp matches the current input hash AND the
+# expected output artifact still exists, in which case the caller should skip.
+dotnet_build_is_cached() {
+  local stamp="$1" artifact="$2" hash="$3"
+  [[ -e "$artifact" ]] || return 1
+  [[ -f "$stamp" ]] || return 1
+  [[ "$(cat "$stamp")" == "$hash" ]] || return 1
+  return 0
+}
+
+build_dotnet_ios() {
+  write_dotnet_demo_env
+
+  command -v dotnet >/dev/null 2>&1 || error "dotnet CLI not found in PATH — install the .NET SDK"
+
+  local stamp="$DEMO_DIR/bin/Debug/.dotnet-build-ios-${DOTNET_IOS_RID}.stamp"
+  local hash
+  hash=$(dotnet_inputs_hash ios)
+  if dotnet_build_is_cached "$stamp" "$APP_PATH" "$hash"; then
+    info ".NET SDK + demo source unchanged, skipping rebuild"
+    info "App: $APP_PATH"
+    return
+  fi
+
+  info "Building Debug .app for iOS simulator (${DOTNET_IOS_RID}, this may take a few minutes)..."
+  (cd "$DEMO_DIR" && dotnet build demo.csproj \
+    -c Debug \
+    -f "${DOTNET_TFM}-ios" \
+    -p:RuntimeIdentifier="${DOTNET_IOS_RID}")
+
+  [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
+  mkdir -p "$(dirname "$stamp")"
+  echo "$hash" > "$stamp"
+  info "App built: $APP_PATH"
+}
+
+build_dotnet_android() {
+  write_dotnet_demo_env
+
+  command -v dotnet >/dev/null 2>&1 || error "dotnet CLI not found in PATH — install the .NET SDK"
+
+  local stamp="$DEMO_DIR/bin/Debug/.dotnet-build-android.stamp"
+  local hash
+  hash=$(dotnet_inputs_hash android)
+  if dotnet_build_is_cached "$stamp" "$APP_PATH" "$hash"; then
+    info ".NET SDK + demo source unchanged, skipping rebuild"
+    info "App: $APP_PATH"
+    return
+  fi
+
+  # EmbedAssembliesIntoApk=true: by default `dotnet build -c Debug` for Android
+  # uses Fast Deployment, which leaves the managed assemblies *out* of the APK
+  # and pushes them live to /data/.../files/.__override__/<abi>/ via
+  # `-t:Run`. Appium just installs the APK, so without this flag monodroid
+  # aborts at startup with "No assemblies found in ... Fast Deployment. Exiting".
+  info "Building Debug signed APK with embedded assemblies (this may take a few minutes)..."
+  (cd "$DEMO_DIR" && dotnet build demo.csproj \
+    -c Debug \
+    -f "${DOTNET_TFM}-android" \
+    -p:EmbedAssembliesIntoApk=true \
+    -p:AndroidUseFastDeployment=false)
+
+  [[ -f "$APP_PATH" ]] || error ".apk not found after build at $APP_PATH"
+  mkdir -p "$(dirname "$stamp")"
+  echo "$hash" > "$stamp"
+  info "App built: $APP_PATH"
+}
+
 build_app() {
   if [[ "$SKIP_BUILD" == true ]]; then
     if [[ "$PLATFORM" == "ios" && ! -d "$APP_PATH" ]] || [[ "$PLATFORM" == "android" && ! -f "$APP_PATH" ]]; then
@@ -490,6 +631,12 @@ build_app() {
       build_cordova_ios
     else
       build_cordova_android
+    fi
+  elif [[ "$SDK_TYPE" == "dotnet" ]]; then
+    if [[ "$PLATFORM" == "ios" ]]; then
+      build_dotnet_ios
+    else
+      build_dotnet_android
     fi
   fi
 }
