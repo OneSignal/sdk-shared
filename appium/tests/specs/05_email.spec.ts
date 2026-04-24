@@ -27,7 +27,6 @@ describe('Emails', () => {
     await el.waitForDisplayed({ timeout: 5_000 });
 
     // remove email
-    await driver.pause(2_000);
     const removeButton = await byTestId(`emails_remove_${email}`);
     await removeButton.click();
 

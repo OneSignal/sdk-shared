@@ -24,6 +24,7 @@ error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 APPIUM_PORT="${APPIUM_PORT:-4723}"
+SYSTEM_PORT="${SYSTEM_PORT:-}"
 SKIP_BUILD=false
 SKIP_DEVICE=false
 SKIP_RESET=false
@@ -32,14 +33,16 @@ SPEC="tests/specs/**/*.spec.ts"
 # ── Parse args ────────────────────────────────────────────────────────────────
 for arg in "$@"; do
   case "$arg" in
-    --platform=*)  PLATFORM="${arg#--platform=}" ;;
-    --sdk=*)       SDK_TYPE="${arg#--sdk=}" ;;
-    --device=*)    DEVICE="${arg#--device=}" ;;
-    --skip)        SKIP_BUILD=true; SKIP_DEVICE=true; SKIP_RESET=true ;;
-    --skip-build)  SKIP_BUILD=true ;;
-    --skip-device) SKIP_DEVICE=true ;;
-    --skip-reset)  SKIP_RESET=true ;;
-    --spec=*)      SPEC="${arg#--spec=}" ;;
+    --platform=*)     PLATFORM="${arg#--platform=}" ;;
+    --sdk=*)          SDK_TYPE="${arg#--sdk=}" ;;
+    --device=*)       DEVICE="${arg#--device=}" ;;
+    --appium-port=*)  APPIUM_PORT="${arg#--appium-port=}" ;;
+    --system-port=*)  SYSTEM_PORT="${arg#--system-port=}" ;;
+    --skip)           SKIP_BUILD=true; SKIP_DEVICE=true; SKIP_RESET=true ;;
+    --skip-build)     SKIP_BUILD=true ;;
+    --skip-device)    SKIP_DEVICE=true ;;
+    --skip-reset)     SKIP_RESET=true ;;
+    --spec=*)         SPEC="${arg#--spec=}" ;;
     --help|-h)
       cat <<USAGE
 Usage: $0 [OPTIONS]
@@ -51,15 +54,20 @@ PLATFORM and SDK are prompted interactively when not provided
 via flags or env vars.
 
 Options:
-  --platform=P     ios | android
-  --sdk=S          flutter | react-native | cordova | dotnet
-  --device=NAME    Device/simulator/AVD name (default: iPhone 17 / Samsung Galaxy S26)
-  --skip           Skip build, device launch, and app reset (rerun tests only)
-  --skip-build     Skip app build (reuse existing)
-  --skip-device    Skip simulator/emulator launch
-  --skip-reset     Keep existing app data
-  --spec=GLOB      Spec glob (default: tests/specs/**/*.spec.ts)
-  -h, --help       Show this help
+  --platform=P        ios | android
+  --sdk=S             flutter | react-native | cordova | dotnet
+  --device=NAME       Device/simulator/AVD name (default: iPhone 17 / Samsung Galaxy S26)
+  --appium-port=N     Appium server port (default: 4723). Use unique values when
+                      running multiple sessions in parallel on the same host.
+  --system-port=N     UiAutomator2 systemPort (Android only). Required when
+                      running 2+ Android sessions in parallel; pick distinct
+                      values per session (e.g. 8200, 8201).
+  --skip              Skip build, device launch, and app reset (rerun tests only)
+  --skip-build        Skip app build (reuse existing)
+  --skip-device       Skip simulator/emulator launch
+  --skip-reset        Keep existing app data
+  --spec=GLOB         Spec glob (default: tests/specs/**/*.spec.ts)
+  -h, --help          Show this help
 
 Env vars (set in .env or export):
   APP_PATH           Path to .app/.apk (auto-detected if not set)
@@ -74,13 +82,18 @@ Env vars (set in .env or export):
   OS_VERSION         Platform version (default: 26.2 / 16)
   IOS_SIMULATOR      iOS simulator name (default: iPhone 17)
   IOS_RUNTIME        simctl runtime id (default: iOS-26-2)
-  APPIUM_PORT        Appium port (default: 4723)
+  APPIUM_PORT        Appium port (default: 4723; same as --appium-port)
+  SYSTEM_PORT        UiAutomator2 systemPort (same as --system-port)
 USAGE
       exit 0
       ;;
     *) warn "Unknown option: $arg (ignored)" ;;
   esac
 done
+
+# Ensure values set via CLI flags propagate to wdio (which reads them as env).
+export APPIUM_PORT
+[[ -n "$SYSTEM_PORT" ]] && export SYSTEM_PORT
 
 # ── Prompt for required vars if not set ───────────────────────────────────────
 prompt_choice() {
@@ -844,6 +857,8 @@ run_tests() {
   BUNDLE_ID="${BUNDLE_ID:-}" \
   ONESIGNAL_APP_ID="${ONESIGNAL_APP_ID:-}" \
   ONESIGNAL_API_KEY="${ONESIGNAL_API_KEY:-}" \
+  APPIUM_PORT="$APPIUM_PORT" \
+  SYSTEM_PORT="${SYSTEM_PORT:-}" \
   bunx wdio run "$conf" --spec "$SPEC"
 }
 

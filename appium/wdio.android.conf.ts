@@ -17,6 +17,19 @@ const dotnetAndroidCaps = isDotNet
     }
   : {};
 
+// Per-session UiAutomator2 ports. Required when running 2+ Android sessions
+// in parallel on one host so the instrumentation/chromedriver sockets don't
+// collide on the defaults (8200 / random). Single-session runs can leave both
+// unset and let Appium pick the defaults.
+const parallelPortCaps = {
+  ...(process.env.SYSTEM_PORT
+    ? { 'appium:systemPort': Number(process.env.SYSTEM_PORT) }
+    : {}),
+  ...(process.env.CHROMEDRIVER_PORT
+    ? { 'appium:chromedriverPort': Number(process.env.CHROMEDRIVER_PORT) }
+    : {}),
+};
+
 export const config: WebdriverIO.Config = {
   ...sharedConfig,
   capabilities: [
@@ -29,8 +42,10 @@ export const config: WebdriverIO.Config = {
       ...(process.env.BUNDLE_ID ? { 'appium:appPackage': process.env.BUNDLE_ID } : {}),
       'appium:autoGrantPermissions': false,
       'appium:noReset': true,
+      'appium:disableWindowAnimation': true,
 
       ...dotnetAndroidCaps,
+      ...parallelPortCaps,
 
       ...(isLocal ? {} : { 'bstack:options': bstackOptions }),
 

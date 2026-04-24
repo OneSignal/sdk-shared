@@ -28,7 +28,6 @@ describe('SMS', () => {
     await el.waitForDisplayed({ timeout: 5_000 });
 
     // remove sms
-    await driver.pause(2_000);
     const removeButton = await byTestId(`sms_remove_${sms}`);
     await removeButton.click();
 

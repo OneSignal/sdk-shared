@@ -38,7 +38,6 @@ describe('Tags', () => {
     await expectPairInSection('tags', 'test_tag', 'test_tag_value');
 
     // remove tag
-    await driver.pause(2_000);
     const removeButton = await byTestId(`tags_remove_test_tag`);
     await removeButton.click();
 

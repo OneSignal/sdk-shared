@@ -64,7 +64,6 @@ describe('Triggers', () => {
     await expectPairInSection('triggers', 'test_trigger_key', 'test_trigger_value');
 
     // remove trigger
-    await driver.pause(1_000);
     const removeButton = await byTestId(`triggers_remove_test_trigger_key`);
     await removeButton.click();
 
@@ -99,8 +98,6 @@ describe('Triggers', () => {
 
   it('can clear all triggers', async () => {
     await addMultipleTriggers();
-
-    await driver.pause(1_000);
 
     // clear all triggers
     const clearButton = await scrollToEl('clear_triggers_button');

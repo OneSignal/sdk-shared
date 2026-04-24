@@ -22,7 +22,6 @@ describe('Location', () => {
   it('can prompt for location', async () => {
     const promptButton = await scrollToEl('prompt_location_button');
     await promptButton.click();
-    await driver.pause(3_000);
 
     await switchToNativeContext();
     await allowLocation();

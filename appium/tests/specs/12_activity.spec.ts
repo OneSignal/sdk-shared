@@ -43,8 +43,16 @@ describe('Live Activities', () => {
 
     const clickUpdateButton = async () => {
       const updateButton = await scrollToEl('update_live_activity_button');
+      await updateButton.waitForEnabled({ timeout: 15_000 });
       await updateButton.click();
-      await driver.pause(3_000);
+
+      // Wait for the in-app update HTTP call to complete before locking.
+      // The button disables while `isLaUpdating == true` and re-enables when
+      // the OneSignal API responds, so this is a deterministic signal that
+      // the activity-update push has been queued server-side. APNs delivery
+      // still happens asynchronously, but the lock-screen wait below covers
+      // that.
+      await updateButton.waitForEnabled({ timeout: 15_000 });
     };
 
     await checkActivity({
@@ -63,7 +71,6 @@ describe('Live Activities', () => {
     // end live activity
     const endButton = await scrollToEl('end_live_activity_button');
     await endButton.click();
-    await driver.pause(3_000);
     await lockScreen();
 
     const activityEl = await $(`-ios predicate string:label CONTAINS "ORD-1234"`);

@@ -15,9 +15,6 @@ async function stopScrolling() {
   const platform = getPlatform();
 
   if (platform === 'android') {
-    // Android's scrollGesture already completes the gesture. A follow-up tap in
-    // the center of the screen can hit interactive elements like LOGIN USER.
-    // await driver.pause(150);
     return;
   }
 
@@ -475,10 +472,8 @@ export async function lockScreen() {
   await switchToNativeContext();
   await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
   await driver.lock();
-  await driver.pause(500);
 
   await driver.execute('mobile: pressButton', { name: 'home' });
-  await driver.pause(500);
 }
 
 /**
@@ -500,7 +495,6 @@ export async function returnToApp() {
     await driver.execute('mobile: activateApp', { bundleId });
   }
 
-  await driver.pause(1_000);
   await ensureMainWebViewContext();
 }
 
@@ -579,7 +573,6 @@ export async function waitForNotification(opts: {
         elementId: banner.elementId,
         duration: 1.0,
       });
-      await driver.pause(750);
 
       const after = await driver.findElements('-ios class chain', '**/XCUIElementTypeImage');
       expect(after.length).toBeGreaterThan(before.length);
@@ -601,13 +594,8 @@ export async function checkNotification(opts: {
   body?: string;
   expectImage?: boolean;
 }) {
-  const clearButton = await scrollToEl('clear_all_button');
-  await clearButton.click();
-
-  await driver.pause(1_000);
-  const button = await scrollToEl(opts.buttonId, { direction: 'up' });
+  const button = await scrollToEl(opts.buttonId);
   await button.click();
-  await driver.pause(3_000);
   await waitForNotification({
     title: opts.title,
     body: opts.body,
@@ -715,7 +703,6 @@ export async function checkInAppMessage(opts: {
     timeout: timeoutMs,
     timeoutMsg: `IAM webview not shown after clicking "${buttonId}"`,
   });
-  await driver.pause(1_000);
 
   await switchToIAMWebView(expectedTitle, timeoutMs);
 
@@ -733,20 +720,12 @@ export async function checkInAppMessage(opts: {
       timeout: timeoutMs,
       timeoutMsg: 'IAM webview still visible after closing',
     });
-    await driver.pause(1_000);
-  } else {
-    await driver.pause(3_000);
   }
-
   await ensureMainWebViewContext();
 }
 
 /**
- * Asserts a transient snackbar/toast appears with the expected text, then waits
- * for it to fully disappear. This prevents the next test from racing against a
- * lingering toast that can intercept taps or block hit-testing on freshly
- * opened modals (e.g. `react-native-toast-message` keeps toasts visible for
- * ~4s by default).
+ * Asserts a transient snackbar/toast appears with the expected text
  *
  * Cordova/Capacitor render the toast as `<ion-toast>` (Ionic), whose visible
  * text lives inside the component's shadow root and is not reachable via

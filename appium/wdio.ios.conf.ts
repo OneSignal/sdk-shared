@@ -17,9 +17,6 @@ export const config: WebdriverIO.Config = {
       'appium:noReset': true,
 
       ...(isLocal ? {} : { 'bstack:options': bstackOptions }),
-
-      // Hide keyboard during session
-      'appium:hideKeyboard': true,
     },
   ],
 };
