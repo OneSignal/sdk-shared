@@ -151,12 +151,15 @@ export async function scrollToEl(
 async function scrollExtraIfNeeded<T extends { getLocation(): Promise<{ y: number }> }>(
   el: T,
   refetch: () => Promise<T>,
-  threshold = 0.9,
 ): Promise<T> {
   try {
     const { y } = await el.getLocation();
     const { height } = await driver.getWindowSize();
-    if (y > height * threshold) {
+    if (y < 50) {
+      await swipeMainContent('up', 'small');
+      return await refetch();
+    }
+    if (y > height * 0.9) {
       await swipeMainContent('down', 'small');
       return await refetch();
     }
