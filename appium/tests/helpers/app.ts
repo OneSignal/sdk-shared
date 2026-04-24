@@ -569,33 +569,21 @@ export async function waitForNotification(opts: {
     await banner.waitForDisplayed({ timeout: timeoutMs });
 
     if (expectImage) {
-      // The collapsed banner only shows title/body; the image attachment
-      // is rendered when the banner is expanded. Predicate filters on size
-      // are brittle across WDA versions, so instead we count XCUIElementTypeImage
-      // elements before vs. after the touch-and-hold expansion — if an
-      // attachment is present, expanding the banner adds at least one image
-      // element (the attachment) on top of whatever was already on screen
-      // (e.g. the app icon).
-      const imagesBefore = await $$('-ios class chain:**/XCUIElementTypeImage');
-      const beforeCount = imagesBefore.length;
-
+      // Long-press to expand the banner; the attachment renders as a new
+      // XCUIElementTypeImage on top of the existing app icon.
+      const before = await driver.findElements('-ios class chain', '**/XCUIElementTypeImage');
       await driver.execute('mobile: touchAndHold', {
         elementId: banner.elementId,
         duration: 1.0,
       });
       await driver.pause(750);
 
-      await driver.waitUntil(
-        async () => {
-          const imagesAfter = await $$('-ios class chain:**/XCUIElementTypeImage');
-          return imagesAfter.length > beforeCount;
-        },
-        {
-          timeout: 5_000,
-          timeoutMsg: `Expected expanded banner to add an image element (had ${beforeCount} before expand)`,
-        },
-      );
+      const after = await driver.findElements('-ios class chain', '**/XCUIElementTypeImage');
+      expect(after.length).toBeGreaterThan(before.length);
     }
+
+    // dismiss the banner
+    await banner.click();
   } finally {
     if (bundleId) {
       await driver.updateSettings({ defaultActiveApplication: bundleId });
