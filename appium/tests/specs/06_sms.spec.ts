@@ -1,4 +1,4 @@
-import { checkTooltip, confirmModal, scrollToEl, typeInto, waitForAppReady } from '../helpers/app';
+import { checkTooltip, confirmModal, scrollToEl, waitForAppReady } from '../helpers/app';
 import { byTestId, getTestData } from '../helpers/selectors.js';
 
 describe('SMS', () => {
@@ -19,7 +19,7 @@ describe('SMS', () => {
 
     const smsInput = await byTestId('sms_input');
     await smsInput.waitForDisplayed({ timeout: 5_000 });
-    await typeInto(smsInput, sms);
+    await smsInput.setValue(sms);
 
     await confirmModal('singleinput_confirm_button');
 

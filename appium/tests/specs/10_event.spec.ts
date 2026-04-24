@@ -2,7 +2,6 @@ import {
   checkTooltip,
   expectSnackbar,
   scrollToEl,
-  typeInto,
   waitForAppReady,
 } from '../helpers/app';
 import { byTestId, getTestData } from '../helpers/selectors.js';
@@ -42,7 +41,7 @@ describe('Custom Events', () => {
 
     const nameInput = await byTestId('event_name_input');
     await nameInput.waitForDisplayed({ timeout: 5_000 });
-    await typeInto(nameInput, `${customEvent}_no_props`);
+    await nameInput.setValue(`${customEvent}_no_props`);
 
     const trackBtn = await byTestId('event_track_button');
     await trackBtn.click();
@@ -57,11 +56,11 @@ describe('Custom Events', () => {
 
     const nameInput = await byTestId('event_name_input');
     await nameInput.waitForDisplayed({ timeout: 5_000 });
-    await typeInto(nameInput, `${customEvent}_with_props`);
+    await nameInput.setValue(`${customEvent}_with_props`);
 
     const propertiesInput = await byTestId('event_properties_input');
     const json = JSON.stringify(TEST_JSON);
-    await typeInto(propertiesInput, json);
+    await propertiesInput.setValue(json);
 
     const trackBtn = await byTestId('event_track_button');
     await trackBtn.click();

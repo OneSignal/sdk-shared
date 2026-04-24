@@ -183,12 +183,25 @@ export function getSdkType(): SdkType {
 }
 
 /**
- * On Flutter Android, the standard WebDriver getText() often returns empty
- * because Flutter writes text into content-desc / text attributes rather than
- * the property that UiAutomator2's getText maps to. This proxy intercepts
- * getText() and falls back to those attributes.
+ * On Flutter Android, two interactions need shimming:
+ *
+ *   - `getText()` often returns empty because Flutter writes its text into the
+ *     `content-desc` / `text` attributes rather than the property UiAutomator2's
+ *     getText maps to. We fall back to those attributes.
+ *   - `setValue()` doesn't focus the field first because Flutter renders inputs
+ *     to a Skia canvas with Semantics shims (no native EditText), so W3C
+ *     "send keys" lands without an IME binding and the keystrokes get dropped.
+ *     We tap the element first to bind the IME, then forward to setValue.
+ *
+ * iOS XCUITest doesn't hit either problem in practice.
  */
-function withFlutterAndroidFixes<T extends { getText(): Promise<string> }>(el: T): T {
+function withFlutterAndroidFixes<
+  T extends {
+    getText(): Promise<string>;
+    setValue(value: string): Promise<void>;
+    click(): Promise<void>;
+  },
+>(el: T): T {
   if (!(getPlatform() === 'android' && getSdkType() === 'flutter')) {
     return el;
   }
@@ -215,6 +228,13 @@ function withFlutterAndroidFixes<T extends { getText(): Promise<string> }>(el: T
           }
 
           return '';
+        };
+      }
+
+      if (prop === 'setValue') {
+        return async (value: string) => {
+          await target.click();
+          await target.setValue(value);
         };
       }
 
