@@ -637,6 +637,13 @@ async function switchToWebViewContext() {
   return true;
 }
 
+// Handles that we've already matched as IAM webviews on Android. After the IAM
+// is closed, chromedriver does not detach the handle from getWindowHandles(),
+// so we must skip it on subsequent iterations to avoid `switchToWindow` ->
+// "no such window" noise (and chromedriver instability when many stale handles
+// pile up).
+const knownStaleIAMHandles = new Set<string>();
+
 async function switchToIAMWebView(expectedTitle: string, timeoutMs: number) {
   if (getPlatform() === 'ios') {
     // On hybrid iOS the app itself is a WebView, so getContexts() returns
@@ -670,10 +677,24 @@ async function switchToIAMWebView(expectedTitle: string, timeoutMs: number) {
       try {
         if (!(await switchToWebViewContext())) return false;
 
-        for (const handle of await driver.getWindowHandles()) {
-          await driver.switchToWindow(handle);
+        // chromedriver appends new IAM windows to the end and does NOT detach
+        // closed-IAM handles from getWindowHandles(). Iterate newest-first and
+        // skip handles previously matched/failed -- otherwise switchToWindow
+        // on a stale handle emits `no such window` warnings and, when several
+        // stale handles pile up, can crash the chromedriver session.
+        const candidates = [...(await driver.getWindowHandles())]
+          .reverse()
+          .filter((h) => !knownStaleIAMHandles.has(h));
+        for (const handle of candidates) {
+          try {
+            await driver.switchToWindow(handle);
+          } catch {
+            knownStaleIAMHandles.add(handle);
+            continue;
+          }
           const h1 = await $('h1');
           if ((await h1.isExisting()) && (await h1.getText()) === expectedTitle) {
+            knownStaleIAMHandles.add(handle);
             return true;
           }
         }
