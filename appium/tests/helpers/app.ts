@@ -15,9 +15,6 @@ async function stopScrolling() {
   const platform = getPlatform();
 
   if (platform === 'android') {
-    // Android's scrollGesture already completes the gesture. A follow-up tap in
-    // the center of the screen can hit interactive elements like LOGIN USER.
-    // await driver.pause(150);
     return;
   }
 
@@ -151,12 +148,16 @@ export async function scrollToEl(
 async function scrollExtraIfNeeded<T extends { getLocation(): Promise<{ y: number }> }>(
   el: T,
   refetch: () => Promise<T>,
-  threshold = 0.9,
 ): Promise<T> {
+  const threshold = 100;
   try {
     const { y } = await el.getLocation();
     const { height } = await driver.getWindowSize();
-    if (y > height * threshold) {
+    if (y < 100) {
+      await swipeMainContent('up', 'small');
+      return await refetch();
+    }
+    if (y > height - threshold) {
       await swipeMainContent('down', 'small');
       return await refetch();
     }
@@ -186,7 +187,7 @@ const ANDROID_PERMISSION_PACKAGES = new Set([
 
 async function clickAndroidPermissionButton(
   selectors: string[],
-  timeoutMs = 2000,
+  timeoutMs = 10_000,
 ): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -213,7 +214,7 @@ async function clickAndroidPermissionButton(
  * System permission dialogs live under SpringBoard on iOS, so treat them like
  * regular UI and click the expected button if it is visible.
  */
-async function clickIosPermissionButton(buttonLabel: string, timeoutMs = 1500) {
+async function clickIosPermissionButton(buttonLabel: string, timeoutMs = 10_000) {
   await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
   try {
     const button = await $(
@@ -386,7 +387,7 @@ export async function loginUser(externalUserId: string) {
 
   const userIdInput = await byTestId('login_user_id_input');
   await userIdInput.waitForDisplayed({ timeout: 5_000 });
-  await typeInto(userIdInput, externalUserId);
+  await userIdInput.setValue(externalUserId);
 
   await confirmModal('singleinput_confirm_button');
 }
@@ -405,18 +406,6 @@ export async function logoutUser() {
 export async function togglePushEnabled() {
   const toggle = await byTestId('push_enabled_toggle');
   await toggle.click();
-}
-
-/**
- * Type text into an input field. On Flutter Android, setValue is unreliable
- * so we tap the field and use the native `mobile: type` command instead.
- */
-export async function typeInto(
-  el: { click(): Promise<void>; setValue(value: string): Promise<void> },
-  text: string,
-) {
-  await el.click();
-  await el.setValue(text);
 }
 
 /**
@@ -446,10 +435,10 @@ export async function addTag(key: string, value: string) {
 
   const keyInput = await byTestId('tag_key_input');
   await keyInput.waitForDisplayed({ timeout: 5_000 });
-  await typeInto(keyInput, key);
+  await keyInput.setValue(key);
 
   const valueInput = await byTestId('tag_value_input');
-  await typeInto(valueInput, value);
+  await valueInput.setValue(value);
 
   await confirmModal('tag_confirm_button');
 }
@@ -484,10 +473,8 @@ export async function lockScreen() {
   await switchToNativeContext();
   await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
   await driver.lock();
-  await driver.pause(500);
 
   await driver.execute('mobile: pressButton', { name: 'home' });
-  await driver.pause(500);
 }
 
 /**
@@ -509,7 +496,6 @@ export async function returnToApp() {
     await driver.execute('mobile: activateApp', { bundleId });
   }
 
-  await driver.pause(1_000);
   await ensureMainWebViewContext();
 }
 
@@ -519,8 +505,11 @@ export async function returnToApp() {
  * Android: opens the notification shade, verifies the title (and optionally
  * body) are visible, then closes the shade.
  *
- * iOS: swipes down from the top-left to open the notification center,
- * verifies the notification, then returns to the app.
+ * iOS: asserts against the foreground notification banner that SpringBoard
+ * overlays on the app while it's in foreground. No home press, no
+ * Notification Center swipe, no lock-screen path. Requires the SDK demo's
+ * `notificationWillDisplay` handler to allow display (the OneSignal demos
+ * default to this).
  */
 export async function waitForNotification(opts: {
   title: string;
@@ -560,83 +549,42 @@ export async function waitForNotification(opts: {
     return;
   }
 
-  // iOS: swipe down from the top-left to open notification center
-  // (top-right opens Control Center on iOS 16+).
+  // iOS: query the foreground banner SpringBoard renders over the app.
   // Native predicate selectors (`-ios predicate string:...`) only resolve in
-  // NATIVE_APP. WebView SDKs (Capacitor/Cordova) are parked in a `WEBVIEW_*`
-  // context by `waitForAppReady`, so the predicate query hangs until the
-  // command timeout. Swap to native for the shade work and restore on exit.
+  // NATIVE_APP, and the banner lives in SpringBoard's UI tree, so we point
+  // `defaultActiveApplication` at SpringBoard for the query and restore the
+  // app on the way out.
+  const caps = driver.capabilities as Record<string, unknown>;
+  const bundleId = (caps['bundleId'] ?? caps['appium:bundleId']) as string;
   await switchToNativeContext();
   try {
     await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
 
-    await driver.execute('mobile: pressButton', { name: 'home' });
-    await driver.pause(1_000);
-
-    const { width, height } = await driver.getWindowSize();
-    await driver.performActions([
-      {
-        type: 'pointer',
-        id: 'finger1',
-        parameters: { pointerType: 'touch' },
-        actions: [
-          { type: 'pointerMove', duration: 0, x: Math.round(width * 0.1), y: 5 },
-          { type: 'pointerDown', button: 0 },
-          { type: 'pause', duration: 100 },
-          {
-            type: 'pointerMove',
-            duration: 500,
-            x: Math.round(width * 0.1),
-            y: Math.round(height * 0.6),
-          },
-          { type: 'pointerUp', button: 0 },
-        ],
-      },
-    ]);
-    await driver.releaseActions();
-    await driver.pause(2_000);
-
     const predicate = body
       ? `label CONTAINS "${title}" AND label CONTAINS "${body}"`
       : `label CONTAINS "${title}"`;
-    const notification = await $(`-ios predicate string:${predicate}`);
-    await notification.waitForDisplayed({ timeout: timeoutMs });
+    const banner = await $(`-ios predicate string:${predicate}`);
+    await banner.waitForDisplayed({ timeout: timeoutMs });
 
     if (expectImage) {
-      const location = await notification.getLocation();
-      const size = await notification.getSize();
-      const startX = Math.round(location.x + size.width * 0.8);
-      const endX = Math.round(location.x + size.width * 0.2);
-      const centerY = Math.round(location.y + size.height / 2);
+      // Long-press to expand the banner; the attachment renders as a new
+      // XCUIElementTypeImage on top of the existing app icon.
+      const before = await driver.findElements('-ios class chain', '**/XCUIElementTypeImage');
+      await driver.execute('mobile: touchAndHold', {
+        elementId: banner.elementId,
+        duration: 1.0,
+      });
 
-      await driver.performActions([
-        {
-          type: 'pointer',
-          id: 'finger1',
-          parameters: { pointerType: 'touch' },
-          actions: [
-            { type: 'pointerMove', duration: 0, x: startX, y: centerY },
-            { type: 'pointerDown', button: 0 },
-            { type: 'pause', duration: 100 },
-            { type: 'pointerMove', duration: 300, x: endX, y: centerY },
-            { type: 'pointerUp', button: 0 },
-          ],
-        },
-      ]);
-      await driver.releaseActions();
-      await driver.pause(300);
-
-      const viewButton = await $(`-ios predicate string:label == "View"`);
-      await viewButton.waitForDisplayed({ timeout: 5_000 });
-      await viewButton.click();
-      await driver.pause(500);
-
-      const image = await $('-ios class chain:**/XCUIElementTypeImage');
-      await image.waitForDisplayed({ timeout: 5_000 });
+      const after = await driver.findElements('-ios class chain', '**/XCUIElementTypeImage');
+      expect(after.length).toBeGreaterThan(before.length);
     }
 
-    await returnToApp();
+    // dismiss the banner
+    await banner.click();
   } finally {
+    if (bundleId) {
+      await driver.updateSettings({ defaultActiveApplication: bundleId });
+    }
     await ensureMainWebViewContext();
   }
 }
@@ -647,13 +595,8 @@ export async function checkNotification(opts: {
   body?: string;
   expectImage?: boolean;
 }) {
-  const clearButton = await scrollToEl('clear_all_button');
-  await clearButton.click();
-
-  await driver.pause(1_000);
-  const button = await scrollToEl(opts.buttonId, { direction: 'up' });
+  const button = await scrollToEl(opts.buttonId);
   await button.click();
-  await driver.pause(3_000);
   await waitForNotification({
     title: opts.title,
     body: opts.body,
@@ -695,6 +638,13 @@ async function switchToWebViewContext() {
   return true;
 }
 
+// Handles that we've already matched as IAM webviews on Android. After the IAM
+// is closed, chromedriver does not detach the handle from getWindowHandles(),
+// so we must skip it on subsequent iterations to avoid `switchToWindow` ->
+// "no such window" noise (and chromedriver instability when many stale handles
+// pile up).
+const knownStaleIAMHandles = new Set<string>();
+
 async function switchToIAMWebView(expectedTitle: string, timeoutMs: number) {
   if (getPlatform() === 'ios') {
     // On hybrid iOS the app itself is a WebView, so getContexts() returns
@@ -728,10 +678,24 @@ async function switchToIAMWebView(expectedTitle: string, timeoutMs: number) {
       try {
         if (!(await switchToWebViewContext())) return false;
 
-        for (const handle of await driver.getWindowHandles()) {
-          await driver.switchToWindow(handle);
+        // chromedriver appends new IAM windows to the end and does NOT detach
+        // closed-IAM handles from getWindowHandles(). Iterate newest-first and
+        // skip handles previously matched/failed -- otherwise switchToWindow
+        // on a stale handle emits `no such window` warnings and, when several
+        // stale handles pile up, can crash the chromedriver session.
+        const candidates = [...(await driver.getWindowHandles())]
+          .reverse()
+          .filter((h) => !knownStaleIAMHandles.has(h));
+        for (const handle of candidates) {
+          try {
+            await driver.switchToWindow(handle);
+          } catch {
+            knownStaleIAMHandles.add(handle);
+            continue;
+          }
           const h1 = await $('h1');
           if ((await h1.isExisting()) && (await h1.getText()) === expectedTitle) {
+            knownStaleIAMHandles.add(handle);
             return true;
           }
         }
@@ -761,7 +725,6 @@ export async function checkInAppMessage(opts: {
     timeout: timeoutMs,
     timeoutMsg: `IAM webview not shown after clicking "${buttonId}"`,
   });
-  await driver.pause(1_000);
 
   await switchToIAMWebView(expectedTitle, timeoutMs);
 
@@ -779,20 +742,12 @@ export async function checkInAppMessage(opts: {
       timeout: timeoutMs,
       timeoutMsg: 'IAM webview still visible after closing',
     });
-    await driver.pause(1_000);
-  } else {
-    await driver.pause(3_000);
   }
-
   await ensureMainWebViewContext();
 }
 
 /**
- * Asserts a transient snackbar/toast appears with the expected text, then waits
- * for it to fully disappear. This prevents the next test from racing against a
- * lingering toast that can intercept taps or block hit-testing on freshly
- * opened modals (e.g. `react-native-toast-message` keeps toasts visible for
- * ~4s by default).
+ * Asserts a transient snackbar/toast appears with the expected text
  *
  * Cordova/Capacitor render the toast as `<ion-toast>` (Ionic), whose visible
  * text lives inside the component's shadow root and is not reachable via

@@ -2,7 +2,6 @@ import {
   checkTooltip,
   expectSnackbar,
   scrollToEl,
-  typeInto,
   waitForAppReady,
 } from '../helpers/app';
 import { byTestId } from '../helpers/selectors.js';
@@ -23,7 +22,7 @@ describe('Outcomes', () => {
 
     const nameInput = await byTestId('outcome_name_input');
     await nameInput.waitForDisplayed({ timeout: 5_000 });
-    await typeInto(nameInput, 'test_normal');
+    await nameInput.setValue('test_normal');
 
     const normalRadio = await byTestId('outcome_type_normal_radio');
     await normalRadio.click();
@@ -40,7 +39,7 @@ describe('Outcomes', () => {
 
     const nameInput = await byTestId('outcome_name_input');
     await nameInput.waitForDisplayed({ timeout: 5_000 });
-    await typeInto(nameInput, 'test_unique');
+    await nameInput.setValue('test_unique');
 
     const uniqueRadio = await byTestId('outcome_type_unique_radio');
     await uniqueRadio.click();
@@ -61,11 +60,11 @@ describe('Outcomes', () => {
     const withValueRadio = await byTestId('outcome_type_value_radio');
     await withValueRadio.click();
 
-    await typeInto(nameInput, 'test_valued');
+    await nameInput.setValue('test_valued');
 
     const valueInput = await byTestId('outcome_value_input');
     await valueInput.waitForDisplayed({ timeout: 5_000 });
-    await typeInto(valueInput, '3.14');
+    await valueInput.setValue('3.14');
 
     const sendBtn = await byTestId('outcome_send_button');
     await sendBtn.click();

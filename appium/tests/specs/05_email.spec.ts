@@ -1,4 +1,4 @@
-import { checkTooltip, confirmModal, scrollToEl, typeInto, waitForAppReady } from '../helpers/app';
+import { checkTooltip, confirmModal, scrollToEl, waitForAppReady } from '../helpers/app';
 import { byTestId, getTestData } from '../helpers/selectors.js';
 
 describe('Emails', () => {
@@ -20,14 +20,13 @@ describe('Emails', () => {
 
     const emailInput = await byTestId('email_input');
     await emailInput.waitForDisplayed({ timeout: 5_000 });
-    await typeInto(emailInput, email);
+    await emailInput.setValue(email);
     await confirmModal('singleinput_confirm_button');
 
     let el = await byTestId(`emails_value_${email}`);
     await el.waitForDisplayed({ timeout: 5_000 });
 
     // remove email
-    await driver.pause(2_000);
     const removeButton = await byTestId(`emails_remove_${email}`);
     await removeButton.click();
 

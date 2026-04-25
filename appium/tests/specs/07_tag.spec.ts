@@ -3,7 +3,6 @@ import {
   confirmModal,
   expectPairInSection,
   scrollToEl,
-  typeInto,
   waitForAppReady,
 } from '../helpers/app';
 import { byTestId } from '../helpers/selectors.js';
@@ -29,17 +28,16 @@ describe('Tags', () => {
     // add tag
     const keyInput = await byTestId('tag_key_input');
     await keyInput.waitForDisplayed({ timeout: 5_000 });
-    await typeInto(keyInput, 'test_tag');
+    await keyInput.setValue('test_tag');
 
     const valueInput = await byTestId('tag_value_input');
-    await typeInto(valueInput, 'test_tag_value');
+    await valueInput.setValue('test_tag_value');
 
     await confirmModal('singlepair_confirm_button');
 
     await expectPairInSection('tags', 'test_tag', 'test_tag_value');
 
     // remove tag
-    await driver.pause(2_000);
     const removeButton = await byTestId(`tags_remove_test_tag`);
     await removeButton.click();
 
@@ -54,20 +52,20 @@ describe('Tags', () => {
     // add tags
     const key0 = await byTestId('multipair_key_0');
     await key0.waitForDisplayed({ timeout: 5_000 });
-    await typeInto(key0, 'test_tag_2');
+    await key0.setValue('test_tag_2');
 
     const value0 = await byTestId('multipair_value_0');
-    await typeInto(value0, 'test_tag_value_2');
+    await value0.setValue('test_tag_value_2');
 
     const addRowButton = await byTestId('multipair_add_row_button');
     await addRowButton.click();
 
     const key1 = await byTestId('multipair_key_1');
     await key1.waitForDisplayed({ timeout: 5_000 });
-    await typeInto(key1, 'test_tag_3');
+    await key1.setValue('test_tag_3');
 
     const value1 = await byTestId('multipair_value_1');
-    await typeInto(value1, 'test_tag_value_3');
+    await value1.setValue('test_tag_value_3');
 
     await confirmModal('multipair_confirm_button');
 

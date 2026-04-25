@@ -3,7 +3,6 @@ import {
   confirmModal,
   expectPairInSection,
   scrollToEl,
-  typeInto,
   waitForAppReady,
 } from '../helpers/app';
 import { byTestId } from '../helpers/selectors.js';
@@ -17,16 +16,16 @@ async function addMultipleTriggers() {
 
   const key0 = await byTestId('multipair_key_0');
   await key0.waitForDisplayed({ timeout: 5_000 });
-  await typeInto(key0, 'test_trigger_key_2');
+  await key0.setValue('test_trigger_key_2');
 
   const value0 = await byTestId('multipair_value_0');
-  await typeInto(value0, 'test_trigger_value_2');
+  await value0.setValue('test_trigger_value_2');
 
   const key1 = await byTestId('multipair_key_1');
-  await typeInto(key1, 'test_trigger_key_3');
+  await key1.setValue('test_trigger_key_3');
 
   const value1 = await byTestId('multipair_value_1');
-  await typeInto(value1, 'test_trigger_value_3');
+  await value1.setValue('test_trigger_value_3');
 
   await confirmModal('multipair_confirm_button');
 
@@ -55,17 +54,16 @@ describe('Triggers', () => {
     // add trigger
     const keyInput = await byTestId('trigger_key_input');
     await keyInput.waitForDisplayed({ timeout: 5_000 });
-    await typeInto(keyInput, 'test_trigger_key');
+    await keyInput.setValue('test_trigger_key');
 
     const valueInput = await byTestId('trigger_value_input');
-    await typeInto(valueInput, 'test_trigger_value');
+    await valueInput.setValue('test_trigger_value');
 
     await confirmModal('singlepair_confirm_button');
 
     await expectPairInSection('triggers', 'test_trigger_key', 'test_trigger_value');
 
     // remove trigger
-    await driver.pause(1_000);
     const removeButton = await byTestId(`triggers_remove_test_trigger_key`);
     await removeButton.click();
 
@@ -101,15 +99,15 @@ describe('Triggers', () => {
   it('can clear all triggers', async () => {
     await addMultipleTriggers();
 
-    await driver.pause(1_000);
-
     // clear all triggers
     const clearButton = await scrollToEl('clear_triggers_button');
     await clearButton.click();
 
     await scrollToEl('triggers_section', { direction: 'up' });
     const el = await byTestId('triggers_empty');
-    await el.waitForDisplayed({ timeout: 5_000 });
-    expect(await el.getText()).toContain('No triggers added');
+    await el.waitUntil(async () => (await el.getText()).includes('No triggers added'), {
+      timeout: 5_000,
+      timeoutMsg: 'Expected triggers_empty to contain "No triggers added"',
+    });
   });
 });

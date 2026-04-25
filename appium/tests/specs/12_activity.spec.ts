@@ -43,8 +43,14 @@ describe('Live Activities', () => {
 
     const clickUpdateButton = async () => {
       const updateButton = await scrollToEl('update_live_activity_button');
+      await updateButton.waitForEnabled({ timeout: 15_000 });
       await updateButton.click();
-      await driver.pause(3_000);
+
+      // Wait for the disable->re-enable cycle so we know the update HTTP
+      // call finished. Observing the disable first is required - otherwise
+      // the re-enable wait can return before isLaUpdating flips.
+      await updateButton.waitForEnabled({ reverse: true, timeout: 15_000 });
+      await updateButton.waitForEnabled({ timeout: 15_000 });
     };
 
     await checkActivity({
@@ -63,7 +69,6 @@ describe('Live Activities', () => {
     // end live activity
     const endButton = await scrollToEl('end_live_activity_button');
     await endButton.click();
-    await driver.pause(3_000);
     await lockScreen();
 
     const activityEl = await $(`-ios predicate string:label CONTAINS "ORD-1234"`);

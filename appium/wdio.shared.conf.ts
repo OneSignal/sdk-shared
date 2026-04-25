@@ -11,7 +11,7 @@ const browserstackConnection = {
 
 const localConnection = {
   hostname: 'localhost',
-  port: 4723,
+  port: Number(process.env.APPIUM_PORT) || 4723,
   services: ['shared-store'] as string[],
 };
 

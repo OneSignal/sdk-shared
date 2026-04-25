@@ -46,7 +46,7 @@ USAGE
 done
 
 PLATFORMS=(ios android)
-SDKS=(cordova react-native flutter)
+SDKS=(cordova react-native flutter dotnet)
 
 declare -a RESULTS
 FAILED=0
@@ -56,7 +56,9 @@ for platform in "${PLATFORMS[@]}"; do
     label="${sdk} / ${platform}"
     echo ""
     echo -e "${BOLD}━━━ Running: ${label} ━━━${NC}"
-    if "$SCRIPT_DIR/run-local.sh" --platform="$platform" --sdk="$sdk" "${EXTRA_ARGS[@]}"; then
+    # `${arr[@]+"${arr[@]}"}` expands the array only when it has elements;
+    # under `set -u`, a bare `"${EXTRA_ARGS[@]}"` errors out on an empty array.
+    if "$SCRIPT_DIR/run-local.sh" --platform="$platform" --sdk="$sdk" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}; then
       RESULTS+=("PASS  ${label}")
     else
       RESULTS+=("FAIL  ${label}")

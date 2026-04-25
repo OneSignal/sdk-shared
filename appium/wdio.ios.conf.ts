@@ -8,6 +8,7 @@ export const config: WebdriverIO.Config = {
     {
       platformName: 'iOS',
       'appium:app': isLocal ? process.env.APP_PATH : process.env.BROWSERSTACK_APP_URL,
+      'appium:reduceMotion': true,
       'appium:deviceName': process.env.DEVICE || 'iPhone 17',
       'appium:platformVersion': process.env.OS_VERSION || '26',
       'appium:automationName': 'XCUITest',
@@ -16,9 +17,6 @@ export const config: WebdriverIO.Config = {
       'appium:noReset': true,
 
       ...(isLocal ? {} : { 'bstack:options': bstackOptions }),
-
-      // Hide keyboard during session
-      'appium:hideKeyboard': true,
     },
   ],
 };

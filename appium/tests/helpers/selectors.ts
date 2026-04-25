@@ -183,12 +183,25 @@ export function getSdkType(): SdkType {
 }
 
 /**
- * On Flutter Android, the standard WebDriver getText() often returns empty
- * because Flutter writes text into content-desc / text attributes rather than
- * the property that UiAutomator2's getText maps to. This proxy intercepts
- * getText() and falls back to those attributes.
+ * On Flutter Android, two interactions need shimming:
+ *
+ *   - `getText()` often returns empty because Flutter writes its text into the
+ *     `content-desc` / `text` attributes rather than the property UiAutomator2's
+ *     getText maps to. We fall back to those attributes.
+ *   - `setValue()` doesn't focus the field first because Flutter renders inputs
+ *     to a Skia canvas with Semantics shims (no native EditText), so W3C
+ *     "send keys" lands without an IME binding and the keystrokes get dropped.
+ *     We tap the element first to bind the IME, then forward to setValue.
+ *
+ * iOS XCUITest doesn't hit either problem in practice.
  */
-function withFlutterAndroidFixes<T extends { getText(): Promise<string> }>(el: T): T {
+function withFlutterAndroidFixes<
+  T extends {
+    getText(): Promise<string>;
+    setValue(value: string): Promise<void>;
+    click(): Promise<void>;
+  },
+>(el: T): T {
   if (!(getPlatform() === 'android' && getSdkType() === 'flutter')) {
     return el;
   }
@@ -218,6 +231,13 @@ function withFlutterAndroidFixes<T extends { getText(): Promise<string> }>(el: T
         };
       }
 
+      if (prop === 'setValue') {
+        return async (value: string) => {
+          await target.click();
+          await target.setValue(value);
+        };
+      }
+
       const value = Reflect.get(target, prop, receiver);
       if (typeof value === 'function') {
         return value.bind(target);
@@ -238,6 +258,10 @@ function withFlutterAndroidFixes<T extends { getText(): Promise<string> }>(el: T
  *     bridge surfaced it as content-desc but new arch sets it as the view tag,
  *     which UiAutomator2 exposes via resource-id.
  *   - Native Android Compose testTag → accessibility id (`~`)
+ *   - .NET MAUI AutomationId → resource-id (`id=`), but namespaced as
+ *     `<package>:id/<name>`. The wdio Android config disables locator
+ *     autocompletion to dodge a Flutter quirk, so for dotnet we re-enable
+ *     it (see wdio.android.conf.ts) and short ids match transparently.
  * Capacitor uses `data-testid` as a CSS attribute inside a WebView.
  */
 export async function byTestId(id: string) {

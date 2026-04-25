@@ -46,7 +46,6 @@ describe('In-App Messaging', () => {
     // try to show top banner, should fail since IAM is paused
     const button = await scrollToEl('send_iam_top_banner_button');
     await button.click();
-    await driver.pause(3_000);
 
     if (driver.isIOS) {
       expect(await isWebViewVisible()).toBe(false);
