@@ -46,12 +46,10 @@ describe('Live Activities', () => {
       await updateButton.waitForEnabled({ timeout: 15_000 });
       await updateButton.click();
 
-      // Wait for the in-app update HTTP call to complete before locking.
-      // The button disables while `isLaUpdating == true` and re-enables when
-      // the OneSignal API responds, so this is a deterministic signal that
-      // the activity-update push has been queued server-side. APNs delivery
-      // still happens asynchronously, but the lock-screen wait below covers
-      // that.
+      // Wait for the disable->re-enable cycle so we know the update HTTP
+      // call finished. Observing the disable first is required - otherwise
+      // the re-enable wait can return before isLaUpdating flips.
+      await updateButton.waitForEnabled({ reverse: true, timeout: 15_000 });
       await updateButton.waitForEnabled({ timeout: 15_000 });
     };
 
