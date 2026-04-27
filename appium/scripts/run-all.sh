@@ -45,11 +45,8 @@ USAGE
   esac
 done
 
-# PLATFORMS=(ios android)
-# SDKS=(cordova react-native flutter dotnet expo)
-PLATFORMS=(android)
+PLATFORMS=(ios android)
 SDKS=(cordova react-native flutter dotnet expo)
-
 
 declare -a RESULTS
 FAILED=0

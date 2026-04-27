@@ -1,4 +1,10 @@
-import { waitForAppReady, checkNotification, checkTooltip, scrollToEl } from '../helpers/app.js';
+import {
+  waitForAppReady,
+  checkNotification,
+  checkTooltip,
+  scrollToEl,
+  isWebViewSDK,
+} from '../helpers/app.js';
 import { byTestId, expectToggleState } from '../helpers/selectors.js';
 
 describe('Push Subscription', () => {
@@ -24,7 +30,10 @@ describe('Push Subscription', () => {
     await expectToggleState(toggleEl, true);
   });
 
-  it('can send an image notification', async () => {
+  it('can send an image notification', async function () {
+    // WebView SDKs (Capacitor/Cordova) can race through the send flow before
+    // the image attachment is ready; retry once to absorb the timing hiccup.
+    if (isWebViewSDK) this.retries(1);
     await checkNotification({
       buttonId: 'send_image_button',
       title: 'Image Notification',

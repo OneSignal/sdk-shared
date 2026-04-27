@@ -517,12 +517,15 @@ build_cordova_android() {
 }
 
 write_expo_demo_env() {
+  # Expo only inlines vars prefixed with EXPO_PUBLIC_ into the JS bundle.
+  # Without the prefix the demo's `process.env.EXPO_PUBLIC_*` reads return
+  # undefined at runtime even though Expo CLI loads the file.
   if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
     info "Writing .env for demo app..."
     cat > "$DEMO_DIR/.env" <<EOF
-ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
-ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
-E2E_MODE=true
+EXPO_PUBLIC_ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
+EXPO_PUBLIC_ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
+EXPO_PUBLIC_E2E_MODE=true
 EOF
   else
     warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — skipping demo .env"
@@ -534,17 +537,24 @@ setup_expo_plugin() {
   local installed_dir="$DEMO_DIR/node_modules/onesignal-expo-plugin"
   local tarball="$EXPO_DIR/onesignal-expo-plugin.tgz"
 
-  local src_hash
-  src_hash=$(find "$EXPO_DIR/src" "$EXPO_DIR/serviceExtensionFiles" \
-                  "$EXPO_DIR/package.json" "$EXPO_DIR/tsconfig.json" \
-                  "$EXPO_DIR/build.gradle" \
-             -type f 2>/dev/null \
-             | sort \
-             | xargs shasum 2>/dev/null \
-             | shasum \
-             | awk '{print $1}')
+  # Exported (no `local`) so build_expo_* can fold it into the demo hash and
+  # invalidate the cached .app whenever the plugin source changes.
+  #
+  # Hash inputs match exactly what `bun pm pack` ships per package.json's
+  # "files" field: src/, serviceExtensionFiles/, package.json, tsconfig.json.
+  # build.gradle is intentionally excluded — it lives at the plugin's repo
+  # root for spotless formatting only and is not part of the tarball, so
+  # touching it shouldn't bust the install cache. Keep this list in sync
+  # with onesignal-expo-plugin/examples/setup.sh's src_hash.
+  EXPO_PLUGIN_SRC_HASH=$(find "$EXPO_DIR/src" "$EXPO_DIR/serviceExtensionFiles" \
+                              "$EXPO_DIR/package.json" "$EXPO_DIR/tsconfig.json" \
+                         -type f 2>/dev/null \
+                         | sort \
+                         | xargs shasum 2>/dev/null \
+                         | shasum \
+                         | awk '{print $1}')
 
-  if [[ -d "$installed_dir" ]] && [[ -f "$stamp" ]] && [[ "$(cat "$stamp")" == "$src_hash" ]]; then
+  if [[ -d "$installed_dir" ]] && [[ -f "$stamp" ]] && [[ "$(cat "$stamp")" == "$EXPO_PLUGIN_SRC_HASH" ]]; then
     info "Expo plugin source unchanged, skipping rebuild"
     return
   fi
@@ -567,12 +577,67 @@ setup_expo_plugin() {
   # Mirror the workaround from onesignal-expo-plugin/examples/setup.sh.
   rm -rf "$DEMO_DIR/node_modules/glob"
 
-  echo "$src_hash" > "$stamp"
+  echo "$EXPO_PLUGIN_SRC_HASH" > "$stamp"
+}
+
+# Hash of every input that can affect the compiled .app/.apk for an Expo demo
+# build: JS sources, RN config, the host-platform's native project files, the
+# Podfile/Gradle wiring, and the plugin source (folded in via env). Used by
+# build_expo_* to skip xcodebuild/gradle entirely on no-op rebuilds.
+expo_demo_inputs_hash() {
+  local platform_dir="$1"  # ios | android
+  local content_hash
+  content_hash=$(find "$DEMO_DIR/App.tsx" "$DEMO_DIR/index.js" \
+                      "$DEMO_DIR/app.config.ts" "$DEMO_DIR/metro.config.js" \
+                      "$DEMO_DIR/package.json" "$DEMO_DIR/bun.lock" \
+                      "$DEMO_DIR/tsconfig.json" "$DEMO_DIR/eslint.config.js" \
+                      "$DEMO_DIR/src" "$DEMO_DIR/components" \
+                      "$DEMO_DIR/hooks" "$DEMO_DIR/constants" \
+                      "$DEMO_DIR/assets" "$DEMO_DIR/types" \
+                      "$DEMO_DIR/$platform_dir" \
+                 -type f \
+                 ! -path "*/node_modules/*" \
+                 ! -path "*/Pods/*" \
+                 ! -path "*/build/*" \
+                 ! -path "*/DerivedData/*" \
+                 ! -path "*/xcuserdata/*" \
+                 ! -path "*/.gradle/*" \
+                 \( -name "Podfile" -o -name "Podfile.lock" \
+                    -o -name "Podfile.properties.json" \
+                    -o -name "build.gradle" -o -name "settings.gradle" \
+                    -o -name "gradle.properties" -o -name "*.pbxproj" \
+                    -o -name "*.entitlements" -o -name "*.plist" \
+                    -o -name "*.xcprivacy" -o -name "*.swift" \
+                    -o -name "*.h" -o -name "*.m" -o -name "*.mm" \
+                    -o -name "*.storyboard" -o -name "*.wav" \
+                    -o -name "*.ts" -o -name "*.tsx" -o -name "*.js" \
+                    -o -name "*.jsx" -o -name "*.json" -o -name "*.png" \
+                    -o -name "*.jpg" -o -name "*.svg" -o -name "*.lock" \
+                    -o -name ".env" \) \
+                 2>/dev/null \
+                 | sort \
+                 | xargs shasum 2>/dev/null \
+                 | shasum \
+                 | awk '{print $1}')
+  echo "${content_hash}-${EXPO_PLUGIN_SRC_HASH:-none}"
 }
 
 build_expo_ios() {
   write_expo_demo_env
   setup_expo_plugin
+
+  # Top-level skip: if neither the demo's JS/native sources nor the plugin
+  # changed and the .app is still on disk, an xcodebuild "up to date" pass
+  # would still take ~30-60s (resource copy, JS bundle embed, codesign,
+  # validation). Skip the whole thing.
+  local build_stamp="$DEMO_DIR/ios/build/.expo-build-ios.stamp"
+  local build_hash
+  build_hash=$(expo_demo_inputs_hash ios)
+  if [[ -d "$APP_PATH" ]] && [[ -f "$build_stamp" ]] && [[ "$(cat "$build_stamp")" == "$build_hash" ]]; then
+    info "Expo demo + plugin source unchanged, skipping iOS rebuild"
+    info "App: $APP_PATH"
+    return
+  fi
 
   local lock="$DEMO_DIR/ios/Podfile.lock"
   local stamp="$DEMO_DIR/ios/build/.podfile.lock.stamp"
@@ -585,6 +650,9 @@ build_expo_ios() {
     info "Pods up to date, skipping pod install"
   fi
 
+  # DEBUG_INFORMATION_FORMAT=dwarf: skips dSYM bundle generation (~5-15s on
+  # an Expo Release build). Simulator E2E never needs symbolicated crash
+  # reports, so we save the I/O. Default for Release would be `dwarf-with-dsym`.
   info "Building release .app for simulator (self-contained, no Metro required)..."
   (cd "$DEMO_DIR/ios" && xcodebuild \
     -workspace OneSignalDemo.xcworkspace \
@@ -597,10 +665,13 @@ build_expo_ios() {
     ENABLE_USER_SCRIPT_SANDBOXING=NO \
     COMPILER_INDEX_STORE_ENABLE=NO \
     SWIFT_INDEX_STORE_ENABLE=NO \
+    DEBUG_INFORMATION_FORMAT=dwarf \
     CODE_SIGN_IDENTITY="-" \
     CODE_SIGNING_ALLOWED=YES)
 
   [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
+  mkdir -p "$(dirname "$build_stamp")"
+  echo "$build_hash" > "$build_stamp"
   info "App built: $APP_PATH"
 }
 

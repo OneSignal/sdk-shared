@@ -3,6 +3,7 @@ type SdkType =
   | 'capacitor'
   | 'cordova'
   | 'dotnet'
+  | 'expo'
   | 'flutter'
   | 'ios'
   | 'react-native'
@@ -13,6 +14,7 @@ const VALID_SDK_TYPES = new Set<string>([
   'capacitor',
   'cordova',
   'dotnet',
+  'expo',
   'flutter',
   'ios',
   'react-native',
@@ -96,9 +98,19 @@ const TEST_DATA: Record<string, { sms: string; email: string; customEvent: strin
     email: 'dotnet-android@test.com',
     customEvent: 'dotnet_android',
   },
-  'appium-ios': { sms: '+12003004012', email: 'ios@test.com', customEvent: 'ios' },
-  'appium-android': {
+  'appium-expo-ios': {
+    sms: '+12003004012',
+    email: 'expo-ios@test.com',
+    customEvent: 'expo_ios',
+  },
+  'appium-expo-android': {
     sms: '+12003004013',
+    email: 'expo-android@test.com',
+    customEvent: 'expo_android',
+  },
+  'appium-ios': { sms: '+12003004014', email: 'ios@test.com', customEvent: 'ios' },
+  'appium-android': {
+    sms: '+12003004015',
     email: 'android@test.com',
     customEvent: 'android',
   },

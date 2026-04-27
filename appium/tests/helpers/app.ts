@@ -11,6 +11,9 @@ const tooltipContent = JSON.parse(
   readFileSync(resolve(__dirname, '../../../demo/tooltip_content.json'), 'utf-8'),
 );
 
+const sdkType = getSdkType();
+export const isWebViewSDK = sdkType === 'capacitor' || sdkType === 'cordova';
+const isFlutterSDK = sdkType === 'flutter';
 /**
  * Scroll the main content area in the given direction using native scroll APIs.
  * Targets the main_scroll_view element to avoid scrolling the log view.
@@ -30,7 +33,7 @@ async function swipeMainContent(direction: 'up' | 'down', distance: 'small' | 'n
 
   // Slower drag on Flutter stays under the fling threshold; momentum
   // otherwise carries the target past the viewport between polls.
-  const moveDurationMs = getSdkType() === 'flutter' ? 700 : 300;
+  const moveDurationMs = isFlutterSDK ? 700 : 300;
 
   // Hard-bound the W3C pointer chain. If we ever end up swiping against a
   // stale/closed WebView window handle (e.g. a leftover IAM banner), the
@@ -98,11 +101,10 @@ export async function scrollToEl(
   // Safety net for `direction: 'up'` and any case where a native fast path
   // didn't land the element. Flutter has no fast path and uses slower swipes
   // (see `swipeMainContent`), so it needs a higher cap.
-  const sdk = getSdkType();
-  const { direction = 'down', maxScrolls = sdk === 'flutter' ? 30 : 20 } = opts;
+  const { direction = 'down', maxScrolls = isFlutterSDK ? 30 : 20 } = opts;
   const platform = getPlatform();
 
-  if (sdk === 'capacitor' || sdk === 'cordova') {
+  if (isWebViewSDK) {
     const el = await byTestId(identifier);
     await el.waitForExist({ timeout: 10_000 });
     await browser.execute(
@@ -114,7 +116,7 @@ export async function scrollToEl(
 
   // Native fast path: pre-warms the scroll view so the loop below either
   // returns immediately or has very little work left.
-  if (direction === 'down' && sdk !== 'flutter') {
+  if (direction === 'down' && !isFlutterSDK) {
     if (platform === 'android') {
       await tryNativeScrollAndroid(identifier);
     } else {
@@ -124,12 +126,12 @@ export async function scrollToEl(
 
   for (let i = 0; i < maxScrolls; i++) {
     const el = await byTestId(identifier);
-    if (await isVisibleInViewport(el, sdk)) {
+    if (await isVisibleInViewport(el, sdkType)) {
       return await scrollExtraIfNeeded(el, () => byTestId(identifier));
     }
     await swipeMainContent(direction);
     // Let Flutter realize freshly scrolled-in widgets before the next poll.
-    if (sdk === 'flutter') await driver.pause(250);
+    if (isFlutterSDK) await driver.pause(250);
   }
   throw new Error(`Element "${identifier}" not found after ${maxScrolls} scrolls`);
 }
@@ -152,9 +154,7 @@ export async function scrollToEl(
 async function tryNativeScrollAndroid(id: string): Promise<boolean> {
   try {
     const fullId =
-      getSdkType() === 'dotnet'
-        ? `${process.env.BUNDLE_ID || 'com.onesignal.example'}:id/${id}`
-        : id;
+      sdkType === 'dotnet' ? `${process.env.BUNDLE_ID || 'com.onesignal.example'}:id/${id}` : id;
     const sel =
       `new UiScrollable(new UiSelector().scrollable(true).instance(0))` +
       `.scrollIntoView(new UiSelector().resourceId("${fullId}"))`;
@@ -221,18 +221,23 @@ async function tryNativeScrollIos(id: string): Promise<boolean> {
  * actually on screen.
  */
 async function isVisibleInViewport(
-  el: { isDisplayed(): Promise<boolean>; isExisting(): Promise<boolean>; getLocation(): Promise<{ x: number; y: number }>; getSize(): Promise<{ width: number; height: number }> },
+  el: {
+    isDisplayed(): Promise<boolean>;
+    isExisting(): Promise<boolean>;
+    getLocation(): Promise<{ x: number; y: number }>;
+    getSize(): Promise<{ width: number; height: number }>;
+  },
   sdk: string,
 ): Promise<boolean> {
   if (await el.isDisplayed().catch(() => false)) return true;
-  if (sdk !== 'flutter') return false;
+  if (!isFlutterSDK) return false;
   if (!(await el.isExisting().catch(() => false))) return false;
   try {
     const [loc, size] = await Promise.all([el.getLocation(), el.getSize()]);
     if (size.width <= 0 || size.height <= 0) return false;
     const { width: winW, height: winH } = await driver.getWindowSize();
     const topMargin = Math.round(winH * 0.07);
-    const bottomMargin = Math.round(winH * 0.10);
+    const bottomMargin = Math.round(winH * 0.1);
     return (
       loc.y >= topMargin &&
       loc.y + size.height <= winH - bottomMargin &&
@@ -403,8 +408,7 @@ export async function allowLocation() {
  * dialog/IAM that forced us back to NATIVE_APP. No-op for native SDKs.
  */
 export async function ensureMainWebViewContext() {
-  const sdkType = getSdkType();
-  if (sdkType !== 'capacitor' && sdkType !== 'cordova') return;
+  if (!isWebViewSDK) return;
 
   await driver.waitUntil(
     async () => {
@@ -459,8 +463,7 @@ export async function ensureMainWebViewContext() {
  * is done. No-op for native SDKs.
  */
 export async function switchToNativeContext() {
-  const sdkType = getSdkType();
-  if (sdkType !== 'capacitor' && sdkType !== 'cordova') return;
+  if (!isWebViewSDK) return;
 
   const current = String(await driver.getContext());
   if (current !== 'NATIVE_APP') {
@@ -667,7 +670,10 @@ export async function waitForNotification(opts: {
       }
 
       if (expectImage) {
-        const image = await $('//android.widget.ImageView');
+        // Target the BigPictureStyle attachment specifically. The shade is
+        // full of ImageViews (small icon, expand chevron, status bar), so
+        // matching by resource-id avoids false positives.
+        const image = await $('//*[@resource-id="android:id/big_picture"]');
         await image.waitForDisplayed({ timeout: 5_000 });
       }
 
@@ -725,6 +731,9 @@ export async function checkNotification(opts: {
   expectImage?: boolean;
 }) {
   const button = await scrollToEl(opts.buttonId);
+
+  // webview goes through flows really quick so need to pause a bit
+  if (isWebViewSDK) await driver.pause(5_000);
   await button.click();
   await waitForNotification({
     title: opts.title,
@@ -735,13 +744,12 @@ export async function checkNotification(opts: {
 
 export async function isWebViewVisible() {
   if (getPlatform() === 'ios') {
-    const sdk = getSdkType();
     // Capacitor/Cordova park the driver in WEBVIEW_* and the app itself is a
     // WebView, so the original predicate strategy can't be used here. The IAM
     // is exposed as its own WebView context only when isInspectable=YES is set
     // on it (see OSInAppMessageView.m, requires Verbose log level), so >1
     // non-NATIVE context means an IAM is up on top of the app's webview.
-    if (sdk === 'capacitor' || sdk === 'cordova') {
+    if (isWebViewSDK) {
       const contexts = await driver.getContexts();
       const nonNative = contexts.filter((c) => String(c) !== 'NATIVE_APP');
       return nonNative.length > 1;
@@ -850,7 +858,7 @@ async function switchToIAMWebView(expectedTitle: string, timeoutMs: number) {
  */
 async function tapIamTrigger(buttonId: string) {
   await (await scrollToEl(buttonId)).click();
-  if (getSdkType() !== 'flutter') return;
+  if (!isFlutterSDK) return;
   try {
     await driver.waitUntil(() => isWebViewVisible(), { timeout: 2_500 });
   } catch {
@@ -900,7 +908,6 @@ export async function checkInAppMessage(opts: {
  * as a `message` attribute, so we match the host directly.
  */
 export async function expectSnackbar(text: string, timeoutMs = 5_000) {
-  const sdkType = getSdkType();
   if (sdkType === 'cordova' || sdkType === 'capacitor') {
     const escaped = text.replace(/"/g, '\\"');
     const toast = await $(`ion-toast[message="${escaped}"]`);

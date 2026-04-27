@@ -37,6 +37,9 @@ export const config: WebdriverIO.Config = {
       'appium:deviceName': process.env.DEVICE || 'Samsung Galaxy S24',
       'appium:platformVersion': process.env.OS_VERSION || '16.0',
       'appium:automationName': 'UiAutomator2',
+      // Pin to the emulator the runner script resolved (matches AVD_NAME).
+      // Without this, multi-emulator hosts let Appium pick non-deterministically.
+      ...(process.env.APPIUM_UDID ? { 'appium:udid': process.env.APPIUM_UDID } : {}),
       ...(process.env.BUNDLE_ID ? { 'appium:appPackage': process.env.BUNDLE_ID } : {}),
       'appium:autoGrantPermissions': false,
       'appium:noReset': true,
