@@ -22,9 +22,7 @@ const dotnetAndroidCaps = isDotNet
 // collide on the defaults (8200 / random). Single-session runs can leave both
 // unset and let Appium pick the defaults.
 const parallelPortCaps = {
-  ...(process.env.SYSTEM_PORT
-    ? { 'appium:systemPort': Number(process.env.SYSTEM_PORT) }
-    : {}),
+  ...(process.env.SYSTEM_PORT ? { 'appium:systemPort': Number(process.env.SYSTEM_PORT) } : {}),
   ...(process.env.CHROMEDRIVER_PORT
     ? { 'appium:chromedriverPort': Number(process.env.CHROMEDRIVER_PORT) }
     : {}),

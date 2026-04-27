@@ -15,7 +15,6 @@ export const config: WebdriverIO.Config = {
       ...(process.env.BUNDLE_ID ? { 'appium:bundleId': process.env.BUNDLE_ID } : {}),
       'appium:autoAcceptAlerts': false,
       'appium:noReset': true,
-
       ...(isLocal ? {} : { 'bstack:options': bstackOptions }),
     },
   ],

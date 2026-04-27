@@ -1,9 +1,4 @@
-import {
-  checkTooltip,
-  expectSnackbar,
-  scrollToEl,
-  waitForAppReady,
-} from '../helpers/app';
+import { checkTooltip, expectSnackbar, scrollToEl, waitForAppReady } from '../helpers/app';
 import { byTestId, getTestData } from '../helpers/selectors.js';
 
 const TEST_JSON = {

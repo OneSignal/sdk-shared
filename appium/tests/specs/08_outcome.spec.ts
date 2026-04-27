@@ -1,5 +1,6 @@
 import {
   checkTooltip,
+  dismissKeyboard,
   expectSnackbar,
   scrollToEl,
   waitForAppReady,
@@ -23,6 +24,7 @@ describe('Outcomes', () => {
     const nameInput = await byTestId('outcome_name_input');
     await nameInput.waitForDisplayed({ timeout: 5_000 });
     await nameInput.setValue('test_normal');
+    await dismissKeyboard();
 
     const normalRadio = await byTestId('outcome_type_normal_radio');
     await normalRadio.click();
@@ -40,6 +42,7 @@ describe('Outcomes', () => {
     const nameInput = await byTestId('outcome_name_input');
     await nameInput.waitForDisplayed({ timeout: 5_000 });
     await nameInput.setValue('test_unique');
+    await dismissKeyboard();
 
     const uniqueRadio = await byTestId('outcome_type_unique_radio');
     await uniqueRadio.click();
@@ -65,6 +68,7 @@ describe('Outcomes', () => {
     const valueInput = await byTestId('outcome_value_input');
     await valueInput.waitForDisplayed({ timeout: 5_000 });
     await valueInput.setValue('3.14');
+    await dismissKeyboard();
 
     const sendBtn = await byTestId('outcome_send_button');
     await sendBtn.click();

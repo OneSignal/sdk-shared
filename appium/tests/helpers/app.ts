@@ -15,11 +15,8 @@ const tooltipContent = JSON.parse(
  * Scroll the main content area in the given direction using native scroll APIs.
  * Targets the main_scroll_view element to avoid scrolling the log view.
  */
-async function swipeMainContent(
-  direction: 'up' | 'down',
-  distance: 'small' | 'normal' | 'large' = 'normal',
-) {
-  const distances = { small: 0.2, normal: 0.5, large: 1.0 };
+async function swipeMainContent(direction: 'up' | 'down', distance: 'small' | 'normal' = 'normal') {
+  const distances = { small: 0.2, normal: 0.33 };
 
   const { width, height } = await driver.getWindowSize();
   const swipeArea = height * 0.8;
@@ -30,6 +27,10 @@ async function swipeMainContent(
   const centerX = Math.round(width / 2);
   const startY = Math.round(direction === 'down' ? height * 0.85 : height * 0.15);
   const endY = Math.round(direction === 'down' ? startY - swipeDistance : startY + swipeDistance);
+
+  // Slower drag on Flutter stays under the fling threshold; momentum
+  // otherwise carries the target past the viewport between polls.
+  const moveDurationMs = getSdkType() === 'flutter' ? 700 : 300;
 
   // Hard-bound the W3C pointer chain. If we ever end up swiping against a
   // stale/closed WebView window handle (e.g. a leftover IAM banner), the
@@ -43,7 +44,7 @@ async function swipeMainContent(
     .move({ x: centerX, y: startY })
     .down()
     .pause(50)
-    .move({ duration: 300, x: centerX, y: endY })
+    .move({ duration: moveDurationMs, x: centerX, y: endY })
     .up()
     .perform();
   let timer: NodeJS.Timeout | undefined;
@@ -76,9 +77,9 @@ async function swipeMainContent(
  *   - Native Android (RN, .NET MAUI, expo, native): UiAutomator2's
  *     `UiScrollable.scrollIntoView` walks the first scrollable forward until
  *     the resource-id matches, in a single driver call.
- *   - Native iOS (RN, .NET MAUI, expo, native): XCUITest's `mobile: scroll`
- *     pages `main_scroll_view` until an element with `name == identifier`
- *     becomes visible.
+ *   - Native iOS (RN, .NET MAUI, expo, native): pages `main_scroll_view`
+ *     downward via XCUITest's directional `mobile: scroll`, checking
+ *     visibility between pages.
  *   - Flutter: Skia-canvas rendering means lazy children aren't in the native
  *     a11y tree until they're realised, so neither UiScrollable nor
  *     `mobile: scroll` can find them. Always uses the swipe loop.
@@ -94,8 +95,11 @@ export async function scrollToEl(
     maxScrolls?: number;
   } = {},
 ) {
-  const { direction = 'down', maxScrolls = 20 } = opts;
+  // Safety net for `direction: 'up'` and any case where a native fast path
+  // didn't land the element. Flutter has no fast path and uses slower swipes
+  // (see `swipeMainContent`), so it needs a higher cap.
   const sdk = getSdkType();
+  const { direction = 'down', maxScrolls = sdk === 'flutter' ? 30 : 20 } = opts;
   const platform = getPlatform();
 
   if (sdk === 'capacitor' || sdk === 'cordova') {
@@ -120,10 +124,12 @@ export async function scrollToEl(
 
   for (let i = 0; i < maxScrolls; i++) {
     const el = await byTestId(identifier);
-    if (await el.isDisplayed()) {
+    if (await isVisibleInViewport(el, sdk)) {
       return await scrollExtraIfNeeded(el, () => byTestId(identifier));
     }
     await swipeMainContent(direction);
+    // Let Flutter realize freshly scrolled-in widgets before the next poll.
+    if (sdk === 'flutter') await driver.pause(250);
   }
   throw new Error(`Element "${identifier}" not found after ${maxScrolls} scrolls`);
 }
@@ -160,22 +166,35 @@ async function tryNativeScrollAndroid(id: string): Promise<boolean> {
 }
 
 /**
- * XCUITest `mobile: scroll` with a `predicateString` pages the receiver scroll
- * view until a matching descendant becomes visible. `byTestId` on iOS uses
- * accessibility-id, which XCUITest exposes as `name`, so a single predicate
- * works for every iOS SDK that lands testIds via accessibility identifiers
- * (RN, .NET MAUI, expo, native iOS, Flutter — though the caller skips us for
- * Flutter because lazy widgets aren't in the a11y tree to find).
+ * XCUITest's match-based `mobile: scroll` modes (`predicateString`, `name`,
+ * `toVisible`) call WDA's internal `scrollToVisible`, which is hard-capped by
+ * `maxScrollCellCount` (default 25). Hitting the cap surfaces as "Failed to
+ * perform scroll with visible cell due to max scroll count reached", and the
+ * cap is reached *slowly* (~1s per attempt × 25 = ~25s before failure), which
+ * is enough to blow the 60s mocha hook budget on deep scroll views.
+ *
+ * Instead, drive the scroll view directionally and check visibility ourselves
+ * between pages. `mobile: scroll { direction }` has no internal cap, each call
+ * is ~200ms, and we stop the moment the element appears.
+ *
+ * `byTestId` on iOS uses accessibility-id, which XCUITest exposes as `name`,
+ * so this works for every iOS SDK that lands testIds via accessibility
+ * identifiers (RN, .NET MAUI, expo, native iOS — Flutter is skipped by the
+ * caller because lazy widgets aren't in the a11y tree to find).
  */
 async function tryNativeScrollIos(id: string): Promise<boolean> {
   try {
     const main = await byTestId('main_scroll_view');
     if (!(await main.isExisting())) return false;
-    await driver.execute('mobile: scroll', {
-      elementId: main.elementId,
-      predicateString: `name == "${id}"`,
-    });
-    return true;
+    for (let i = 0; i < 30; i++) {
+      const el = await byTestId(id);
+      if (await el.isDisplayed().catch(() => false)) return true;
+      await driver.execute('mobile: scroll', {
+        elementId: main.elementId,
+        direction: 'down',
+      });
+    }
+    return false;
   } catch {
     return false;
   }
@@ -193,6 +212,38 @@ async function tryNativeScrollIos(id: string): Promise<boolean> {
  * modal that opens from the tap can race against those overlays before its
  * accessibility tree fully registers.
  */
+/**
+ * XCUITest's `isDisplayed` does a hit-test against the standard UIView
+ * hierarchy, which doesn't include Flutter-rendered widgets exposed only via
+ * the Semantics tree. The element still has a valid frame in the a11y tree,
+ * but `_AXVisible` returns false (false negative). For Flutter we fall back
+ * to a rect-in-viewport check so we don't scroll past elements that are
+ * actually on screen.
+ */
+async function isVisibleInViewport(
+  el: { isDisplayed(): Promise<boolean>; isExisting(): Promise<boolean>; getLocation(): Promise<{ x: number; y: number }>; getSize(): Promise<{ width: number; height: number }> },
+  sdk: string,
+): Promise<boolean> {
+  if (await el.isDisplayed().catch(() => false)) return true;
+  if (sdk !== 'flutter') return false;
+  if (!(await el.isExisting().catch(() => false))) return false;
+  try {
+    const [loc, size] = await Promise.all([el.getLocation(), el.getSize()]);
+    if (size.width <= 0 || size.height <= 0) return false;
+    const { width: winW, height: winH } = await driver.getWindowSize();
+    const topMargin = Math.round(winH * 0.07);
+    const bottomMargin = Math.round(winH * 0.10);
+    return (
+      loc.y >= topMargin &&
+      loc.y + size.height <= winH - bottomMargin &&
+      loc.x >= 0 &&
+      loc.x + size.width <= winW
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function scrollExtraIfNeeded<T extends { getLocation(): Promise<{ y: number }> }>(
   el: T,
   refetch: () => Promise<T>,
@@ -303,6 +354,28 @@ export async function allowNotifications() {
     'id=com.android.packageinstaller:id/permission_allow_button',
     'android=new UiSelector().textMatches("(?i)allow|ok")',
   ]);
+}
+
+/**
+ * Dismiss the soft keyboard on Android if it is currently shown.
+ *
+ * After `setValue` on a text input, UiAutomator2 leaves the IME visible. The
+ * keyboard auto-dismisses lazily when focus shifts to a non-input element,
+ * which triggers a layout reflow during the next interaction. If the next
+ * interaction is a click, wdio's pre-click sequence (rect probe + click)
+ * straddles that reflow, the underlying view's resource-id reference goes
+ * stale, and webdriver logs `Request encountered a stale element - terminating
+ * request` while it transparently retries. The retries succeed (so tests pass)
+ * but the warnings are noisy. Dismissing the keyboard explicitly closes the
+ * reflow window before the next interaction starts.
+ *
+ * iOS XCUITest already dismisses the keyboard cleanly between interactions and
+ * doesn't surface the same staleness, so this is Android-only.
+ */
+export async function dismissKeyboard() {
+  if (getPlatform() !== 'android') return;
+  if (!(await driver.isKeyboardShown())) return;
+  await driver.execute('mobile: hideKeyboard');
 }
 
 /**
@@ -765,6 +838,26 @@ async function switchToIAMWebView(expectedTitle: string, timeoutMs: number) {
   );
 }
 
+/**
+ * The first tap on a freshly-scrolled IAM trigger button on Flutter is
+ * intermittently dropped: the driver reports the tap delivered, but the
+ * onPressed never fires -- most likely intercepted by a leftover OneSignal
+ * IAM container window from the previous IAM, which outlives
+ * `isWebViewVisible() === false`. The button itself stays tappable, so if
+ * no WebView appears in 2.5s we re-fetch the handle and tap again.
+ * Banners normally render well under 1.1s, so the gate is only paid on
+ * the (rarer) miss path.
+ */
+async function tapIamTrigger(buttonId: string) {
+  await (await scrollToEl(buttonId)).click();
+  if (getSdkType() !== 'flutter') return;
+  try {
+    await driver.waitUntil(() => isWebViewVisible(), { timeout: 2_500 });
+  } catch {
+    await (await byTestId(buttonId)).click();
+  }
+}
+
 export async function checkInAppMessage(opts: {
   buttonId: string;
   expectedTitle: string;
@@ -772,10 +865,8 @@ export async function checkInAppMessage(opts: {
   skipClick?: boolean;
 }) {
   const { buttonId, expectedTitle, timeoutMs = 5_000 } = opts;
-  if (!opts.skipClick) {
-    const button = await scrollToEl(buttonId);
-    await button.click();
-  }
+
+  if (!opts.skipClick) await tapIamTrigger(buttonId);
 
   await driver.waitUntil(() => isWebViewVisible(), {
     timeout: timeoutMs,
@@ -788,9 +879,7 @@ export async function checkInAppMessage(opts: {
   await title.waitForExist({ timeout: timeoutMs });
   expect(await title.getText()).toBe(expectedTitle);
 
-  const closeButton = await $('.close-button');
-  await closeButton.click();
-
+  await (await $('.close-button')).click();
   await driver.switchContext('NATIVE_APP');
 
   if (getPlatform() === 'ios') {
