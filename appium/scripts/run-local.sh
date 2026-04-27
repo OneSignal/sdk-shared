@@ -55,7 +55,7 @@ via flags or env vars.
 
 Options:
   --platform=P        ios | android
-  --sdk=S             flutter | react-native | cordova | dotnet
+  --sdk=S             flutter | react-native | cordova | dotnet | expo
   --device=NAME       Device/simulator/AVD name (default: iPhone 17 / Samsung Galaxy S26)
   --appium-port=N     Appium server port (default: 4723). Use unique values when
                       running multiple sessions in parallel on the same host.
@@ -77,6 +77,7 @@ Env vars (set in .env or export):
   FLUTTER_DIR        Flutter SDK repo root (default: ../../OneSignal-Flutter-SDK)
   RN_DIR             React Native SDK repo root (default: ../../react-native-onesignal)
   CORDOVA_DIR        Cordova SDK repo root (default: ../../OneSignal-Cordova-SDK)
+  EXPO_DIR           Expo plugin repo root (default: ../../onesignal-expo-plugin)
   DOTNET_DIR         .NET MAUI SDK repo root (default: ../../DotNet/OneSignal-DotNet-SDK)
   DOTNET_TFM         .NET target framework moniker base (default: net10.0)
   DOTNET_ANDROID_ABI .NET Android ABI to pack (default: host arch)
@@ -126,7 +127,7 @@ prompt_choice() {
 }
 
 prompt_choice PLATFORM "Select platform:" ios android
-prompt_choice SDK_TYPE "Select SDK type:" flutter react-native cordova dotnet
+prompt_choice SDK_TYPE "Select SDK type:" flutter react-native cordova dotnet expo
 
 case "$PLATFORM" in
   ios|android) ;;
@@ -134,8 +135,8 @@ case "$PLATFORM" in
 esac
 
 case "$SDK_TYPE" in
-  flutter|react-native|cordova|dotnet) ;;
-  *) error "SDK_TYPE must be 'flutter', 'react-native', 'cordova', or 'dotnet', got '$SDK_TYPE'" ;;
+  flutter|react-native|cordova|dotnet|expo) ;;
+  *) error "SDK_TYPE must be 'flutter', 'react-native', 'cordova', 'dotnet', or 'expo', got '$SDK_TYPE'" ;;
 esac
 
 BUNDLE_ID="${BUNDLE_ID:-com.onesignal.example}"
@@ -166,6 +167,15 @@ elif [[ "$SDK_TYPE" == "cordova" ]]; then
     APP_PATH="${APP_PATH:-$DEMO_DIR/ios/App/build/Build/Products/Release-iphonesimulator/App.app}"
   else
     APP_PATH="${APP_PATH:-$DEMO_DIR/android/app/build/outputs/apk/debug/app-debug.apk}"
+  fi
+elif [[ "$SDK_TYPE" == "expo" ]]; then
+  EXPO_DIR="${EXPO_DIR:-$SDK_ROOT/onesignal-expo-plugin}"
+  [[ -d "$EXPO_DIR" ]] || error "Expo plugin not found at $EXPO_DIR — set EXPO_DIR in .env"
+  DEMO_DIR="$EXPO_DIR/examples/demo"
+  if [[ "$PLATFORM" == "ios" ]]; then
+    APP_PATH="${APP_PATH:-$DEMO_DIR/ios/build/Build/Products/Release-iphonesimulator/OneSignalDemo.app}"
+  else
+    APP_PATH="${APP_PATH:-$DEMO_DIR/android/app/build/outputs/apk/release/app-release.apk}"
   fi
 elif [[ "$SDK_TYPE" == "dotnet" ]]; then
   DOTNET_DIR="${DOTNET_DIR:-$SDK_ROOT/DotNet/OneSignal-DotNet-SDK}"
@@ -506,6 +516,105 @@ build_cordova_android() {
   info "App built: $APP_PATH"
 }
 
+write_expo_demo_env() {
+  if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
+    info "Writing .env for demo app..."
+    cat > "$DEMO_DIR/.env" <<EOF
+ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
+ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
+E2E_MODE=true
+EOF
+  else
+    warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — skipping demo .env"
+  fi
+}
+
+setup_expo_plugin() {
+  local stamp="$EXPO_DIR/.expo-plugin-source.stamp"
+  local installed_dir="$DEMO_DIR/node_modules/onesignal-expo-plugin"
+  local tarball="$EXPO_DIR/onesignal-expo-plugin.tgz"
+
+  local src_hash
+  src_hash=$(find "$EXPO_DIR/src" "$EXPO_DIR/serviceExtensionFiles" \
+                  "$EXPO_DIR/package.json" "$EXPO_DIR/tsconfig.json" \
+                  "$EXPO_DIR/build.gradle" \
+             -type f 2>/dev/null \
+             | sort \
+             | xargs shasum 2>/dev/null \
+             | shasum \
+             | awk '{print $1}')
+
+  if [[ -d "$installed_dir" ]] && [[ -f "$stamp" ]] && [[ "$(cat "$stamp")" == "$src_hash" ]]; then
+    info "Expo plugin source unchanged, skipping rebuild"
+    return
+  fi
+
+  info "Building Expo plugin & packing tarball..."
+  (cd "$EXPO_DIR" && bun run build)
+  (cd "$EXPO_DIR" && rm -f onesignal-expo-plugin*.tgz && bun pm pack && mv onesignal-expo-plugin-*.tgz onesignal-expo-plugin.tgz)
+
+  if [[ ! -d "$installed_dir" ]]; then
+    info "First install — running bun add to register tarball in lockfile..."
+    (cd "$DEMO_DIR" && bun add file:../../onesignal-expo-plugin.tgz)
+  else
+    info "Extracting tarball into demo's node_modules (respects package.json files)..."
+    rm -rf "$installed_dir"/*
+    rm -rf "$installed_dir"/.[!.]* 2>/dev/null || true
+    tar -xzf "$tarball" -C "$installed_dir" --strip-components=1
+  fi
+
+  # bun hoists glob@7 from react-native, shadowing glob@13 needed by @expo/cli.
+  # Mirror the workaround from onesignal-expo-plugin/examples/setup.sh.
+  rm -rf "$DEMO_DIR/node_modules/glob"
+
+  echo "$src_hash" > "$stamp"
+}
+
+build_expo_ios() {
+  write_expo_demo_env
+  setup_expo_plugin
+
+  local lock="$DEMO_DIR/ios/Podfile.lock"
+  local stamp="$DEMO_DIR/ios/build/.podfile.lock.stamp"
+  if [[ ! -f "$lock" ]] || [[ ! -f "$stamp" ]] || ! cmp -s "$lock" "$stamp"; then
+    info "Installing CocoaPods..."
+    (cd "$DEMO_DIR/ios" && pod install)
+    mkdir -p "$(dirname "$stamp")"
+    cp "$lock" "$stamp" 2>/dev/null || true
+  else
+    info "Pods up to date, skipping pod install"
+  fi
+
+  info "Building release .app for simulator (self-contained, no Metro required)..."
+  (cd "$DEMO_DIR/ios" && xcodebuild \
+    -workspace OneSignalDemo.xcworkspace \
+    -scheme OneSignalDemo \
+    -configuration Release \
+    -sdk iphonesimulator \
+    -derivedDataPath build \
+    -quiet \
+    ONLY_ACTIVE_ARCH=YES \
+    ENABLE_USER_SCRIPT_SANDBOXING=NO \
+    COMPILER_INDEX_STORE_ENABLE=NO \
+    SWIFT_INDEX_STORE_ENABLE=NO \
+    CODE_SIGN_IDENTITY="-" \
+    CODE_SIGNING_ALLOWED=YES)
+
+  [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
+  info "App built: $APP_PATH"
+}
+
+build_expo_android() {
+  write_expo_demo_env
+  setup_expo_plugin
+
+  info "Building release APK (self-contained, no Metro required)..."
+  (cd "$DEMO_DIR/android" && ./gradlew assembleRelease)
+
+  [[ -f "$APP_PATH" ]] || error ".apk not found after build at $APP_PATH"
+  info "App built: $APP_PATH"
+}
+
 write_dotnet_demo_env() {
   if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
     info "Writing .env for demo app..."
@@ -730,6 +839,12 @@ build_app() {
       build_dotnet_ios
     else
       build_dotnet_android
+    fi
+  elif [[ "$SDK_TYPE" == "expo" ]]; then
+    if [[ "$PLATFORM" == "ios" ]]; then
+      build_expo_ios
+    else
+      build_expo_android
     fi
   fi
 }

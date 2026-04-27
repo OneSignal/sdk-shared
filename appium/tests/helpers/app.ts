@@ -11,38 +11,6 @@ const tooltipContent = JSON.parse(
   readFileSync(resolve(__dirname, '../../../demo/tooltip_content.json'), 'utf-8'),
 );
 
-async function stopScrolling() {
-  const platform = getPlatform();
-
-  if (platform === 'android') {
-    return;
-  }
-
-  let x: number;
-  let y: number;
-
-  const mainScroll = await byTestId('main_scroll_view');
-  const loc = await mainScroll.getLocation();
-  const size = await mainScroll.getSize();
-  x = Math.round(loc.x + 6);
-  y = Math.round(loc.y + size.height / 2);
-
-  await driver.performActions([
-    {
-      type: 'pointer',
-      id: 'finger1',
-      parameters: { pointerType: 'touch' },
-      actions: [
-        { type: 'pointerMove', duration: 0, x, y },
-        { type: 'pointerDown', button: 0 },
-        { type: 'pause', duration: 100 },
-        { type: 'pointerUp', button: 0 },
-      ],
-    },
-  ]);
-  await driver.releaseActions();
-}
-
 /**
  * Scroll the main content area in the given direction using native scroll APIs.
  * Targets the main_scroll_view element to avoid scrolling the log view.
@@ -95,42 +63,122 @@ async function swipeMainContent(
   } finally {
     if (timer) clearTimeout(timer);
   }
-
-  await stopScrolling();
-}
-
-export async function scrollToTop() {
-  await scrollToEl('APP', {
-    by: 'text',
-    direction: 'up',
-  });
 }
 
 /**
- * Scroll to the given element. For Flutter, we need to scroll the main content area until the element is visible.
- * For all other platforms, we will just do the same though we could use scrollIntoView.
- * Defer to using by testId for all platforms and avoid getting by text.
+ * Scroll to the given testId, returning a handle to the element.
+ *
+ * Strategy is SDK-specific to avoid the cost and flakiness of full pointer-swipe
+ * loops where the driver provides a faster primitive:
+ *
+ *   - Capacitor / Cordova: DOM `scrollIntoView({block: 'center'})` inside the
+ *     WebView. One round-trip, no pointer chain, no chromedriver staleness.
+ *   - Native Android (RN, .NET MAUI, expo, native): UiAutomator2's
+ *     `UiScrollable.scrollIntoView` walks the first scrollable forward until
+ *     the resource-id matches, in a single driver call.
+ *   - Native iOS (RN, .NET MAUI, expo, native): XCUITest's `mobile: scroll`
+ *     pages `main_scroll_view` until an element with `name == identifier`
+ *     becomes visible.
+ *   - Flutter: Skia-canvas rendering means lazy children aren't in the native
+ *     a11y tree until they're realised, so neither UiScrollable nor
+ *     `mobile: scroll` can find them. Always uses the swipe loop.
+ *
+ * Native fast paths only run for downward searches. `direction: 'up'` falls
+ * through to the swipe loop, which also catches any case where a fast path
+ * silently failed to land the element.
  */
 export async function scrollToEl(
   identifier: string,
   opts: {
-    by?: 'testId' | 'text';
-    partial?: boolean;
     direction?: 'up' | 'down';
     maxScrolls?: number;
   } = {},
 ) {
-  const { by = 'testId', partial = false, direction = 'down', maxScrolls = 20 } = opts;
-  const finder = (id: string) => (by === 'text' ? byText(id, partial) : byTestId(id));
+  const { direction = 'down', maxScrolls = 20 } = opts;
+  const sdk = getSdkType();
+  const platform = getPlatform();
+
+  if (sdk === 'capacitor' || sdk === 'cordova') {
+    const el = await byTestId(identifier);
+    await el.waitForExist({ timeout: 10_000 });
+    await browser.execute(
+      (e: HTMLElement) => e.scrollIntoView({ block: 'center', behavior: 'instant' }),
+      el,
+    );
+    return el;
+  }
+
+  // Native fast path: pre-warms the scroll view so the loop below either
+  // returns immediately or has very little work left.
+  if (direction === 'down' && sdk !== 'flutter') {
+    if (platform === 'android') {
+      await tryNativeScrollAndroid(identifier);
+    } else {
+      await tryNativeScrollIos(identifier);
+    }
+  }
 
   for (let i = 0; i < maxScrolls; i++) {
-    const el = await finder(identifier);
+    const el = await byTestId(identifier);
     if (await el.isDisplayed()) {
-      return await scrollExtraIfNeeded(el, () => finder(identifier));
+      return await scrollExtraIfNeeded(el, () => byTestId(identifier));
     }
     await swipeMainContent(direction);
   }
   throw new Error(`Element "${identifier}" not found after ${maxScrolls} scrolls`);
+}
+
+/**
+ * UiAutomator2 `UiScrollable.scrollIntoView` finds the first scrollable
+ * container and pages forward until a child's resource-id matches.
+ *
+ * Resource-id namespacing differs by SDK:
+ *   - Flutter / RN / Capacitor / Cordova / Expo: ids are bare (`my_button`).
+ *   - .NET MAUI: ids are package-prefixed (`com.onesignal.example:id/my_button`).
+ *
+ * Appium's `id=` strategy hides this via the `disableIdLocatorAutocompletion`
+ * setting (see `wdio.android.conf.ts`), but inline `UiSelector` strings bypass
+ * that setting and need the full id directly.
+ *
+ * Returns a boolean (rather than throwing) so the caller can transparently
+ * fall back to the swipe loop when the element isn't reachable forward.
+ */
+async function tryNativeScrollAndroid(id: string): Promise<boolean> {
+  try {
+    const fullId =
+      getSdkType() === 'dotnet'
+        ? `${process.env.BUNDLE_ID || 'com.onesignal.example'}:id/${id}`
+        : id;
+    const sel =
+      `new UiScrollable(new UiSelector().scrollable(true).instance(0))` +
+      `.scrollIntoView(new UiSelector().resourceId("${fullId}"))`;
+    const result = await $(`android=${sel}`);
+    return await result.isExisting();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * XCUITest `mobile: scroll` with a `predicateString` pages the receiver scroll
+ * view until a matching descendant becomes visible. `byTestId` on iOS uses
+ * accessibility-id, which XCUITest exposes as `name`, so a single predicate
+ * works for every iOS SDK that lands testIds via accessibility identifiers
+ * (RN, .NET MAUI, expo, native iOS, Flutter — though the caller skips us for
+ * Flutter because lazy widgets aren't in the a11y tree to find).
+ */
+async function tryNativeScrollIos(id: string): Promise<boolean> {
+  try {
+    const main = await byTestId('main_scroll_view');
+    if (!(await main.isExisting())) return false;
+    await driver.execute('mobile: scroll', {
+      elementId: main.elementId,
+      predicateString: `name == "${id}"`,
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -149,11 +197,19 @@ async function scrollExtraIfNeeded<T extends { getLocation(): Promise<{ y: numbe
   el: T,
   refetch: () => Promise<T>,
 ): Promise<T> {
-  const threshold = 100;
+  // Coordinate units differ by platform: iOS XCUITest reports points, Android
+  // UiAutomator2 reports physical pixels. A fixed pixel threshold (e.g. 100)
+  // is enough on iOS but only ~33dp on a density-3 Android phone — well inside
+  // a Material Snackbar (48–68dp + 16dp margin, plus a 24dp gesture-bar inset
+  // on edge-to-edge devices). 12% of the viewport gives a unit-agnostic safe
+  // margin (~96dp on density-3 Android, ~102pt on iPhone) that clears
+  // two-line snackbars, gesture bars, and keyboard insets on every device we
+  // run on.
   try {
     const { y } = await el.getLocation();
     const { height } = await driver.getWindowSize();
-    if (y < 100) {
+    const threshold = Math.round(height * 0.12);
+    if (y < threshold) {
       await swipeMainContent('up', 'small');
       return await refetch();
     }
