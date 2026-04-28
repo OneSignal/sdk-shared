@@ -56,7 +56,7 @@ via flags or env vars.
 
 Options:
   --platform=P        ios | android
-  --sdk=S             flutter | react-native | cordova | capacitor | dotnet | expo
+  --sdk=S             flutter | react-native | cordova | capacitor | dotnet | expo | unity
   --device=NAME       Device/simulator/AVD name (default: iPhone 17 / Samsung Galaxy S26)
   --appium-port=N     Appium server port (default: 4723). Use unique values when
                       running multiple sessions in parallel on the same host.
@@ -83,6 +83,9 @@ Env vars (set in .env or export):
   DOTNET_DIR         .NET MAUI SDK repo root (default: ../../DotNet/OneSignal-DotNet-SDK)
   DOTNET_TFM         .NET target framework moniker base (default: net10.0)
   DOTNET_ANDROID_ABI .NET Android ABI to pack (default: host arch)
+  UNITY_DIR          Unity SDK repo root (default: ../../OneSignal-Unity-SDK)
+  UNITY_PATH         Path to Unity Editor binary
+                     (default: /Applications/Unity/Hub/Editor/6000.3.6f1/Unity.app/Contents/MacOS/Unity)
   OS_VERSION         Platform version (default: 26.2 / 16)
   IOS_SIMULATOR      iOS simulator name (default: iPhone 17)
   IOS_RUNTIME        simctl runtime id (default: iOS-26-2)
@@ -129,7 +132,7 @@ prompt_choice() {
 }
 
 prompt_choice PLATFORM "Select platform:" ios android
-prompt_choice SDK_TYPE "Select SDK type:" flutter react-native cordova capacitor dotnet expo
+prompt_choice SDK_TYPE "Select SDK type:" flutter react-native cordova capacitor dotnet expo unity
 
 case "$PLATFORM" in
   ios|android) ;;
@@ -137,8 +140,8 @@ case "$PLATFORM" in
 esac
 
 case "$SDK_TYPE" in
-  flutter|react-native|cordova|capacitor|dotnet|expo) ;;
-  *) error "SDK_TYPE must be 'flutter', 'react-native', 'cordova', 'capacitor', 'dotnet', or 'expo', got '$SDK_TYPE'" ;;
+  flutter|react-native|cordova|capacitor|dotnet|expo\unity) ;;
+  *) error "SDK_TYPE must be 'flutter', 'react-native', 'cordova', 'capacitor', 'dotnet', 'expo', or 'unity' got '$SDK_TYPE'" ;;
 esac
 
 BUNDLE_ID="${BUNDLE_ID:-com.onesignal.example}"
@@ -213,6 +216,19 @@ elif [[ "$SDK_TYPE" == "dotnet" ]]; then
       *) error "Unsupported host arch for .NET Android build: $(uname -m)" ;;
     esac
     APP_PATH="${APP_PATH:-$DEMO_DIR/bin/Debug/${DOTNET_TFM}-android/com.onesignal.example-Signed.apk}"
+  fi
+elif [[ "$SDK_TYPE" == "unity" ]]; then
+  UNITY_DIR="${UNITY_DIR:-$SDK_ROOT/OneSignal-Unity-SDK}"
+  [[ -d "$UNITY_DIR" ]] || error "Unity SDK not found at $UNITY_DIR — set UNITY_DIR in .env"
+  DEMO_DIR="$UNITY_DIR/examples/demo"
+  UNITY_PATH="${UNITY_PATH:-/Applications/Unity/Hub/Editor/6000.3.6f1/Unity.app/Contents/MacOS/Unity}"
+  if [[ "$PLATFORM" == "ios" ]]; then
+    # Unity batchmode emits an Xcode project under Build/iOS; we then run
+    # xcodebuild -configuration Release into a fixed derived data path so
+    # the resulting .app lives at a deterministic location.
+    APP_PATH="${APP_PATH:-$DEMO_DIR/Build/iOS-DerivedData/Build/Products/Release-iphonesimulator/Unity-iPhone.app}"
+  else
+    APP_PATH="${APP_PATH:-$DEMO_DIR/Build/Android/onesignal-demo.apk}"
   fi
 fi
 
@@ -1021,6 +1037,115 @@ build_dotnet_android() {
   info "App built: $APP_PATH"
 }
 
+write_unity_demo_env() {
+  if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
+    info "Writing .env for demo app..."
+    cat > "$DEMO_DIR/.env" <<EOF
+ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
+ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
+E2E_MODE=true
+EOF
+  else
+    warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — skipping demo .env"
+  fi
+}
+
+unity_license_hint() {
+  cat <<EOF
+Unity exited non-zero (see $1).
+
+Common cause: no active Unity Editor license. Open Unity Hub → Preferences →
+Licenses, sign in with your Unity ID, and activate a Personal/Pro license.
+Then re-run this script. (If the Editor is currently open, close it — only
+one process can hold the floating license at a time.)
+EOF
+}
+
+build_unity_ios() {
+  write_unity_demo_env
+
+  [[ -x "$UNITY_PATH" ]] || error "Unity Editor not found at $UNITY_PATH — set UNITY_PATH in .env"
+
+  local xcode_dir="$DEMO_DIR/Build/iOS"
+  local derived="$DEMO_DIR/Build/iOS-DerivedData"
+  local log="$DEMO_DIR/Build/build-ios.log"
+  mkdir -p "$xcode_dir"
+
+  info "Generating Xcode project from Unity (batchmode, log: $log)..."
+  if ! "$UNITY_PATH" -batchmode -nographics -quit -buildTarget iOS \
+        -projectPath "$DEMO_DIR" -executeMethod BuildScript.BuildiOSSimulator \
+        -logFile "$log"; then
+    unity_license_hint "$log" >&2
+    error "Unity batchmode build failed"
+  fi
+
+  [[ -d "$xcode_dir/Unity-iPhone.xcodeproj" ]] || error "Unity build produced no Xcode project — see $log"
+
+  if [[ -f "$xcode_dir/Podfile" ]]; then
+    local lock="$xcode_dir/Podfile.lock"
+    local stamp="$derived/.podfile.lock.stamp"
+    if [[ ! -f "$lock" ]] || [[ ! -f "$stamp" ]] || ! cmp -s "$lock" "$stamp"; then
+      info "Installing CocoaPods..."
+      (cd "$xcode_dir" && pod install)
+      mkdir -p "$(dirname "$stamp")"
+      cp "$lock" "$stamp" 2>/dev/null || true
+    else
+      info "Pods up to date, skipping pod install"
+    fi
+  fi
+
+  local ws="$xcode_dir/Unity-iPhone.xcworkspace"
+  info "Building release .app for simulator..."
+  if [[ -d "$ws" ]]; then
+    xcodebuild \
+      -workspace "$ws" \
+      -scheme Unity-iPhone \
+      -configuration Release \
+      -sdk iphonesimulator \
+      -derivedDataPath "$derived" \
+      -quiet \
+      ONLY_ACTIVE_ARCH=YES \
+      CODE_SIGN_IDENTITY="-" \
+      CODE_SIGNING_ALLOWED=YES \
+      build
+  else
+    xcodebuild \
+      -project "$xcode_dir/Unity-iPhone.xcodeproj" \
+      -scheme Unity-iPhone \
+      -configuration Release \
+      -sdk iphonesimulator \
+      -derivedDataPath "$derived" \
+      -quiet \
+      ONLY_ACTIVE_ARCH=YES \
+      CODE_SIGN_IDENTITY="-" \
+      CODE_SIGNING_ALLOWED=YES \
+      build
+  fi
+
+  [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
+  info "App built: $APP_PATH"
+}
+
+build_unity_android() {
+  write_unity_demo_env
+
+  [[ -x "$UNITY_PATH" ]] || error "Unity Editor not found at $UNITY_PATH — set UNITY_PATH in .env"
+
+  local log="$DEMO_DIR/Build/build-android.log"
+  mkdir -p "$DEMO_DIR/Build/Android"
+
+  info "Building APK from Unity (batchmode, log: $log)..."
+  if ! "$UNITY_PATH" -batchmode -nographics -quit -buildTarget Android \
+        -projectPath "$DEMO_DIR" -executeMethod BuildScript.BuildAndroidEmulator \
+        -logFile "$log"; then
+    unity_license_hint "$log" >&2
+    error "Unity batchmode build failed"
+  fi
+
+  [[ -f "$APP_PATH" ]] || error ".apk not found after build at $APP_PATH — see $log"
+  info "App built: $APP_PATH"
+}
+
 build_app() {
   if [[ "$SKIP_BUILD" == true ]]; then
     if [[ "$PLATFORM" == "ios" && ! -d "$APP_PATH" ]] || [[ "$PLATFORM" == "android" && ! -f "$APP_PATH" ]]; then
@@ -1065,6 +1190,12 @@ build_app() {
       build_expo_ios
     else
       build_expo_android
+    fi
+  elif [[ "$SDK_TYPE" == "unity" ]]; then
+    if [[ "$PLATFORM" == "ios" ]]; then
+      build_unity_ios
+    else
+      build_unity_android
     fi
   fi
 }
