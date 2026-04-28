@@ -156,8 +156,8 @@ case "$PLATFORM" in
 esac
 
 case "$SDK_TYPE" in
-  flutter|react-native|cordova|capacitor|dotnet|expo\unity) ;;
-  *) error "SDK_TYPE must be 'flutter', 'react-native', 'cordova', 'capacitor', 'dotnet', 'expo', or 'unity' got '$SDK_TYPE'" ;;
+  flutter|react-native|cordova|capacitor|dotnet|expo|unity) ;;
+  *) error "SDK_TYPE must be 'flutter', 'react-native', 'cordova', 'capacitor', 'dotnet', 'expo', or 'unity', got '$SDK_TYPE'" ;;
 esac
 
 # ── Real-device validation + signing setup ────────────────────────────────────
@@ -1182,15 +1182,29 @@ unity_build_is_cached() {
   return 0
 }
 
-unity_license_hint() {
-  cat <<EOF
-Unity exited non-zero (see $1).
+unity_failure_hint() {
+  local log="$1"
+  echo "Unity exited non-zero (see $log)."
+  echo ""
 
-Common cause: no active Unity Editor license. Open Unity Hub → Preferences →
+  # Surface the actual reason from the log instead of guessing. Order
+  # matters: check most-specific patterns first.
+  if grep -q "No valid Unity Editor license found" "$log" 2>/dev/null; then
+    cat <<EOF
+Cause: no active Unity Editor license. Open Unity Hub → Preferences →
 Licenses, sign in with your Unity ID, and activate a Personal/Pro license.
-Then re-run this script. (If the Editor is currently open, close it — only
-one process can hold the floating license at a time.)
 EOF
+  elif grep -q "another Unity instance is running" "$log" 2>/dev/null; then
+    cat <<EOF
+Cause: another Unity Editor instance has the project open. Close it
+(only one process can hold the project lock) then re-run.
+EOF
+  elif grep -q "Scripts have compiler errors" "$log" 2>/dev/null; then
+    echo "Cause: C# compile error. First few errors from the log:"
+    grep -E "error CS[0-9]+:|error:" "$log" 2>/dev/null | head -5 | sed 's/^/  /'
+  else
+    echo "See the log above for details."
+  fi
 }
 
 build_unity_ios() {
@@ -1221,7 +1235,7 @@ build_unity_ios() {
   if ! "$UNITY_PATH" -batchmode -nographics -quit -buildTarget iOS \
         -projectPath "$DEMO_DIR" -executeMethod BuildScript.BuildiOSSimulator \
         -logFile "$log"; then
-    unity_license_hint "$log" >&2
+    unity_failure_hint "$log" >&2
     error "Unity batchmode build failed"
   fi
 
@@ -1309,7 +1323,7 @@ build_unity_android() {
   if ! "$UNITY_PATH" -batchmode -nographics -quit -buildTarget Android \
         -projectPath "$DEMO_DIR" -executeMethod BuildScript.BuildAndroidEmulator \
         -logFile "$log"; then
-    unity_license_hint "$log" >&2
+    unity_failure_hint "$log" >&2
     error "Unity batchmode build failed"
   fi
 
