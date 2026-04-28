@@ -223,10 +223,11 @@ elif [[ "$SDK_TYPE" == "unity" ]]; then
   DEMO_DIR="$UNITY_DIR/examples/demo"
   UNITY_PATH="${UNITY_PATH:-/Applications/Unity/Hub/Editor/6000.3.6f1/Unity.app/Contents/MacOS/Unity}"
   if [[ "$PLATFORM" == "ios" ]]; then
-    # Unity batchmode emits an Xcode project under Build/iOS; we then run
-    # xcodebuild -configuration Release into a fixed derived data path so
-    # the resulting .app lives at a deterministic location.
-    APP_PATH="${APP_PATH:-$DEMO_DIR/Build/iOS-DerivedData/Build/Products/Release-iphonesimulator/Unity-iPhone.app}"
+    # Unity batchmode emits an Xcode project under Build/iOS named
+    # `Unity-iPhone.xcodeproj` (a fixed Unity convention), but the *product*
+    # name is configured to `OneSignalDemo` in Player Settings, so xcodebuild
+    # produces `OneSignalDemo.app`.
+    APP_PATH="${APP_PATH:-$DEMO_DIR/Build/iOS-DerivedData/Build/Products/Release-iphonesimulator/OneSignalDemo.app}"
   else
     APP_PATH="${APP_PATH:-$DEMO_DIR/Build/Android/onesignal-demo.apk}"
   fi
@@ -1045,9 +1046,92 @@ ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
 E2E_MODE=true
 EOF
+    # DotEnv loads from Application.streamingAssetsPath/.env in the built
+    # player; the demo's project-root .env is only read in the editor.
+    # Copy in lockstep so the built .app/.apk has the same E2E_MODE flag,
+    # which the AccessibilityBridge gates on.
+    mkdir -p "$DEMO_DIR/Assets/StreamingAssets"
+    cp "$DEMO_DIR/.env" "$DEMO_DIR/Assets/StreamingAssets/.env"
   else
     warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — skipping demo .env"
   fi
+}
+
+# Hash any source/asset/config file under the given roots that can affect the
+# compiled .app/.apk for a Unity build. Mirrors `dotnet_hash_paths` in spirit:
+# centralised so SDK and demo hashes stay in sync. Skips Unity-managed caches
+# (Library/, Temp/, Build/, Logs/) and editor-private dirs (UserSettings/,
+# *~ doc/sample folders Unity excludes from imports).
+unity_hash_paths() {
+  # Unity projects routinely have spaces in paths (e.g. "Build Profiles/"),
+  # so we use NUL-delimited find/xargs throughout. Sorting the per-file
+  # shasum output (rather than the input list) keeps results deterministic
+  # without needing a `sort -z`-capable host.
+  find "$@" \
+       -type f \
+       ! -path "*/Library/*" \
+       ! -path "*/Temp/*" \
+       ! -path "*/Build/*" \
+       ! -path "*/Logs/*" \
+       ! -path "*/UserSettings/*" \
+       ! -path "*/Documentation~/*" \
+       ! -path "*/Samples~/*" \
+       \( -name "*.cs" -o -name "*.asmdef" -o -name "*.asmref" \
+          -o -name "*.meta" -o -name "*.json" -o -name "*.xml" \
+          -o -name "*.plist" -o -name "*.strings" \
+          -o -name "*.h" -o -name "*.m" -o -name "*.mm" -o -name "*.swift" \
+          -o -name "*.a" -o -name "*.aar" -o -name "*.jar" \
+          -o -name "*.so" -o -name "*.dll" -o -name "*.dylib" \
+          -o -name "*.uxml" -o -name "*.uss" -o -name "*.unity" \
+          -o -name "*.prefab" -o -name "*.asset" -o -name "*.mat" \
+          -o -name "*.shader" -o -name "*.png" -o -name "*.jpg" \
+          -o -name "*.txt" -o -name ".env" \) \
+       -print0 2>/dev/null \
+       | xargs -0 shasum 2>/dev/null \
+       | sort \
+       | shasum \
+       | awk '{print $1}'
+}
+
+# SDK package roots for a given platform. The Unity SDK rarely changes during
+# day-to-day demo work, so we hash and fold it into the demo hash so SDK edits
+# still cascade-invalidate the cached build artifact.
+unity_sdk_paths() {
+  local platform="$1"  # ios | android
+  echo "$UNITY_DIR/com.onesignal.unity.core"
+  if [[ "$platform" == "ios" ]]; then
+    echo "$UNITY_DIR/com.onesignal.unity.ios"
+  else
+    echo "$UNITY_DIR/com.onesignal.unity.android"
+  fi
+}
+
+unity_sdk_inputs_hash() {
+  local platform="$1"
+  local roots=()
+  while IFS= read -r p; do roots+=("$p"); done < <(unity_sdk_paths "$platform")
+  unity_hash_paths "${roots[@]}"
+}
+
+# Demo hash folds in the SDK hash so an SDK edit busts the demo cache too.
+unity_demo_inputs_hash() {
+  local sdk_hash="$1"
+  local demo_hash
+  demo_hash=$(unity_hash_paths "$DEMO_DIR/Assets" "$DEMO_DIR/Packages" \
+                               "$DEMO_DIR/ProjectSettings")
+  # Fold the demo .env in separately — `unity_hash_paths` only finds it when
+  # passed as a directory glob, but here we want the file hash if it exists.
+  local env_hash=""
+  [[ -f "$DEMO_DIR/.env" ]] && env_hash=$(shasum < "$DEMO_DIR/.env" | awk '{print $1}')
+  printf '%s\n%s\n%s\n' "$sdk_hash" "$demo_hash" "$env_hash" | shasum | awk '{print $1}'
+}
+
+unity_build_is_cached() {
+  local stamp="$1" artifact="$2" hash="$3"
+  [[ -e "$artifact" ]] || return 1
+  [[ -f "$stamp" ]] || return 1
+  [[ "$(cat "$stamp")" == "$hash" ]] || return 1
+  return 0
 }
 
 unity_license_hint() {
@@ -1065,6 +1149,20 @@ build_unity_ios() {
   write_unity_demo_env
 
   [[ -x "$UNITY_PATH" ]] || error "Unity Editor not found at $UNITY_PATH — set UNITY_PATH in .env"
+
+  # Top-level skip: if neither the demo nor the SDK changed and the .app is
+  # still on disk, both stages (Unity batchmode 5-10min + xcodebuild 1-2min)
+  # would otherwise reproduce identical output. Skip the whole thing.
+  local sdk_hash demo_hash
+  sdk_hash=$(unity_sdk_inputs_hash ios)
+  demo_hash=$(unity_demo_inputs_hash "$sdk_hash")
+
+  local stamp="$DEMO_DIR/Build/.unity-build-ios.stamp"
+  if unity_build_is_cached "$stamp" "$APP_PATH" "$demo_hash"; then
+    info "Unity SDK + demo source unchanged, skipping iOS rebuild"
+    info "App: $APP_PATH"
+    return
+  fi
 
   local xcode_dir="$DEMO_DIR/Build/iOS"
   local derived="$DEMO_DIR/Build/iOS-DerivedData"
@@ -1122,7 +1220,21 @@ build_unity_ios() {
       build
   fi
 
-  [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
+  if [[ ! -d "$APP_PATH" ]]; then
+    # Fallback: Unity's product name (and thus the .app filename) is set in
+    # Player Settings, so it can drift from our default. Search the derived
+    # data Products dir for any .app, prefer Release-iphonesimulator/.
+    local found
+    found=$(find "$derived/Build/Products/Release-iphonesimulator" \
+                 -maxdepth 1 -name "*.app" -not -name "*.appex" 2>/dev/null | head -1)
+    [[ -z "$found" ]] && found=$(find "$derived" -path "*/Build/Products/*" \
+                                      -maxdepth 5 -name "*.app" \
+                                      -not -name "*.appex" 2>/dev/null | head -1)
+    [[ -n "$found" ]] || error ".app not found anywhere under $derived"
+    APP_PATH="$found"
+  fi
+  mkdir -p "$(dirname "$stamp")"
+  echo "$demo_hash" > "$stamp"
   info "App built: $APP_PATH"
 }
 
@@ -1130,6 +1242,17 @@ build_unity_android() {
   write_unity_demo_env
 
   [[ -x "$UNITY_PATH" ]] || error "Unity Editor not found at $UNITY_PATH — set UNITY_PATH in .env"
+
+  local sdk_hash demo_hash
+  sdk_hash=$(unity_sdk_inputs_hash android)
+  demo_hash=$(unity_demo_inputs_hash "$sdk_hash")
+
+  local stamp="$DEMO_DIR/Build/.unity-build-android.stamp"
+  if unity_build_is_cached "$stamp" "$APP_PATH" "$demo_hash"; then
+    info "Unity SDK + demo source unchanged, skipping Android rebuild"
+    info "App: $APP_PATH"
+    return
+  fi
 
   local log="$DEMO_DIR/Build/build-android.log"
   mkdir -p "$DEMO_DIR/Build/Android"
@@ -1143,6 +1266,8 @@ build_unity_android() {
   fi
 
   [[ -f "$APP_PATH" ]] || error ".apk not found after build at $APP_PATH — see $log"
+  mkdir -p "$(dirname "$stamp")"
+  echo "$demo_hash" > "$stamp"
   info "App built: $APP_PATH"
 }
 
