@@ -1,0 +1,23 @@
+name: 'Wait for OneSignal Android SDK on Maven Central'
+description: 'Poll Maven Central until com.onesignal:OneSignal:<version> is published. Useful in release workflows that race artifact publication.'
+
+inputs:
+  version:
+    description: 'OneSignal Android SDK version to wait for'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Wait for artifact
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        URL="https://repo1.maven.org/maven2/com/onesignal/OneSignal/${VERSION}/OneSignal-${VERSION}.pom"
+        echo "Waiting for com.onesignal:OneSignal:${VERSION}"
+        echo "URL: ${URL}"
+        curl "${URL}" \
+             --output /dev/null --silent \
+             --fail --retry 50 --retry-delay 60 --retry-all-errors
