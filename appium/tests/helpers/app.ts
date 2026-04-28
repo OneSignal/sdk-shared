@@ -632,6 +632,49 @@ export async function returnToApp() {
 }
 
 /**
+ * Expand a collapsed notification row in the Android shade.
+ *
+ * AOSP auto-expands a single shade entry; Samsung One UI does not. We try
+ * the public framework chevron id first, then a content-desc match, and
+ * finally a pinch-open gesture anchored on the title for OEM templates that
+ * rename or hide the chevron.
+ */
+async function expandNotificationRow(title: string): Promise<void> {
+  const byId = await $('//*[@resource-id="android:id/expand_button"]');
+  if (await byId.isDisplayed().catch(() => false)) {
+    await byId.click();
+    return;
+  }
+
+  // Chevron content-desc varies by locale ("Expand", "Expand button", etc.)
+  // but consistently contains "xpand" in English builds; matching on the
+  // substring keeps us off brittle exact-string selectors.
+  const byDesc = await $('//*[contains(@content-desc, "xpand")]');
+  if (await byDesc.isDisplayed().catch(() => false)) {
+    await byDesc.click();
+    return;
+  }
+
+  // Last resort: pinch-open anchored on the notification row to trigger the
+  // framework's expand gesture. Works on any OEM template since it doesn't
+  // rely on a specific view id. We anchor on the title's nearest sizeable
+  // ancestor so the gesture has enough surface to register.
+  const row = await $(
+    `//*[@text="${title}"]/ancestor::android.widget.FrameLayout[1]`,
+  );
+  const target = (await row.isDisplayed().catch(() => false))
+    ? row
+    : await $(`//*[@text="${title}"]`);
+  if (!(await target.isDisplayed().catch(() => false))) return;
+  await driver
+    .execute('mobile: pinchOpenGesture', {
+      elementId: target.elementId,
+      percent: 0.75,
+    })
+    .catch(() => {});
+}
+
+/**
  * Wait for a notification to be received.
  *
  * Android: opens the notification shade, verifies the title (and optionally
@@ -674,6 +717,14 @@ export async function waitForNotification(opts: {
         // full of ImageViews (small icon, expand chevron, status bar), so
         // matching by resource-id avoids false positives.
         const image = await $('//*[@resource-id="android:id/big_picture"]');
+
+        // Samsung's One UI keeps shade entries collapsed by default, while
+        // AOSP auto-expands a single entry. If the big picture isn't already
+        // inflated, expand the row before asserting.
+        if (!(await image.isDisplayed().catch(() => false))) {
+          await expandNotificationRow(title);
+        }
+
         await image.waitForDisplayed({ timeout: 5_000 });
       }
 
