@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+// NOTE: FOR CI ONLY
 /**
  * Download ACTIVE iOS provisioning profiles for the given bundle IDs via the
  * App Store Connect API and install them into

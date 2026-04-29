@@ -29,6 +29,7 @@ SKIP_BUILD=false
 SKIP_DEVICE=false
 SKIP_RESET=false
 SPEC="tests/specs/**/*.spec.ts"
+ANDROID_CHANNEL_ID=7ec2ece9-c538-4656-9516-1316f48a005c
 
 # ── Parse args ────────────────────────────────────────────────────────────────
 for arg in "$@"; do
@@ -271,6 +272,7 @@ write_rn_demo_env() {
     cat > "$DEMO_DIR/.env" <<EOF
 ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
+ONESIGNAL_ANDROID_CHANNEL_ID=$ANDROID_CHANNEL_ID
 E2E_MODE=true
 EOF
   else
@@ -526,6 +528,7 @@ write_expo_demo_env() {
 EXPO_PUBLIC_ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 EXPO_PUBLIC_ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
 EXPO_PUBLIC_E2E_MODE=true
+EXPO_PUBLIC_ONESIGNAL_ANDROID_CHANNEL_ID=$ANDROID_CHANNEL_ID
 EOF
   else
     warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — skipping demo .env"

@@ -186,7 +186,7 @@ Separate SectionCard titled "User":
   2. WITH IMAGE - title: "Image Notification", body: "This notification includes an image"
      big_picture/ios_attachments: `https://media.onesignal.com/automated_push_templates/ratings_template.png`
   3. WITH SOUND - title: "Sound Notification", body: "This notification plays a custom sound"
-     ios_sound: "vine_boom.wav", android_channel_id: "b3b015d9-c050-4042-8548-dcc34aa44aa4"
+     ios_sound: "vine_boom.wav", android_channel_id: optional `ONESIGNAL_ANDROID_CHANNEL_ID` env var, falling back to "b3b015d9-c050-4042-8548-dcc34aa44aa4" when empty or missing
      Sound file: copy `vine_boom.wav` from https://github.com/OneSignal/sdk-shared/tree/main/assets and add to each platform's native sound/resource directory (e.g. iOS app bundle, Android `res/raw/`)
   4. CUSTOM - dialog for custom title and body
   5. CLEAR ALL - outlined style, calls OneSignal.Notifications.clearAll()
@@ -614,5 +614,7 @@ App ID is loaded from the `.env` file's `ONESIGNAL_APP_ID` variable at startup, 
 REST API key is NOT required for the fetchUser endpoint.
 
 REST API key IS required for Live Activity update/end operations. Store in `.env` as `ONESIGNAL_API_KEY`. Disable update/end buttons when not configured.
+
+Android channel ID is optional for the WITH SOUND notification. Load from `.env` as `ONESIGNAL_ANDROID_CHANNEL_ID`; if empty or absent, fall back to `b3b015d9-c050-4042-8548-dcc34aa44aa4`.
 
 Identifiers MUST be `com.onesignal.example` to work with existing `google-services.json` and `agconnect-services.json`.
