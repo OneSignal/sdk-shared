@@ -661,9 +661,7 @@ async function expandNotificationRow(title: string): Promise<void> {
   // framework's expand gesture. Works on any OEM template since it doesn't
   // rely on a specific view id. We anchor on the title's nearest sizeable
   // ancestor so the gesture has enough surface to register.
-  const row = await $(
-    `//*[@text="${title}"]/ancestor::android.widget.FrameLayout[1]`,
-  );
+  const row = await $(`//*[@text="${title}"]/ancestor::android.widget.FrameLayout[1]`);
   const target = (await row.isDisplayed().catch(() => false))
     ? row
     : await $(`//*[@text="${title}"]`);
@@ -762,9 +760,13 @@ export async function waitForNotification(opts: {
         elementId: banner.elementId,
         duration: 1.0,
       });
-
-      const after = await driver.findElements('-ios class chain', '**/XCUIElementTypeImage');
-      expect(after.length).toBeGreaterThan(before.length);
+      await driver.waitUntil(
+        async () => {
+          const after = await driver.findElements('-ios class chain', '**/XCUIElementTypeImage');
+          return after.length > before.length;
+        },
+        { timeout: 5_000, interval: 250 },
+      );
     }
 
     // dismiss the banner
