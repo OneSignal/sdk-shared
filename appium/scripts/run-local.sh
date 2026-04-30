@@ -56,7 +56,7 @@ via flags or env vars.
 
 Options:
   --platform=P        ios | android
-  --sdk=S             flutter | react-native | cordova | dotnet | expo
+  --sdk=S             flutter | react-native | cordova | capacitor | dotnet | expo
   --device=NAME       Device/simulator/AVD name (default: iPhone 17 / Samsung Galaxy S26)
   --appium-port=N     Appium server port (default: 4723). Use unique values when
                       running multiple sessions in parallel on the same host.
@@ -78,6 +78,7 @@ Env vars (set in .env or export):
   FLUTTER_DIR        Flutter SDK repo root (default: ../../OneSignal-Flutter-SDK)
   RN_DIR             React Native SDK repo root (default: ../../react-native-onesignal)
   CORDOVA_DIR        Cordova SDK repo root (default: ../../OneSignal-Cordova-SDK)
+  CAPACITOR_DIR      Capacitor SDK repo root (default: ../../OneSignal-Capacitor-SDK)
   EXPO_DIR           Expo plugin repo root (default: ../../onesignal-expo-plugin)
   DOTNET_DIR         .NET MAUI SDK repo root (default: ../../DotNet/OneSignal-DotNet-SDK)
   DOTNET_TFM         .NET target framework moniker base (default: net10.0)
@@ -128,7 +129,7 @@ prompt_choice() {
 }
 
 prompt_choice PLATFORM "Select platform:" ios android
-prompt_choice SDK_TYPE "Select SDK type:" flutter react-native cordova dotnet expo
+prompt_choice SDK_TYPE "Select SDK type:" flutter react-native cordova capacitor dotnet expo
 
 case "$PLATFORM" in
   ios|android) ;;
@@ -136,8 +137,8 @@ case "$PLATFORM" in
 esac
 
 case "$SDK_TYPE" in
-  flutter|react-native|cordova|dotnet|expo) ;;
-  *) error "SDK_TYPE must be 'flutter', 'react-native', 'cordova', 'dotnet', or 'expo', got '$SDK_TYPE'" ;;
+  flutter|react-native|cordova|capacitor|dotnet|expo) ;;
+  *) error "SDK_TYPE must be 'flutter', 'react-native', 'cordova', 'capacitor', 'dotnet', or 'expo', got '$SDK_TYPE'" ;;
 esac
 
 BUNDLE_ID="${BUNDLE_ID:-com.onesignal.example}"
@@ -164,6 +165,15 @@ elif [[ "$SDK_TYPE" == "cordova" ]]; then
   CORDOVA_DIR="${CORDOVA_DIR:-$SDK_ROOT/OneSignal-Cordova-SDK}"
   [[ -d "$CORDOVA_DIR" ]] || error "Cordova SDK not found at $CORDOVA_DIR — set CORDOVA_DIR in .env"
   DEMO_DIR="$CORDOVA_DIR/examples/demo"
+  if [[ "$PLATFORM" == "ios" ]]; then
+    APP_PATH="${APP_PATH:-$DEMO_DIR/ios/App/build/Build/Products/Release-iphonesimulator/App.app}"
+  else
+    APP_PATH="${APP_PATH:-$DEMO_DIR/android/app/build/outputs/apk/debug/app-debug.apk}"
+  fi
+elif [[ "$SDK_TYPE" == "capacitor" ]]; then
+  CAPACITOR_DIR="${CAPACITOR_DIR:-$SDK_ROOT/OneSignal-Capacitor-SDK}"
+  [[ -d "$CAPACITOR_DIR" ]] || error "Capacitor SDK not found at $CAPACITOR_DIR — set CAPACITOR_DIR in .env"
+  DEMO_DIR="$CAPACITOR_DIR/examples/demo"
   if [[ "$PLATFORM" == "ios" ]]; then
     APP_PATH="${APP_PATH:-$DEMO_DIR/ios/App/build/Build/Products/Release-iphonesimulator/App.app}"
   else
@@ -368,6 +378,7 @@ write_cordova_demo_env() {
     cat > "$DEMO_DIR/.env" <<EOF
 VITE_ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 VITE_ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
+VITE_ONESIGNAL_ANDROID_CHANNEL_ID=$ANDROID_CHANNEL_ID
 VITE_E2E_MODE=true
 EOF
   else
@@ -421,6 +432,7 @@ setup_cordova_sdk() {
 # builds, which would invalidate the stamp on every run.
 cap_sync_inputs_hash() {
   local platform_dir="$1"  # ios/App | android
+  local sdk_src_hash="${2:-none}"
   local content_hash
   content_hash=$(find "$DEMO_DIR/src" "$DEMO_DIR/index.html" \
                       "$DEMO_DIR/capacitor.config.ts" "$DEMO_DIR/vite.config.ts" \
@@ -432,7 +444,7 @@ cap_sync_inputs_hash() {
                  ! -path "*/build/*" \
                  ! -path "*/DerivedData/*" \
                  ! -path "*/xcuserdata/*" \
-                 \( -name "Podfile" -o -name "build.gradle" \
+                 \( -name "Podfile" -o -name "build.gradle" -o -name "build.gradle.kts" \
                     -o -name "*.ts" -o -name "*.tsx" \
                     -o -name "*.json" -o -name "*.html" -o -name "*.js" \
                     -o -name "*.css" -o -name "*.svg" -o -name "*.xml" \
@@ -443,7 +455,7 @@ cap_sync_inputs_hash() {
                  | shasum \
                  | awk '{print $1}')
   # Tie to plugin source so plugin changes always trigger a re-sync.
-  echo "${content_hash}-${CORDOVA_SDK_SRC_HASH:-none}"
+  echo "${content_hash}-${sdk_src_hash}"
 }
 
 build_cordova_ios() {
@@ -455,7 +467,7 @@ build_cordova_ios() {
 
   local sync_stamp="$DEMO_DIR/ios/App/build/.cap-sync.stamp"
   local sync_hash
-  sync_hash=$(cap_sync_inputs_hash "ios/App")
+  sync_hash=$(cap_sync_inputs_hash "ios/App" "${CORDOVA_SDK_SRC_HASH:-none}")
   if [[ -d "$DEMO_DIR/ios/App/App/public" ]] && [[ -f "$sync_stamp" ]] && [[ "$(cat "$sync_stamp")" == "$sync_hash" ]]; then
     info "Capacitor sync inputs unchanged, skipping cap sync"
   else
@@ -501,7 +513,135 @@ build_cordova_android() {
 
   local sync_stamp="$DEMO_DIR/android/build/.cap-sync.stamp"
   local sync_hash
-  sync_hash=$(cap_sync_inputs_hash "android")
+  sync_hash=$(cap_sync_inputs_hash "android" "${CORDOVA_SDK_SRC_HASH:-none}")
+  if [[ -d "$DEMO_DIR/android/app/src/main/assets/public" ]] && [[ -f "$sync_stamp" ]] && [[ "$(cat "$sync_stamp")" == "$sync_hash" ]]; then
+    info "Capacitor sync inputs unchanged, skipping cap sync"
+  else
+    info "Syncing Capacitor..."
+    (cd "$DEMO_DIR" && bunx cap sync android)
+    mkdir -p "$(dirname "$sync_stamp")"
+    echo "$sync_hash" > "$sync_stamp"
+  fi
+
+  info "Building debug APK (release has no signing config)..."
+  (cd "$DEMO_DIR/android" && ./gradlew assembleDebug)
+
+  [[ -f "$APP_PATH" ]] || error ".apk not found after build at $APP_PATH"
+  info "App built: $APP_PATH"
+}
+
+write_capacitor_demo_env() {
+  if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
+    info "Writing .env for demo app..."
+    cat > "$DEMO_DIR/.env" <<EOF
+VITE_ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
+VITE_ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
+VITE_ONESIGNAL_ANDROID_CHANNEL_ID=$ANDROID_CHANNEL_ID
+VITE_E2E_MODE=true
+EOF
+  else
+    warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — skipping demo .env"
+  fi
+}
+
+setup_capacitor_sdk() {
+  local stamp="$CAPACITOR_DIR/.capacitor-sdk-source.stamp"
+  local installed_dir="$DEMO_DIR/node_modules/onesignal-capacitor-plugin"
+  local tarball="$CAPACITOR_DIR/onesignal-capacitor-plugin.tgz"
+
+  # Exported (no `local`) so build_capacitor_* can fold it into the cap-sync
+  # input hash and invalidate cached syncs whenever plugin source changes.
+  # Inputs match what `bun pm pack` ships per package.json's "files":
+  # dist/, ios/, android/, Package.swift, OneSignalCapacitorPlugin.podspec.
+  # We hash src/ instead of dist/ (build output) since dist/ is regenerated
+  # every `bun run build` and would always look "changed".
+  CAPACITOR_SDK_SRC_HASH=$(find "$CAPACITOR_DIR/src" "$CAPACITOR_DIR/ios" "$CAPACITOR_DIR/android" \
+                                "$CAPACITOR_DIR/package.json" "$CAPACITOR_DIR/Package.swift" \
+                                "$CAPACITOR_DIR/OneSignalCapacitorPlugin.podspec" \
+                           -type f 2>/dev/null \
+                           | sort \
+                           | xargs shasum 2>/dev/null \
+                           | shasum \
+                           | awk '{print $1}')
+
+  if [[ -d "$installed_dir" ]] && [[ -f "$stamp" ]] && [[ "$(cat "$stamp")" == "$CAPACITOR_SDK_SRC_HASH" ]]; then
+    info "Capacitor SDK source unchanged, skipping rebuild"
+    return
+  fi
+
+  info "Building Capacitor plugin & packing tarball..."
+  (cd "$CAPACITOR_DIR" && bun run build)
+  (cd "$CAPACITOR_DIR" && rm -f onesignal-capacitor-plugin*.tgz && bun pm pack && mv onesignal-capacitor-plugin-*.tgz onesignal-capacitor-plugin.tgz)
+
+  if [[ ! -d "$installed_dir" ]]; then
+    info "First install — running bun add to register tarball in lockfile..."
+    (cd "$DEMO_DIR" && bun add file:../../onesignal-capacitor-plugin.tgz)
+  else
+    info "Extracting tarball into demo's node_modules (respects package.json files)..."
+    rm -rf "$installed_dir"/*
+    rm -rf "$installed_dir"/.[!.]* 2>/dev/null || true
+    tar -xzf "$tarball" -C "$installed_dir" --strip-components=1
+  fi
+
+  echo "$CAPACITOR_SDK_SRC_HASH" > "$stamp"
+}
+
+build_capacitor_ios() {
+  write_capacitor_demo_env
+  setup_capacitor_sdk
+
+  info "Building web bundle (vite)..."
+  (cd "$DEMO_DIR" && bun run build)
+
+  local sync_stamp="$DEMO_DIR/ios/App/build/.cap-sync.stamp"
+  local sync_hash
+  sync_hash=$(cap_sync_inputs_hash "ios/App" "${CAPACITOR_SDK_SRC_HASH:-none}")
+  if [[ -d "$DEMO_DIR/ios/App/App/public" ]] && [[ -f "$sync_stamp" ]] && [[ "$(cat "$sync_stamp")" == "$sync_hash" ]]; then
+    info "Capacitor sync inputs unchanged, skipping cap sync"
+  else
+    # See note in build_cordova_ios: stamp the build dir so cap-sync's
+    # `xcodebuild clean` doesn't fail on modern Xcode's safety check.
+    mkdir -p "$DEMO_DIR/ios/App/build"
+    xattr -w com.apple.xcode.CreatedByBuildSystem true "$DEMO_DIR/ios/App/build" 2>/dev/null || true
+
+    info "Syncing Capacitor (resolves SPM dependencies)..."
+    (cd "$DEMO_DIR" && bunx cap sync ios)
+    mkdir -p "$(dirname "$sync_stamp")"
+    echo "$sync_hash" > "$sync_stamp"
+  fi
+
+  # Capacitor 7 uses Swift Package Manager (no Pods/.xcworkspace), so we
+  # build the .xcodeproj directly. Xcode auto-generates the "App" scheme
+  # from the App target on first build.
+  info "Building release .app for simulator..."
+  (cd "$DEMO_DIR/ios/App" && xcodebuild \
+    -project App.xcodeproj \
+    -scheme App \
+    -configuration Release \
+    -sdk iphonesimulator \
+    -derivedDataPath build \
+    -quiet \
+    ONLY_ACTIVE_ARCH=YES \
+    ENABLE_USER_SCRIPT_SANDBOXING=NO \
+    COMPILER_INDEX_STORE_ENABLE=NO \
+    SWIFT_INDEX_STORE_ENABLE=NO \
+    CODE_SIGN_IDENTITY="-" \
+    CODE_SIGNING_ALLOWED=YES)
+
+  [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
+  info "App built: $APP_PATH"
+}
+
+build_capacitor_android() {
+  write_capacitor_demo_env
+  setup_capacitor_sdk
+
+  info "Building web bundle (vite)..."
+  (cd "$DEMO_DIR" && bun run build)
+
+  local sync_stamp="$DEMO_DIR/android/build/.cap-sync.stamp"
+  local sync_hash
+  sync_hash=$(cap_sync_inputs_hash "android" "${CAPACITOR_SDK_SRC_HASH:-none}")
   if [[ -d "$DEMO_DIR/android/app/src/main/assets/public" ]] && [[ -f "$sync_stamp" ]] && [[ "$(cat "$sync_stamp")" == "$sync_hash" ]]; then
     info "Capacitor sync inputs unchanged, skipping cap sync"
   else
@@ -907,6 +1047,12 @@ build_app() {
       build_cordova_ios
     else
       build_cordova_android
+    fi
+  elif [[ "$SDK_TYPE" == "capacitor" ]]; then
+    if [[ "$PLATFORM" == "ios" ]]; then
+      build_capacitor_ios
+    else
+      build_capacitor_android
     fi
   elif [[ "$SDK_TYPE" == "dotnet" ]]; then
     if [[ "$PLATFORM" == "ios" ]]; then
