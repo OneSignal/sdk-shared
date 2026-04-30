@@ -489,7 +489,9 @@ export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
   await ensureMainWebViewContext();
 
   const mainScroll = await byTestId('main_scroll_view');
-  await mainScroll.waitForDisplayed({ timeout: 5_000 });
+  // Generous timeout to accommodate slow cold-starts (notably .NET MAUI on
+  // Android, where session creation returns before the app is on screen).
+  await mainScroll.waitForDisplayed({ timeout: 30_000 });
 
   if (skipLogin) return;
 
