@@ -972,7 +972,21 @@ start_android_emulator() {
     >"$emulator_log" 2>&1 &
 
   info "Waiting for emulator to boot..."
-  adb wait-for-device
+  # Poll for the device instead of `adb wait-for-device` so we can recover from a
+  # wedged adb server (which silently drops the emulator and hangs forever).
+  local elapsed=0
+  local restarted=false
+  while ! adb devices 2>/dev/null | grep -q "emulator-.*device$"; do
+    sleep 2
+    elapsed=$((elapsed + 2))
+    if [[ $elapsed -ge 30 && "$restarted" == false ]]; then
+      warn "adb didn't see emulator within 30s, restarting adb server..."
+      adb kill-server >/dev/null 2>&1 || true
+      adb start-server >/dev/null 2>&1 || true
+      restarted=true
+    fi
+    [[ $elapsed -ge 180 ]] && error "Emulator failed to register with adb after 180s"
+  done
   local boot=""
   while [[ "$boot" != "1" ]]; do
     boot=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
