@@ -362,25 +362,21 @@ export async function allowNotifications() {
 }
 
 /**
- * Dismiss the soft keyboard on Android if it is currently shown.
- *
- * After `setValue` on a text input, UiAutomator2 leaves the IME visible. The
- * keyboard auto-dismisses lazily when focus shifts to a non-input element,
- * which triggers a layout reflow during the next interaction. If the next
- * interaction is a click, wdio's pre-click sequence (rect probe + click)
- * straddles that reflow, the underlying view's resource-id reference goes
- * stale, and webdriver logs `Request encountered a stale element - terminating
- * request` while it transparently retries. The retries succeed (so tests pass)
- * but the warnings are noisy. Dismissing the keyboard explicitly closes the
- * reflow window before the next interaction starts.
- *
- * iOS XCUITest already dismisses the keyboard cleanly between interactions and
- * doesn't surface the same staleness, so this is Android-only.
+ * Dismiss the Android soft keyboard if shown, to avoid stale-element
+ * warnings caused by the IME's late layout reflow during the next click.
+ * Android-only (iOS XCUITest dismisses cleanly on its own). Skipped for
+ * WebView SDKs (Capacitor/Cordova) where UiAutomator2's hideKeyboard can't
+ * dismiss WebView-hosted inputs and retries for ~10s before throwing.
  */
 export async function dismissKeyboard() {
   if (getPlatform() !== 'android') return;
+  if (isWebViewSDK) return;
   if (!(await driver.isKeyboardShown())) return;
-  await driver.execute('mobile: hideKeyboard');
+  try {
+    await driver.execute('mobile: hideKeyboard');
+  } catch (error) {
+    console.error('Error dismissing keyboard', error);
+  }
 }
 
 /**
