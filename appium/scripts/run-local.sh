@@ -1114,8 +1114,29 @@ start_android_emulator() {
 
   local emulator_log="/tmp/emulator-${AVD_NAME}.log"
   info "Starting emulator '$AVD_NAME' (logs: $emulator_log)..."
+  # Enable job control (`set -m`) so bash places the backgrounded emulator in
+  # its own process group. Without this, non-interactive bash leaves it in the
+  # script's pgrp and a Ctrl-C on the script also SIGINTs the emulator. We
+  # want the emulator to survive early exits so subsequent `--skip-device`
+  # runs reuse the booted AVD. Stdin is redirected from /dev/null so the
+  # detached emulator never tries to read from the terminal.
+  set -m
   emulator -avd "$AVD_NAME" -no-audio -no-boot-anim \
-    >"$emulator_log" 2>&1 &
+    </dev/null >"$emulator_log" 2>&1 &
+  local emulator_pid=$!
+  disown %% 2>/dev/null || true
+  set +m
+
+  # #region agent log: capture pgrp evidence to verify detachment
+  {
+    local script_pgid emulator_pgid
+    script_pgid=$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')
+    emulator_pgid=$(ps -o pgid= -p "$emulator_pid" 2>/dev/null | tr -d ' ')
+    printf '{"sessionId":"bee2e3","timestamp":%s,"location":"run-local.sh:start_android_emulator","hypothesisId":"H1","message":"emulator-launched","data":{"script_pid":%s,"script_pgid":"%s","emulator_pid":%s,"emulator_pgid":"%s"}}\n' \
+      "$(date +%s%3N)" "$$" "$script_pgid" "$emulator_pid" "$emulator_pgid" \
+      >> "/Users/fadigeorge/Documents/Code/SDK/sdk-shared/.cursor/debug-bee2e3.log"
+  } 2>/dev/null || true
+  # #endregion
 
   info "Waiting for emulator to boot..."
   # Poll for the device instead of `adb wait-for-device` so we can recover from a

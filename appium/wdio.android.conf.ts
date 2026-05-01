@@ -3,19 +3,29 @@ import { sharedConfig, bstackOptions } from './wdio.shared.conf.js';
 const isLocal = !process.env.BROWSERSTACK_USERNAME;
 const isDotNet = process.env.SDK_TYPE === 'dotnet';
 
-// .NET MAUI compiles Android activities with CRC-hashed Java class names (e.g.
-// `crc64126b3a41c71c5f27.MainActivity`) instead of the C# namespace path, so
-// Appium's launchable-activity wait check can't validate the launch and times
-// out. Skip that check (`appWaitForLaunch: false`) and rely on the per-test
-// `waitForAppReady` element wait to confirm the app is up. MAUI's cold install
-// also takes longer than the defaults, so widen the install/launch budgets.
-const dotnetAndroidCaps = isDotNet
-  ? {
-      'appium:appWaitForLaunch': false,
-      'appium:appWaitDuration': 120_000,
-      'appium:androidInstallTimeout': 180_000,
-    }
-  : {};
+// `appWaitForLaunch: false` for every Android SDK on purpose:
+//   1. On Android 13+ first launch, the runtime notification permission dialog
+//      (`com.android.permissioncontroller/...GrantPermissionsActivity`) replaces
+//      MainActivity as the resumed activity within ~500ms of launch and stays
+//      until the user taps Allow. Appium's launchable-activity wait keeps
+//      polling for MainActivity in the foreground, hits its 20s default
+//      `appWaitDuration`, and emits a noisy "MainActivity never started"
+//      WebDriverError. The session creation still succeeds afterward, but the
+//      first test pays a ~26s slowdown for nothing.
+//   2. .NET MAUI compiles activities with CRC-hashed Java class names
+//      (e.g. `crc64126b3a41c71c5f27.MainActivity`), which Appium's check can't
+//      match against the C# namespace path even when MainActivity is foreground.
+// `waitForAppReady()` waits for `main_scroll_view` and clicks Allow on the
+// permission dialog, which is the correct app-level readiness signal.
+const androidCaps = {
+  'appium:appWaitForLaunch': false,
+  ...(isDotNet
+    ? {
+        'appium:appWaitDuration': 120_000,
+        'appium:androidInstallTimeout': 180_000,
+      }
+    : {}),
+};
 
 // Per-session UiAutomator2 ports. Required when running 2+ Android sessions
 // in parallel on one host so the instrumentation/chromedriver sockets don't
@@ -45,7 +55,7 @@ export const config: WebdriverIO.Config = {
       'appium:noReset': true,
       'appium:disableWindowAnimation': true,
 
-      ...dotnetAndroidCaps,
+      ...androidCaps,
       ...parallelPortCaps,
 
       ...(isLocal ? {} : { 'bstack:options': bstackOptions }),
