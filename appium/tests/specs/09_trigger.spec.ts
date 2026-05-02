@@ -71,11 +71,10 @@ describe('Triggers', () => {
     await addMultipleTriggers();
 
     // remove triggers
-    const removeButton = await scrollToEl('remove_triggers_button');
-    await removeButton.click();
-
-    const trigger2Checkbox = await byTestId('remove_checkbox_test_trigger_key_2');
-    await trigger2Checkbox.waitForDisplayed({ timeout: 5_000 });
+    const trigger2Checkbox = await openModal(
+      'remove_triggers_button',
+      'remove_checkbox_test_trigger_key_2',
+    );
     await trigger2Checkbox.click();
 
     const trigger3Checkbox = await byTestId('remove_checkbox_test_trigger_key_3');
