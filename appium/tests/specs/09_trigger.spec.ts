@@ -2,16 +2,14 @@ import {
   checkTooltip,
   confirmModal,
   expectPairInSection,
+  openModal,
   scrollToEl,
   waitForAppReady,
 } from '../helpers/app';
 import { byTestId } from '../helpers/selectors.js';
 
 async function addMultipleTriggers() {
-  const addButton = await scrollToEl('add_multiple_triggers_button');
-  await addButton.click();
-
-  const addRowButton = await byTestId('multipair_add_row_button');
+  const addRowButton = await openModal('add_multiple_triggers_button', 'multipair_add_row_button');
   await addRowButton.click();
 
   const key0 = await byTestId('multipair_key_0');
@@ -48,11 +46,9 @@ describe('Triggers', () => {
   });
 
   it('can add and remove trigger', async () => {
-    const addButton = await scrollToEl('add_trigger_button');
-    await addButton.click();
+    const keyInput = await openModal('add_trigger_button', 'trigger_key_input');
 
     // add trigger
-    const keyInput = await byTestId('trigger_key_input');
     await keyInput.waitForDisplayed({ timeout: 5_000 });
     await keyInput.setValue('test_trigger_key');
 
