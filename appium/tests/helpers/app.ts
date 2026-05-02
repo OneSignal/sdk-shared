@@ -14,7 +14,6 @@ const tooltipContent = JSON.parse(
 const sdkType = getSdkType();
 export const isWebViewSDK = sdkType === 'capacitor' || sdkType === 'cordova';
 const isFlutterSDK = sdkType === 'flutter';
-const isUnitySDK = sdkType === 'unity';
 /**
  * Scroll the main content area in the given direction using native scroll APIs.
  * Targets the main_scroll_view element to avoid scrolling the log view.
@@ -554,32 +553,41 @@ export async function confirmModal(buttonTestId: string, timeoutMs = 5_000) {
 
 /**
  * Tap a button expected to open a modal/dialog and wait for one of its
- * elements (`expectedTestId`) to appear. On Unity-iOS the first tap is
- * occasionally swallowed when fired right after a previous modal's
- * dismissal animation; if the expected element doesn't show up within
- * `firstTryMs`, re-tap once. Reactive (state-gated), no fixed sleeps.
+ * elements (`expectedTestId`) to appear. On iOS we briefly wait for the
+ * trigger to settle before tapping: Unity UI Toolkit relayouts the section
+ * after a previous test's teardown (dialog dismiss, list row removal), and
+ * that shift can land the queued tap on empty space, producing a 5s
+ * "modal element not found" timeout. Native iOS/Android views don't need
+ * this — their click dispatch already waits for layout to settle.
  */
-export async function openModal(triggerTestId: string, expectedTestId: string, firstTryMs = 2_500) {
-  const maxAttempts = isUnitySDK && getPlatform() === 'ios' ? 3 : 1;
+export async function openModal(triggerTestId: string, expectedTestId: string, firstTryMs = 5_000) {
+  const trigger = await scrollToEl(triggerTestId);
+  if (getSdkType() === 'unity') {
+    await waitForStablePosition(trigger);
+  }
+  await trigger.click();
+  const expected = await byTestId(expectedTestId);
+  await expected.waitForExist({ timeout: firstTryMs });
+  return expected;
+}
 
-  for (let attempt = 1; ; attempt++) {
-    if (attempt > 1) {
-      console.info(`Attempt ${attempt} to open modal "${triggerTestId}"`);
+async function waitForStablePosition(
+  el: { getLocation(): Promise<{ x: number; y: number }> },
+  timeoutMs = 1_000,
+  pollMs = 100,
+) {
+  let prev: number | null = null;
+  let stableHits = 0;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const loc = await el.getLocation().catch(() => null);
+    if (loc && prev !== null && Math.abs(loc.y - prev) < 1) {
+      if (++stableHits >= 2) return;
+    } else {
+      stableHits = 0;
     }
-    try {
-      const trigger = await scrollToEl(triggerTestId);
-      await trigger.click();
-
-      const expected = await byTestId(expectedTestId);
-      await expected.waitForExist({ timeout: firstTryMs });
-      return expected;
-    } catch (err) {
-      if (attempt >= maxAttempts) {
-        throw new Error(
-          `Modal element "${expectedTestId}" not present after ${attempt} tap(s) on "${triggerTestId}": ${err}`,
-        );
-      }
-    }
+    prev = loc ? loc.y : null;
+    await driver.pause(pollMs);
   }
 }
 
