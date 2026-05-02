@@ -898,18 +898,18 @@ async function switchToIAMWebView(expectedTitle: string, timeoutMs: number) {
 }
 
 /**
- * The first tap on a freshly-scrolled IAM trigger button on Flutter is
- * intermittently dropped: the driver reports the tap delivered, but the
- * onPressed never fires -- most likely intercepted by a leftover OneSignal
- * IAM container window from the previous IAM, which outlives
- * `isWebViewVisible() === false`. The button itself stays tappable, so if
- * no WebView appears in 2.5s we re-fetch the handle and tap again.
- * Banners normally render well under 1.1s, so the gate is only paid on
- * the (rarer) miss path.
+ * Two distinct races land in the same place. On Flutter, the first tap on a
+ * freshly-scrolled IAM trigger button is intermittently swallowed by a
+ * leftover OneSignal IAM container window from the previous IAM that
+ * outlives `isWebViewVisible() === false`. On native iOS, `addTrigger`
+ * invoked during the previous IAM's post-dismiss cleanup occasionally fails
+ * to re-evaluate so no message is presented. In both cases a second tap
+ * (= another `addTrigger` call once the SDK has settled) succeeds. Skip on
+ * Android (non-Flutter), where neither race has been observed.
  */
 async function tapIamTrigger(buttonId: string) {
   await (await scrollToEl(buttonId)).click();
-  if (!isFlutterSDK) return;
+  if (getPlatform() === 'android' && !isFlutterSDK) return;
   try {
     await driver.waitUntil(() => isWebViewVisible(), { timeout: 2_500 });
   } catch {

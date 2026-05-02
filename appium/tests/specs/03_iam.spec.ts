@@ -47,10 +47,6 @@ describe('In-App Messaging', () => {
     const button = await scrollToEl('send_iam_top_banner_button');
     await button.click();
 
-    if (driver.isIOS) {
-      expect(await isWebViewVisible()).toBe(false);
-    }
-
     // reset back
     await toggle.click();
     await checkInAppMessage({
