@@ -2,6 +2,7 @@ import {
   checkTooltip,
   confirmModal,
   expectPairInSection,
+  openModal,
   scrollToEl,
   waitForAppReady,
 } from '../helpers/app';
@@ -22,11 +23,7 @@ describe('Aliases', () => {
   });
 
   it('can add an alias', async () => {
-    const addButton = await scrollToEl('add_alias_button');
-    await addButton.click();
-
-    const labelInput = await byTestId('alias_label_input');
-    await labelInput.waitForDisplayed({ timeout: 5_000 });
+    const labelInput = await openModal('add_alias_button', 'alias_label_input');
     await labelInput.setValue('test_label');
 
     const idInput = await byTestId('alias_id_input');
@@ -38,14 +35,10 @@ describe('Aliases', () => {
   });
 
   it('can add multiple aliases', async () => {
-    const addButton = await scrollToEl('add_multiple_aliases_button');
-    await addButton.click();
-
-    const addRowButton = await byTestId('multipair_add_row_button');
+    const addRowButton = await openModal('add_multiple_aliases_button', 'multipair_add_row_button');
     await addRowButton.click();
 
     const label0 = await byTestId('multipair_key_0');
-    await label0.waitForDisplayed({ timeout: 5_000 });
     await label0.setValue('test_label_2');
 
     const id0 = await byTestId('multipair_value_0');

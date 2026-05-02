@@ -2,6 +2,7 @@ import {
   checkTooltip,
   dismissKeyboard,
   expectSnackbar,
+  openModal,
   scrollToEl,
   waitForAppReady,
 } from '../helpers/app';
@@ -18,11 +19,7 @@ describe('Outcomes', () => {
   });
 
   it('can send a normal outcome', async () => {
-    const sendButton = await scrollToEl('send_outcome_button');
-    await sendButton.click();
-
-    const nameInput = await byTestId('outcome_name_input');
-    await nameInput.waitForDisplayed({ timeout: 5_000 });
+    const nameInput = await openModal('send_outcome_button', 'outcome_name_input');
     await nameInput.setValue('test_normal');
     await dismissKeyboard();
 
@@ -36,11 +33,7 @@ describe('Outcomes', () => {
   });
 
   it('can send a unique outcome', async () => {
-    const sendButton = await scrollToEl('send_outcome_button');
-    await sendButton.click();
-
-    const nameInput = await byTestId('outcome_name_input');
-    await nameInput.waitForDisplayed({ timeout: 5_000 });
+    const nameInput = await openModal('send_outcome_button', 'outcome_name_input');
     await nameInput.setValue('test_unique');
     await dismissKeyboard();
 
@@ -54,11 +47,7 @@ describe('Outcomes', () => {
   });
 
   it('can send an outcome with value', async () => {
-    const sendButton = await scrollToEl('send_outcome_button');
-    await sendButton.click();
-
-    const nameInput = await byTestId('outcome_name_input');
-    await nameInput.waitForDisplayed({ timeout: 5_000 });
+    const nameInput = await openModal('send_outcome_button', 'outcome_name_input');
 
     const withValueRadio = await byTestId('outcome_type_value_radio');
     await withValueRadio.click();

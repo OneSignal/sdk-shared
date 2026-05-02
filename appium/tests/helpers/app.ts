@@ -14,6 +14,7 @@ const tooltipContent = JSON.parse(
 const sdkType = getSdkType();
 export const isWebViewSDK = sdkType === 'capacitor' || sdkType === 'cordova';
 const isFlutterSDK = sdkType === 'flutter';
+const isUnitySDK = sdkType === 'unity';
 /**
  * Scroll the main content area in the given direction using native scroll APIs.
  * Targets the main_scroll_view element to avoid scrolling the log view.
@@ -512,13 +513,8 @@ export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
  * Tap the login button, enter an external user ID, and confirm.
  */
 export async function loginUser(externalUserId: string) {
-  const loginButton = await byTestId('login_user_button');
-  await loginButton.click();
-
-  const userIdInput = await byTestId('login_user_id_input');
-  await userIdInput.waitForDisplayed({ timeout: 5_000 });
+  const userIdInput = await openModal('login_user_button', 'login_user_id_input');
   await userIdInput.setValue(externalUserId);
-
   await confirmModal('singleinput_confirm_button');
 }
 
@@ -554,6 +550,35 @@ export async function confirmModal(buttonTestId: string, timeoutMs = 5_000) {
   // waitForExist refetches by selector each poll; waitForDisplayed would
   // hit stale-element warnings against the dismissed modal's cached id.
   await btn.waitForExist({ timeout: timeoutMs, reverse: true });
+}
+
+/**
+ * Tap a button expected to open a modal/dialog and wait for one of its
+ * elements (`expectedTestId`) to appear. On Unity-iOS the first tap is
+ * occasionally swallowed when fired right after a previous modal's
+ * dismissal animation; if the expected element doesn't show up within
+ * `firstTryMs`, re-tap once. Reactive (state-gated), no fixed sleeps.
+ */
+export async function openModal(triggerTestId: string, expectedTestId: string, firstTryMs = 2_500) {
+  const maxAttempts = isUnitySDK && getPlatform() === 'ios' ? 3 : 1;
+
+  for (let attempt = 1; ; attempt++) {
+    console.log(`Attempt ${attempt} to open modal "${triggerTestId}"`);
+    try {
+      const trigger = await scrollToEl(triggerTestId);
+      await trigger.click();
+
+      const expected = await byTestId(expectedTestId);
+      await expected.waitForExist({ timeout: firstTryMs });
+      return expected;
+    } catch (err) {
+      if (attempt >= maxAttempts) {
+        throw new Error(
+          `Modal element "${expectedTestId}" not present after ${attempt} tap(s) on "${triggerTestId}": ${err}`,
+        );
+      }
+    }
+  }
 }
 
 /**
@@ -898,14 +923,8 @@ async function switchToIAMWebView(expectedTitle: string, timeoutMs: number) {
 }
 
 /**
- * Two distinct races land in the same place. On Flutter, the first tap on a
- * freshly-scrolled IAM trigger button is intermittently swallowed by a
- * leftover OneSignal IAM container window from the previous IAM that
- * outlives `isWebViewVisible() === false`. On native iOS, `addTrigger`
- * invoked during the previous IAM's post-dismiss cleanup occasionally fails
- * to re-evaluate so no message is presented. In both cases a second tap
- * (= another `addTrigger` call once the SDK has settled) succeeds. Skip on
- * Android (non-Flutter), where neither race has been observed.
+ * On Flutter the first tap is intermittently swallowed by a leftover IAM
+ * container window. If no WebView appears in 2.5s, re-tap.
  */
 async function tapIamTrigger(buttonId: string) {
   await (await scrollToEl(buttonId)).click();
@@ -953,9 +972,9 @@ export async function checkInAppMessage(opts: {
     // step's swipes/queries don't race the teardown.
     if (!isWebViewSDK) {
       const main = await byTestId('main_scroll_view');
-      await main
-        .waitForDisplayed({ timeout: timeoutMs })
-        .catch(() => {/* best-effort; caller will surface real failure */});
+      await main.waitForDisplayed({ timeout: timeoutMs }).catch(() => {
+        /* best-effort; caller will surface real failure */
+      });
     }
   }
   await ensureMainWebViewContext();
@@ -983,12 +1002,7 @@ export async function expectSnackbar(text: string, timeoutMs = 5_000) {
 
 export async function checkTooltip(buttonId: string, key: string) {
   const tooltip = tooltipContent[key];
-
-  const infoIcon = await scrollToEl(buttonId);
-  await infoIcon.click();
-
-  const titleEl = await byTestId('tooltip_title');
-  await titleEl.waitForDisplayed({ timeout: 5_000 });
+  const titleEl = await openModal(buttonId, 'tooltip_title');
   const title = await titleEl.getText();
   expect(title).toBe(tooltip.title);
 

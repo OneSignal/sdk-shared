@@ -1,4 +1,10 @@
-import { checkTooltip, expectSnackbar, scrollToEl, waitForAppReady } from '../helpers/app';
+import {
+  checkTooltip,
+  expectSnackbar,
+  openModal,
+  scrollToEl,
+  waitForAppReady,
+} from '../helpers/app';
 import { byTestId, getTestData } from '../helpers/selectors.js';
 
 const TEST_JSON = {
@@ -31,11 +37,7 @@ describe('Custom Events', () => {
 
   it('can send a custom event with no properties', async () => {
     const { customEvent } = getTestData();
-    const sendButton = await scrollToEl('track_event_button');
-    await sendButton.click();
-
-    const nameInput = await byTestId('event_name_input');
-    await nameInput.waitForDisplayed({ timeout: 5_000 });
+    const nameInput = await openModal('track_event_button', 'event_name_input');
     await nameInput.setValue(`${customEvent}_no_props`);
 
     const trackBtn = await byTestId('event_track_button');
@@ -46,11 +48,7 @@ describe('Custom Events', () => {
 
   it('can send a custom event with properties', async () => {
     const { customEvent } = getTestData();
-    const sendButton = await scrollToEl('track_event_button');
-    await sendButton.click();
-
-    const nameInput = await byTestId('event_name_input');
-    await nameInput.waitForDisplayed({ timeout: 5_000 });
+    const nameInput = await openModal('track_event_button', 'event_name_input');
     await nameInput.setValue(`${customEvent}_with_props`);
 
     const propertiesInput = await byTestId('event_properties_input');

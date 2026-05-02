@@ -1,4 +1,4 @@
-import { checkTooltip, confirmModal, scrollToEl, waitForAppReady } from '../helpers/app';
+import { checkTooltip, confirmModal, openModal, scrollToEl, waitForAppReady } from '../helpers/app';
 import { byTestId, getTestData } from '../helpers/selectors.js';
 
 describe('Emails', () => {
@@ -15,12 +15,9 @@ describe('Emails', () => {
     const { email } = getTestData();
 
     // add email
-    const addButton = await scrollToEl('add_email_button');
-    await addButton.click();
-
-    const emailInput = await byTestId('email_input');
-    await emailInput.waitForDisplayed({ timeout: 5_000 });
+    const emailInput = await openModal('add_email_button', 'email_input');
     await emailInput.setValue(email);
+
     await confirmModal('singleinput_confirm_button');
 
     let el = await byTestId(`emails_value_${email}`);
