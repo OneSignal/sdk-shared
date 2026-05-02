@@ -1,10 +1,4 @@
-import {
-  checkInAppMessage,
-  checkTooltip,
-  isWebViewVisible,
-  scrollToEl,
-  waitForAppReady,
-} from '../helpers/app';
+import { checkInAppMessage, checkTooltip, scrollToEl, waitForAppReady } from '../helpers/app';
 import { byTestId, expectToggleState } from '../helpers/selectors';
 
 describe('In-App Messaging', () => {
