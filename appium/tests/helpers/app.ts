@@ -946,6 +946,17 @@ export async function checkInAppMessage(opts: {
       timeout: timeoutMs,
       timeoutMsg: 'IAM webview still visible after closing',
     });
+    // The IAM container UIView hosting the WKWebView can outlive the WebView
+    // itself by a few hundred ms (dismiss animation), intercepting both
+    // accessibility hit-tests and pointer events. Wait for the home-screen
+    // scroll view to become hit-testable again before returning, so the next
+    // step's swipes/queries don't race the teardown.
+    if (!isWebViewSDK) {
+      const main = await byTestId('main_scroll_view');
+      await main
+        .waitForDisplayed({ timeout: timeoutMs })
+        .catch(() => {/* best-effort; caller will surface real failure */});
+    }
   }
   await ensureMainWebViewContext();
 }
