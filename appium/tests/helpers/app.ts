@@ -563,7 +563,9 @@ export async function openModal(triggerTestId: string, expectedTestId: string, f
   const maxAttempts = isUnitySDK && getPlatform() === 'ios' ? 3 : 1;
 
   for (let attempt = 1; ; attempt++) {
-    console.log(`Attempt ${attempt} to open modal "${triggerTestId}"`);
+    if (attempt > 1) {
+      console.info(`Attempt ${attempt} to open modal "${triggerTestId}"`);
+    }
     try {
       const trigger = await scrollToEl(triggerTestId);
       await trigger.click();
