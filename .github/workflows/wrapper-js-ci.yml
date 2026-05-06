@@ -9,17 +9,7 @@ on:
         required: false
         type: string
         description: Java version to use
-        default: "17"
-      toolchain:
-        required: false
-        type: string
-        description: Toolchain to use for install, lint & test ("bun" or "vite-plus")
-        default: bun
-      bun_version:
-        required: false
-        type: string
-        description: Bun version to use (only when toolchain is "bun")
-        default: latest
+        default: '17'
 
 jobs:
   ci:
@@ -32,40 +22,19 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: ${{ inputs.java_version }}
-          distribution: "temurin"
+          distribution: 'temurin'
 
       - name: Setup Clang
         uses: OneSignal/actions/.github/actions/setup-clang@main
 
-      - name: Set up Bun
-        if: inputs.toolchain == 'bun'
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ inputs.bun_version }}
-
-      - name: Install (Bun)
-        if: inputs.toolchain == 'bun'
-        run: bun install --frozen-lockfile
-
       - name: Set up Vite+
-        if: inputs.toolchain == 'vite-plus'
         uses: voidzero-dev/setup-vp@v1
         with:
           cache: true
           run-install: true
 
-      - name: Linting (Bun)
-        if: inputs.toolchain == 'bun'
-        run: bun run lint
-
-      - name: Linting (Vite+)
-        if: inputs.toolchain == 'vite-plus'
+      - name: Linting
         run: vp run lint
 
-      - name: Tests (Bun)
-        if: inputs.toolchain == 'bun'
-        run: bun run test:coverage
-
-      - name: Tests (Vite+)
-        if: inputs.toolchain == 'vite-plus'
+      - name: Tests
         run: vp run test
