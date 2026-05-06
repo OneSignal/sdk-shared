@@ -42,13 +42,17 @@ jobs:
           name: ${{ inputs.app-artifact }}
 
       - name: Checkout sdk-shared (for test files)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: OneSignal/sdk-shared
           path: _sdk-shared
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Set up Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          working-directory: _sdk-shared/appium
+          cache: true
+          run-install: true
 
       - name: Upload app to BrowserStack
         id: bs-upload
@@ -68,10 +72,6 @@ jobs:
           echo "app-url=$APP_URL" >> "$GITHUB_OUTPUT"
           echo "Uploaded app to BrowserStack: $APP_URL"
 
-      - name: Install test dependencies
-        working-directory: _sdk-shared/appium
-        run: bun install --frozen-lockfile
-
       - name: Run Appium tests
         working-directory: _sdk-shared/appium
         env:
@@ -85,7 +85,7 @@ jobs:
           BUILD_NAME: ${{ inputs.build-name }}
           ONESIGNAL_APP_ID: ${{ vars.APPIUM_ONESIGNAL_APP_ID }}
           ONESIGNAL_API_KEY: ${{ secrets.APPIUM_ONESIGNAL_API_KEY }}
-        run: bunx wdio run "wdio.${PLATFORM}.conf.ts"
+        run: vpx wdio run "wdio.${PLATFORM}.conf.ts"
 
       - name: Upload test results
         if: always()

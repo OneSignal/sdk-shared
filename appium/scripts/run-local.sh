@@ -311,12 +311,12 @@ setup_rn_sdk() {
   fi
 
   info "Building React Native SDK & packing tarball..."
-  (cd "$RN_DIR" && bun run build)
-  (cd "$RN_DIR" && rm -f react-native-onesignal*.tgz && bun pm pack && mv react-native-onesignal-*.tgz react-native-onesignal.tgz)
+  (cd "$RN_DIR" && vp run build)
+  (cd "$RN_DIR" && rm -f react-native-onesignal*.tgz && vp pm pack && mv react-native-onesignal-*.tgz react-native-onesignal.tgz)
 
   if [[ ! -d "$installed_dir" ]]; then
-    info "First install — running bun add to register tarball in lockfile..."
-    (cd "$DEMO_DIR" && bun add file:../../react-native-onesignal.tgz)
+    info "First install — running vp add to register tarball in lockfile..."
+    (cd "$DEMO_DIR" && vp add file:../../react-native-onesignal.tgz)
   else
     info "Extracting tarball into demo's node_modules (respects package.json files)..."
     rm -rf "$installed_dir"/*
@@ -406,12 +406,12 @@ setup_cordova_sdk() {
   fi
 
   info "Building Cordova plugin & packing tarball..."
-  (cd "$CORDOVA_DIR" && bun run build)
-  (cd "$CORDOVA_DIR" && rm -f onesignal-cordova-plugin*.tgz && bun pm pack && mv onesignal-cordova-plugin-*.tgz onesignal-cordova-plugin.tgz)
+  (cd "$CORDOVA_DIR" && vp run build)
+  (cd "$CORDOVA_DIR" && rm -f onesignal-cordova-plugin*.tgz && vp pm pack && mv onesignal-cordova-plugin-*.tgz onesignal-cordova-plugin.tgz)
 
   if [[ ! -d "$installed_dir" ]]; then
-    info "First install — running bun add to register tarball in lockfile..."
-    (cd "$DEMO_DIR" && bun add file:../../onesignal-cordova-plugin.tgz)
+    info "First install — running vp add to register tarball in lockfile..."
+    (cd "$DEMO_DIR" && vp add file:../../onesignal-cordova-plugin.tgz)
   else
     info "Extracting tarball into demo's node_modules (respects package.json files)..."
     rm -rf "$installed_dir"/*
@@ -463,7 +463,7 @@ build_cordova_ios() {
   setup_cordova_sdk
 
   info "Building web bundle (vite)..."
-  (cd "$DEMO_DIR" && bun run build)
+  (cd "$DEMO_DIR" && vp run build)
 
   local sync_stamp="$DEMO_DIR/ios/App/build/.cap-sync.stamp"
   local sync_hash
@@ -509,7 +509,7 @@ build_cordova_android() {
   setup_cordova_sdk
 
   info "Building web bundle (vite)..."
-  (cd "$DEMO_DIR" && bun run build)
+  (cd "$DEMO_DIR" && vp run build)
 
   local sync_stamp="$DEMO_DIR/android/build/.cap-sync.stamp"
   local sync_hash
@@ -551,10 +551,10 @@ setup_capacitor_sdk() {
 
   # Exported (no `local`) so build_capacitor_* can fold it into the cap-sync
   # input hash and invalidate cached syncs whenever plugin source changes.
-  # Inputs match what `bun pm pack` ships per package.json's "files":
+  # Inputs match what `vp pm pack` ships per package.json's "files":
   # dist/, ios/, android/, Package.swift, OneSignalCapacitorPlugin.podspec.
   # We hash src/ instead of dist/ (build output) since dist/ is regenerated
-  # every `bun run build` and would always look "changed".
+  # every `vp run build` and would always look "changed".
   CAPACITOR_SDK_SRC_HASH=$(find "$CAPACITOR_DIR/src" "$CAPACITOR_DIR/ios" "$CAPACITOR_DIR/android" \
                                 "$CAPACITOR_DIR/package.json" "$CAPACITOR_DIR/Package.swift" \
                                 "$CAPACITOR_DIR/OneSignalCapacitorPlugin.podspec" \
@@ -570,12 +570,12 @@ setup_capacitor_sdk() {
   fi
 
   info "Building Capacitor plugin & packing tarball..."
-  (cd "$CAPACITOR_DIR" && bun run build)
-  (cd "$CAPACITOR_DIR" && rm -f onesignal-capacitor-plugin*.tgz && bun pm pack && mv onesignal-capacitor-plugin-*.tgz onesignal-capacitor-plugin.tgz)
+  (cd "$CAPACITOR_DIR" && vp run build)
+  (cd "$CAPACITOR_DIR" && rm -f onesignal-capacitor-plugin*.tgz && vp pm pack && mv onesignal-capacitor-plugin-*.tgz onesignal-capacitor-plugin.tgz)
 
   if [[ ! -d "$installed_dir" ]]; then
-    info "First install — running bun add to register tarball in lockfile..."
-    (cd "$DEMO_DIR" && bun add file:../../onesignal-capacitor-plugin.tgz)
+    info "First install — running vp add to register tarball in lockfile..."
+    (cd "$DEMO_DIR" && vp add file:../../onesignal-capacitor-plugin.tgz)
   else
     info "Extracting tarball into demo's node_modules (respects package.json files)..."
     rm -rf "$installed_dir"/*
@@ -591,7 +591,7 @@ build_capacitor_ios() {
   setup_capacitor_sdk
 
   info "Building web bundle (vite)..."
-  (cd "$DEMO_DIR" && bun run build)
+  (cd "$DEMO_DIR" && vp run build)
 
   local sync_stamp="$DEMO_DIR/ios/App/build/.cap-sync.stamp"
   local sync_hash
@@ -605,7 +605,7 @@ build_capacitor_ios() {
     xattr -w com.apple.xcode.CreatedByBuildSystem true "$DEMO_DIR/ios/App/build" 2>/dev/null || true
 
     info "Syncing Capacitor (resolves SPM dependencies)..."
-    (cd "$DEMO_DIR" && bunx cap sync ios)
+    (cd "$DEMO_DIR" && vpx cap sync ios)
     mkdir -p "$(dirname "$sync_stamp")"
     echo "$sync_hash" > "$sync_stamp"
   fi
@@ -637,7 +637,7 @@ build_capacitor_android() {
   setup_capacitor_sdk
 
   info "Building web bundle (vite)..."
-  (cd "$DEMO_DIR" && bun run build)
+  (cd "$DEMO_DIR" && vp run build)
 
   local sync_stamp="$DEMO_DIR/android/build/.cap-sync.stamp"
   local sync_hash
@@ -646,7 +646,7 @@ build_capacitor_android() {
     info "Capacitor sync inputs unchanged, skipping cap sync"
   else
     info "Syncing Capacitor..."
-    (cd "$DEMO_DIR" && bunx cap sync android)
+    (cd "$DEMO_DIR" && vpx cap sync android)
     mkdir -p "$(dirname "$sync_stamp")"
     echo "$sync_hash" > "$sync_stamp"
   fi
@@ -683,7 +683,7 @@ setup_expo_plugin() {
   # Exported (no `local`) so build_expo_* can fold it into the demo hash and
   # invalidate the cached .app whenever the plugin source changes.
   #
-  # Hash inputs match exactly what `bun pm pack` ships per package.json's
+  # Hash inputs match exactly what `vp pm pack` ships per package.json's
   # "files" field: src/, serviceExtensionFiles/, package.json, tsconfig.json.
   # build.gradle is intentionally excluded — it lives at the plugin's repo
   # root for spotless formatting only and is not part of the tarball, so
@@ -703,12 +703,12 @@ setup_expo_plugin() {
   fi
 
   info "Building Expo plugin & packing tarball..."
-  (cd "$EXPO_DIR" && bun run build)
-  (cd "$EXPO_DIR" && rm -f onesignal-expo-plugin*.tgz && bun pm pack && mv onesignal-expo-plugin-*.tgz onesignal-expo-plugin.tgz)
+  (cd "$EXPO_DIR" && vp run build)
+  (cd "$EXPO_DIR" && rm -f onesignal-expo-plugin*.tgz && vp pm pack && mv onesignal-expo-plugin-*.tgz onesignal-expo-plugin.tgz)
 
   if [[ ! -d "$installed_dir" ]]; then
-    info "First install — running bun add to register tarball in lockfile..."
-    (cd "$DEMO_DIR" && bun add file:../../onesignal-expo-plugin.tgz)
+    info "First install — running vp add to register tarball in lockfile..."
+    (cd "$DEMO_DIR" && vp add file:../../onesignal-expo-plugin.tgz)
   else
     info "Extracting tarball into demo's node_modules (respects package.json files)..."
     rm -rf "$installed_dir"/*
@@ -716,7 +716,6 @@ setup_expo_plugin() {
     tar -xzf "$tarball" -C "$installed_dir" --strip-components=1
   fi
 
-  # bun hoists glob@7 from react-native, shadowing glob@13 needed by @expo/cli.
   # Mirror the workaround from onesignal-expo-plugin/examples/setup.sh.
   rm -rf "$DEMO_DIR/node_modules/glob"
 
@@ -1233,7 +1232,7 @@ reset_app() {
 run_tests() {
   cd "$APPIUM_DIR"
   info "Installing test dependencies..."
-  bun i
+  vp install
 
   local conf="wdio.${PLATFORM}.conf.ts"
   info "Running tests (conf: $conf, spec: $SPEC)..."
@@ -1248,7 +1247,7 @@ run_tests() {
   ONESIGNAL_API_KEY="${ONESIGNAL_API_KEY:-}" \
   APPIUM_PORT="$APPIUM_PORT" \
   SYSTEM_PORT="${SYSTEM_PORT:-}" \
-  bunx wdio run "$conf" --spec "$SPEC"
+  vpx wdio run "$conf" --spec "$SPEC"
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────
