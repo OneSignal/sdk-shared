@@ -22,6 +22,10 @@ on:
         options:
           - patch
           - minor
+      capacitor:
+        type: boolean
+        default: true
+        description: Update Capacitor SDK
       cordova:
         type: boolean
         default: true
@@ -53,6 +57,11 @@ on:
         required: false
         type: string
         description: The iOS SDK version to update to
+      capacitor:
+        type: boolean
+        required: false
+        default: true
+        description: Update Capacitor SDK
       cordova:
         type: boolean
         required: false
@@ -122,6 +131,7 @@ jobs:
     needs: validate-inputs
     runs-on: ubuntu-latest
     outputs:
+      capacitor: ${{ steps.versions.outputs.capacitor }}
       cordova: ${{ steps.versions.outputs.cordova }}
       flutter: ${{ steps.versions.outputs.flutter }}
       react_native: ${{ steps.versions.outputs.react-native }}
@@ -138,6 +148,7 @@ jobs:
         run: |
           # Define SDK to repo mapping
           declare -A SDK_REPOS=(
+            ["capacitor"]="OneSignal/OneSignal-Capacitor-SDK"
             ["cordova"]="OneSignal/OneSignal-Cordova-SDK"
             ["flutter"]="OneSignal/OneSignal-Flutter-SDK"
             ["react-native"]="OneSignal/react-native-onesignal"
@@ -155,6 +166,17 @@ jobs:
           done
         env:
           GH_TOKEN: ${{ secrets.GH_PUSH_TOKEN || github.token }}
+
+  capacitor-release:
+    needs: [versions]
+    if: inputs.capacitor != false
+    uses: OneSignal/OneSignal-Capacitor-SDK/.github/workflows/create-release-pr.yml@main
+    secrets:
+      GH_PUSH_TOKEN: ${{ secrets.GH_PUSH_TOKEN }}
+    with:
+      capacitor_version: ${{ needs.versions.outputs.capacitor }}
+      android_version: ${{ inputs.android_version }}
+      ios_version: ${{ inputs.ios_version }}
 
   cordova-release:
     needs: [versions]
