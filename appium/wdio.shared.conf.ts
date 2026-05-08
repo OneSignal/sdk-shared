@@ -48,8 +48,8 @@ export const sharedConfig: WebdriverIO.Config = {
   ],
 
   waitforTimeout: isLocal ? 3_000 : 15_000,
-  connectionRetryTimeout: 90_000,
-  connectionRetryCount: 3,
+  connectionRetryTimeout: 180_000,
+  connectionRetryCount: 5,
 
   // cleans up test data once before all specs run
   onPrepare: async () => {
