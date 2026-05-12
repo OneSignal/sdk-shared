@@ -1133,6 +1133,7 @@ unity_hash_paths() {
           -o -name "*.meta" -o -name "*.json" -o -name "*.xml" \
           -o -name "*.plist" -o -name "*.strings" \
           -o -name "*.h" -o -name "*.m" -o -name "*.mm" -o -name "*.swift" \
+          -o -name "*.java" \
           -o -name "*.a" -o -name "*.aar" -o -name "*.jar" \
           -o -name "*.so" -o -name "*.dll" -o -name "*.dylib" \
           -o -name "*.uxml" -o -name "*.uss" -o -name "*.unity" \
