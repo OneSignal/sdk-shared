@@ -114,6 +114,11 @@ USAGE
   esac
 done
 
+case "$SPEC" in
+  */*|*\**|*\?*|*.ts) ;;
+  *) SPEC="tests/specs/${SPEC}*.spec.ts" ;;
+esac
+
 # Ensure values set via CLI flags propagate to wdio (which reads them as env).
 export APPIUM_PORT
 [[ -n "$SYSTEM_PORT" ]] && export SYSTEM_PORT

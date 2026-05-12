@@ -41,8 +41,7 @@ async function swipeMainContent(direction: 'up' | 'down', distance: 'small' | 'n
   // scroll` gestures sometimes report Down/Up without intermediate Move).
   // Other SDKs route swipes through native scroll containers that don't
   // dispatch into our element handlers, so center is fine.
-  const swipeX =
-    sdkType === 'unity' && getPlatform() === 'ios' ? 10 : Math.round(width / 2);
+  const swipeX = sdkType === 'unity' && getPlatform() === 'ios' ? 10 : Math.round(width / 2);
   const startY = Math.round(direction === 'down' ? height * 0.85 : height * 0.15);
   const endY = Math.round(direction === 'down' ? startY - swipeDistance : startY + swipeDistance);
 
@@ -274,10 +273,7 @@ async function scrollExtraIfNeeded<
     getLocation(): Promise<{ y: number }>;
     getSize(): Promise<{ height: number }>;
   },
->(
-  el: T,
-  refetch: () => Promise<T>,
-): Promise<T> {
+>(el: T, refetch: () => Promise<T>): Promise<T> {
   // Coordinate units differ by platform: iOS XCUITest reports points, Android
   // UiAutomator2 reports physical pixels. A fixed pixel threshold (e.g. 100)
   // is enough on iOS but only ~33dp on a density-3 Android phone — well inside
@@ -588,9 +584,20 @@ export async function togglePushEnabled() {
 export async function confirmModal(buttonTestId: string, timeoutMs = 5_000) {
   const btn = await byTestId(buttonTestId);
   await btn.click();
-  // waitForExist refetches by selector each poll; waitForDisplayed would
-  // hit stale-element warnings against the dismissed modal's cached id.
-  await btn.waitForExist({ timeout: timeoutMs, reverse: true });
+  await waitForTestIdNotDisplayed(buttonTestId, timeoutMs);
+}
+
+export async function waitForTestIdNotDisplayed(testId: string, timeoutMs = 5_000) {
+  await browser.waitUntil(
+    async () => {
+      const el = await byTestId(testId);
+      return !(await el.isDisplayed().catch(() => false));
+    },
+    {
+      timeout: timeoutMs,
+      timeoutMsg: `Element "${testId}" still displayed after ${timeoutMs}ms`,
+    },
+  );
 }
 
 /**
@@ -1089,6 +1096,7 @@ export async function checkTooltip(buttonId: string, key: string) {
 
   const okButton = await byTestId('tooltip_ok_button');
   await okButton.click();
+  await waitForTestIdNotDisplayed('tooltip_ok_button');
 }
 
 export async function withRetryDelay(

@@ -5,6 +5,7 @@ import {
   openModal,
   scrollToEl,
   waitForAppReady,
+  waitForTestIdNotDisplayed,
 } from '../helpers/app';
 import { byTestId } from '../helpers/selectors.js';
 
@@ -37,8 +38,7 @@ describe('Tags', () => {
     const removeButton = await byTestId(`tags_remove_test_tag`);
     await removeButton.click();
 
-    const el = await byTestId('tags_pair_key_test_tag');
-    await el.waitForDisplayed({ timeout: 5_000, reverse: true });
+    await waitForTestIdNotDisplayed('tags_pair_key_test_tag');
   });
 
   it('can add and remove multiple tags', async () => {
@@ -73,9 +73,7 @@ describe('Tags', () => {
 
     // wait for tags to be removed
     await scrollToEl('tags_section', { direction: 'up' });
-    const tag2El = await byTestId('tags_pair_key_test_tag_2');
-    const tag3El = await byTestId('tags_pair_key_test_tag_3');
-    await tag2El.waitForDisplayed({ timeout: 5_000, reverse: true });
-    await tag3El.waitForDisplayed({ timeout: 5_000, reverse: true });
+    await waitForTestIdNotDisplayed('tags_pair_key_test_tag_2');
+    await waitForTestIdNotDisplayed('tags_pair_key_test_tag_3');
   });
 });
