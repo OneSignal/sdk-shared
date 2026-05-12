@@ -42,6 +42,7 @@ describe('Live Activities', () => {
     if (isBrowserStackIos()) this.skip();
 
     const startButton = await scrollToEl('start_live_activity_button');
+    await startButton.waitForEnabled({ timeout: 15_000 });
     await startButton.click();
 
     const clickUpdateButton = async () => {
@@ -66,6 +67,7 @@ describe('Live Activities', () => {
 
     // end live activity
     const endButton = await scrollToEl('end_live_activity_button');
+    await endButton.waitForEnabled({ timeout: 15_000 });
     await endButton.click();
     await lockScreen();
 

@@ -5,6 +5,7 @@ import {
   openModal,
   scrollToEl,
   waitForAppReady,
+  waitForDisappear,
 } from '../helpers/app';
 import { byTestId } from '../helpers/selectors.js';
 
@@ -63,8 +64,7 @@ describe('Triggers', () => {
     const removeButton = await byTestId(`triggers_remove_test_trigger_key`);
     await removeButton.click();
 
-    const el = await byTestId('triggers_pair_key_test_trigger_key');
-    await el.waitForDisplayed({ timeout: 5_000, reverse: true });
+    await waitForDisappear('triggers_pair_key_test_trigger_key');
   });
 
   it('can add and remove multiple triggers', async () => {
@@ -85,10 +85,8 @@ describe('Triggers', () => {
     await scrollToEl('triggers_section', { direction: 'up' });
 
     // wait for triggers to be removed
-    const trigger2El = await byTestId('triggers_pair_key_test_trigger_key_2');
-    const trigger3El = await byTestId('triggers_pair_key_test_trigger_key_3');
-    await trigger2El.waitForDisplayed({ timeout: 5_000, reverse: true });
-    await trigger3El.waitForDisplayed({ timeout: 5_000, reverse: true });
+    await waitForDisappear('triggers_pair_key_test_trigger_key_2');
+    await waitForDisappear('triggers_pair_key_test_trigger_key_3');
   });
 
   it('can clear all triggers', async () => {

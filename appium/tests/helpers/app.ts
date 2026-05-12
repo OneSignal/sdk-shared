@@ -115,7 +115,7 @@ export async function scrollToEl(
   // Safety net for `direction: 'up'` and any case where a native fast path
   // didn't land the element. Flutter has no fast path and uses slower swipes
   // (see `swipeMainContent`), so it needs a higher cap.
-  const { direction = 'down', maxScrolls = isFlutterSDK ? 30 : 20 } = opts;
+  const { direction = 'down', maxScrolls = 30 } = opts;
   const platform = getPlatform();
 
   if (isWebViewSDK) {
@@ -300,21 +300,6 @@ async function scrollExtraIfNeeded<
     /* best-effort: if location read fails, return original ref */
   }
   return current;
-}
-
-async function tapElementCenter(el: {
-  getLocation(): Promise<{ x: number; y: number }>;
-  getSize(): Promise<{ width: number; height: number }>;
-}) {
-  const [loc, size] = await Promise.all([el.getLocation(), el.getSize()]);
-  const x = Math.round(loc.x + size.width / 2);
-  const y = Math.round(loc.y + size.height / 2);
-  await browser
-    .action('pointer', { parameters: { pointerType: 'touch' } })
-    .move({ x, y })
-    .down()
-    .up()
-    .perform();
 }
 
 /**
@@ -583,6 +568,7 @@ export async function togglePushEnabled() {
  */
 export async function confirmModal(buttonTestId: string, timeoutMs = 5_000) {
   const btn = await byTestId(buttonTestId);
+  await btn.waitForEnabled({ timeout: timeoutMs });
   await btn.click();
   await waitForDisappear(buttonTestId, timeoutMs);
 }
@@ -614,11 +600,7 @@ export async function openModal(triggerTestId: string, expectedTestId: string, f
   if (getSdkType() === 'unity') {
     await waitForStablePosition(trigger);
   }
-  if (getSdkType() === 'unity') {
-    await tapElementCenter(trigger);
-  } else {
-    await trigger.click();
-  }
+  await trigger.click();
   const expected = await byTestId(expectedTestId);
   await expected.waitForExist({ timeout: firstTryMs });
   return expected;
