@@ -34,7 +34,15 @@ async function swipeMainContent(direction: 'up' | 'down', distance: 'small' | 'n
   // Coordinates must be integers in WebView contexts (Capacitor/Cordova),
   // where chromedriver enforces W3C `actions` typing strictly. Native
   // UiAutomator2/XCUITest tolerate floats but rounding is harmless there.
-  const centerX = Math.round(width / 2);
+  // Unity iOS: anchor in the left section-padding gutter (x≈10pt; sections
+  // pad 16pt). XCUITest swipes can otherwise land PointerDown on a centered
+  // button and trigger AccessibilityBridge's E2E tap fallback before the
+  // drag generates enough PointerMove distance to cancel it (fast `mobile:
+  // scroll` gestures sometimes report Down/Up without intermediate Move).
+  // Other SDKs route swipes through native scroll containers that don't
+  // dispatch into our element handlers, so center is fine.
+  const swipeX =
+    sdkType === 'unity' && getPlatform() === 'ios' ? 10 : Math.round(width / 2);
   const startY = Math.round(direction === 'down' ? height * 0.85 : height * 0.15);
   const endY = Math.round(direction === 'down' ? startY - swipeDistance : startY + swipeDistance);
 
@@ -51,10 +59,10 @@ async function swipeMainContent(direction: 'up' | 'down', distance: 'small' | 'n
   const SWIPE_TIMEOUT_MS = 5_000;
   const action = browser
     .action('pointer', { parameters: { pointerType: 'touch' } })
-    .move({ x: centerX, y: startY })
+    .move({ x: swipeX, y: startY })
     .down()
     .pause(50)
-    .move({ duration: moveDurationMs, x: centerX, y: endY })
+    .move({ duration: moveDurationMs, x: swipeX, y: endY })
     .up()
     .perform();
   let timer: NodeJS.Timeout | undefined;
@@ -123,10 +131,15 @@ export async function scrollToEl(
 
   // Native fast path: pre-warms the scroll view so the loop below either
   // returns immediately or has very little work left.
+  // Unity iOS opts out: `mobile: scroll` synthesizes its own center-anchored
+  // touch sequence on the scroll view that can't be moved off the button
+  // column, so it reproduces the same accidental-tap problem we avoid in
+  // `swipeMainContent` by anchoring at the left gutter. Falling through to
+  // the swipe loop costs ~200ms but never taps a button.
   if (direction === 'down' && !isFlutterSDK) {
     if (platform === 'android') {
       await tryNativeScrollAndroid(identifier);
-    } else {
+    } else if (sdkType !== 'unity') {
       await tryNativeScrollIos(identifier);
     }
   }
@@ -256,7 +269,12 @@ async function isVisibleInViewport(
   }
 }
 
-async function scrollExtraIfNeeded<T extends { getLocation(): Promise<{ y: number }> }>(
+async function scrollExtraIfNeeded<
+  T extends {
+    getLocation(): Promise<{ y: number }>;
+    getSize(): Promise<{ height: number }>;
+  },
+>(
   el: T,
   refetch: () => Promise<T>,
 ): Promise<T> {
@@ -268,22 +286,39 @@ async function scrollExtraIfNeeded<T extends { getLocation(): Promise<{ y: numbe
   // margin (~96dp on density-3 Android, ~102pt on iPhone) that clears
   // two-line snackbars, gesture bars, and keyboard insets on every device we
   // run on.
+  let current = el;
   try {
-    const { y } = await el.getLocation();
-    const { height } = await driver.getWindowSize();
-    const threshold = Math.round(height * 0.12);
-    if (y < threshold) {
-      await swipeMainContent('up', 'small');
-      return await refetch();
-    }
-    if (y > height - threshold) {
-      await swipeMainContent('down', 'small');
-      return await refetch();
+    for (let i = 0; i < 3; i++) {
+      const [{ y }, size, { height }] = await Promise.all([
+        current.getLocation(),
+        current.getSize(),
+        driver.getWindowSize(),
+      ]);
+      const threshold = Math.round(height * 0.12);
+      if (y >= threshold && y + size.height <= height - threshold) return current;
+
+      await swipeMainContent(y < threshold ? 'up' : 'down', 'small');
+      current = await refetch();
     }
   } catch {
     /* best-effort: if location read fails, return original ref */
   }
-  return el;
+  return current;
+}
+
+async function tapElementCenter(el: {
+  getLocation(): Promise<{ x: number; y: number }>;
+  getSize(): Promise<{ width: number; height: number }>;
+}) {
+  const [loc, size] = await Promise.all([el.getLocation(), el.getSize()]);
+  const x = Math.round(loc.x + size.width / 2);
+  const y = Math.round(loc.y + size.height / 2);
+  await browser
+    .action('pointer', { parameters: { pointerType: 'touch' } })
+    .move({ x, y })
+    .down()
+    .up()
+    .perform();
 }
 
 /**
@@ -572,7 +607,11 @@ export async function openModal(triggerTestId: string, expectedTestId: string, f
   if (getSdkType() === 'unity') {
     await waitForStablePosition(trigger);
   }
-  await trigger.click();
+  if (getSdkType() === 'unity') {
+    await tapElementCenter(trigger);
+  } else {
+    await trigger.click();
+  }
   const expected = await byTestId(expectedTestId);
   await expected.waitForExist({ timeout: firstTryMs });
   return expected;
