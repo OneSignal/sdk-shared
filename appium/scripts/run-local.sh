@@ -94,7 +94,7 @@ Env vars (set in .env or export):
   DOTNET_ANDROID_ABI .NET Android ABI to pack (default: host arch)
   UNITY_DIR          Unity SDK repo root (default: ../../OneSignal-Unity-SDK)
   UNITY_PATH         Path to Unity Editor binary
-                     (default: /Applications/Unity/Hub/Editor/6000.3.6f1/Unity.app/Contents/MacOS/Unity)
+                     (default: /Applications/Unity/Hub/Editor/6000.4.6f1/Unity.app/Contents/MacOS/Unity)
   OS_VERSION         Platform version (default: 26.2 / 16)
   IOS_SIMULATOR      iOS simulator name (default: iPhone 17)
   IOS_RUNTIME        simctl runtime id (default: iOS-26-2)
@@ -1249,12 +1249,12 @@ build_unity_ios() {
 
   if [[ -f "$xcode_dir/Podfile" ]]; then
     local lock="$xcode_dir/Podfile.lock"
-    local stamp="$derived/.podfile.lock.stamp"
-    if [[ ! -f "$lock" ]] || [[ ! -f "$stamp" ]] || ! cmp -s "$lock" "$stamp"; then
+    local pod_stamp="$derived/.podfile.lock.stamp"
+    if [[ ! -f "$lock" ]] || [[ ! -f "$pod_stamp" ]] || ! cmp -s "$lock" "$pod_stamp"; then
       info "Installing CocoaPods..."
       (cd "$xcode_dir" && pod install)
-      mkdir -p "$(dirname "$stamp")"
-      cp "$lock" "$stamp" 2>/dev/null || true
+      mkdir -p "$(dirname "$pod_stamp")"
+      cp "$lock" "$pod_stamp" 2>/dev/null || true
     else
       info "Pods up to date, skipping pod install"
     fi
