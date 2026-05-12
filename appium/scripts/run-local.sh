@@ -270,7 +270,7 @@ elif [[ "$SDK_TYPE" == "unity" ]]; then
   UNITY_DIR="${UNITY_DIR:-$SDK_ROOT/OneSignal-Unity-SDK}"
   [[ -d "$UNITY_DIR" ]] || error "Unity SDK not found at $UNITY_DIR — set UNITY_DIR in .env"
   DEMO_DIR="$UNITY_DIR/examples/demo"
-  UNITY_PATH="${UNITY_PATH:-/Applications/Unity/Hub/Editor/6000.3.6f1/Unity.app/Contents/MacOS/Unity}"
+  UNITY_PATH="${UNITY_PATH:-/Applications/Unity/Hub/Editor/6000.4.6f1/Unity.app/Contents/MacOS/Unity}"
   if [[ "$PLATFORM" == "ios" ]]; then
     # Unity batchmode emits an Xcode project under Build/iOS named
     # `Unity-iPhone.xcodeproj` (a fixed Unity convention), but the *product*
@@ -1256,31 +1256,24 @@ build_unity_ios() {
 
   local ws="$xcode_dir/Unity-iPhone.xcworkspace"
   info "Building release .app for simulator..."
+  local target_args
   if [[ -d "$ws" ]]; then
-    xcodebuild \
-      -workspace "$ws" \
-      -scheme Unity-iPhone \
-      -configuration Release \
-      -sdk iphonesimulator \
-      -derivedDataPath "$derived" \
-      -quiet \
-      ONLY_ACTIVE_ARCH=YES \
-      CODE_SIGN_IDENTITY="-" \
-      CODE_SIGNING_ALLOWED=YES \
-      build
+    target_args=(-workspace "$ws")
   else
-    xcodebuild \
-      -project "$xcode_dir/Unity-iPhone.xcodeproj" \
-      -scheme Unity-iPhone \
-      -configuration Release \
-      -sdk iphonesimulator \
-      -derivedDataPath "$derived" \
-      -quiet \
-      ONLY_ACTIVE_ARCH=YES \
-      CODE_SIGN_IDENTITY="-" \
-      CODE_SIGNING_ALLOWED=YES \
-      build
+    target_args=(-project "$xcode_dir/Unity-iPhone.xcodeproj")
   fi
+
+  xcodebuild \
+    "${target_args[@]}" \
+    -scheme Unity-iPhone \
+    -configuration Release \
+    -sdk iphonesimulator \
+    -derivedDataPath "$derived" \
+    -quiet \
+    ONLY_ACTIVE_ARCH=YES \
+    CODE_SIGN_IDENTITY="-" \
+    CODE_SIGNING_ALLOWED=YES \
+    build
 
   if [[ ! -d "$APP_PATH" ]]; then
     # Fallback: Unity's product name (and thus the .app filename) is set in
