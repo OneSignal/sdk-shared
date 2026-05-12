@@ -41,7 +41,7 @@ async function swipeMainContent(direction: 'up' | 'down', distance: 'small' | 'n
   // scroll` gestures sometimes report Down/Up without intermediate Move).
   // Other SDKs route swipes through native scroll containers that don't
   // dispatch into our element handlers, so center is fine.
-  const swipeX = sdkType === 'unity' && getPlatform() === 'ios' ? 10 : Math.round(width / 2);
+  const swipeX = isUnitySDK ? 10 : Math.round(width / 2);
   const startY = Math.round(direction === 'down' ? height * 0.85 : height * 0.15);
   const endY = Math.round(direction === 'down' ? startY - swipeDistance : startY + swipeDistance);
 
@@ -135,10 +135,10 @@ export async function scrollToEl(
   // column, so it reproduces the same accidental-tap problem we avoid in
   // `swipeMainContent` by anchoring at the left gutter. Falling through to
   // the swipe loop costs ~200ms but never taps a button.
-  if (direction === 'down' && !isFlutterSDK) {
+  if (direction === 'down' && !(isFlutterSDK || isUnitySDK)) {
     if (platform === 'android') {
       await tryNativeScrollAndroid(identifier);
-    } else if (sdkType !== 'unity') {
+    } else {
       await tryNativeScrollIos(identifier);
     }
   }
@@ -597,7 +597,7 @@ export async function waitForDisappear(testId: string, timeoutMs = 5_000) {
  */
 export async function openModal(triggerTestId: string, expectedTestId: string, firstTryMs = 5_000) {
   const trigger = await scrollToEl(triggerTestId);
-  if (getSdkType() === 'unity') {
+  if (isUnitySDK) {
     await waitForStablePosition(trigger);
   }
   await trigger.click();
