@@ -588,12 +588,13 @@ export async function waitForDisappear(testId: string, timeoutMs = 5_000) {
 
 /**
  * Tap a button expected to open a modal/dialog and wait for one of its
- * elements (`expectedTestId`) to appear. On iOS we briefly wait for the
- * trigger to settle before tapping: Unity UI Toolkit relayouts the section
- * after a previous test's teardown (dialog dismiss, list row removal), and
- * that shift can land the queued tap on empty space, producing a 5s
- * "modal element not found" timeout. Native iOS/Android views don't need
- * this — their click dispatch already waits for layout to settle.
+ * elements (`expectedTestId`) to appear. On Unity (both platforms) we
+ * briefly wait for the trigger to settle before tapping: Unity UI Toolkit
+ * relayouts the section after a previous test's teardown (dialog dismiss,
+ * list row removal), and that shift can land the queued tap on empty space,
+ * producing a 5s "modal element not found" timeout. Native iOS/Android
+ * views don't need this — their click dispatch already waits for layout to
+ * settle.
  */
 export async function openModal(triggerTestId: string, expectedTestId: string, firstTryMs = 5_000) {
   const trigger = await scrollToEl(triggerTestId);
@@ -981,8 +982,9 @@ async function switchToIAMWebView(expectedTitle: string, timeoutMs: number) {
 }
 
 /**
- * On Flutter the first tap is intermittently swallowed by a leftover IAM
- * container window. If no WebView appears in 2.5s, re-tap.
+ * The first tap is intermittently swallowed on iOS (all SDKs) and on
+ * Flutter Android by a leftover IAM container window. If no WebView
+ * appears in 2.5s, re-tap. Native Android (non-Flutter) doesn't need this.
  */
 async function tapIamTrigger(buttonId: string) {
   await (await scrollToEl(buttonId)).click();
