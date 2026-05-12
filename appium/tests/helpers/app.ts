@@ -584,10 +584,10 @@ export async function togglePushEnabled() {
 export async function confirmModal(buttonTestId: string, timeoutMs = 5_000) {
   const btn = await byTestId(buttonTestId);
   await btn.click();
-  await waitForTestIdNotDisplayed(buttonTestId, timeoutMs);
+  await waitForDisappear(buttonTestId, timeoutMs);
 }
 
-export async function waitForTestIdNotDisplayed(testId: string, timeoutMs = 5_000) {
+export async function waitForDisappear(testId: string, timeoutMs = 5_000) {
   await browser.waitUntil(
     async () => {
       const el = await byTestId(testId);
@@ -1096,7 +1096,7 @@ export async function checkTooltip(buttonId: string, key: string) {
 
   const okButton = await byTestId('tooltip_ok_button');
   await okButton.click();
-  await waitForTestIdNotDisplayed('tooltip_ok_button');
+  await waitForDisappear('tooltip_ok_button');
 }
 
 export async function withRetryDelay(
