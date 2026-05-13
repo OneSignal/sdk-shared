@@ -115,8 +115,12 @@ USAGE
 done
 
 case "$SPEC" in
-  */*|*\**|*\?*|*.ts) ;;
-  *) SPEC="tests/specs/${SPEC}*.spec.ts" ;;
+  */*|*\**|*\?*) ;;
+  *)
+    base="${SPEC%.spec.ts}"
+    base="${base%.ts}"
+    SPEC="tests/specs/${base}*.spec.ts"
+    ;;
 esac
 
 # Ensure values set via CLI flags propagate to wdio (which reads them as env).
