@@ -95,6 +95,7 @@ Env vars (set in .env or export):
   UNITY_DIR          Unity SDK repo root (default: ../../OneSignal-Unity-SDK)
   UNITY_PATH         Path to Unity Editor binary
                      (default: /Applications/Unity/Hub/Editor/6000.4.6f1/Unity.app/Contents/MacOS/Unity)
+  UNITY_IOS_SIM_ARCH Unity iOS simulator arch (default: host arch)
   OS_VERSION         Platform version (default: 26.2 / 16)
   IOS_SIMULATOR      iOS simulator name (default: iPhone 17)
   IOS_RUNTIME        simctl runtime id (default: iOS-26-2)
@@ -281,11 +282,19 @@ elif [[ "$SDK_TYPE" == "unity" ]]; then
   DEMO_DIR="$UNITY_DIR/examples/demo"
   UNITY_PATH="${UNITY_PATH:-/Applications/Unity/Hub/Editor/6000.4.6f1/Unity.app/Contents/MacOS/Unity}"
   if [[ "$PLATFORM" == "ios" ]]; then
+    # Match the host arch so Apple Silicon hosts run the sim natively instead
+    # of going through Rosetta. UNITY_IOS_SIM_ARCH still wins as an override.
+    case "$(uname -m)" in
+      arm64) UNITY_IOS_SIM_ARCH="${UNITY_IOS_SIM_ARCH:-arm64}" ;;
+      x86_64) UNITY_IOS_SIM_ARCH="${UNITY_IOS_SIM_ARCH:-x86_64}" ;;
+      *) error "Unsupported host arch for Unity iOS sim build: $(uname -m)" ;;
+    esac
     # Unity batchmode emits an Xcode project under Build/iOS named
     # `Unity-iPhone.xcodeproj` (a fixed Unity convention), but the *product*
     # name is configured to `OneSignalDemo` in Player Settings, so xcodebuild
-    # produces `OneSignalDemo.app`.
-    APP_PATH="${APP_PATH:-$DEMO_DIR/Build/iOS-DerivedData/Build/Products/ReleaseForRunning-iphonesimulator/OneSignalDemo.app}"
+    # produces `OneSignalDemo.app`. Scope the derived-data dir by arch so an
+    # arch flip doesn't return a stale wrong-arch binary from the cache.
+    APP_PATH="${APP_PATH:-$DEMO_DIR/Build/iOS-DerivedData-${UNITY_IOS_SIM_ARCH}/Build/Products/ReleaseForRunning-iphonesimulator/OneSignalDemo.app}"
   else
     APP_PATH="${APP_PATH:-$DEMO_DIR/Build/Android/onesignal-demo.apk}"
   fi
@@ -1222,16 +1231,6 @@ build_unity_ios() {
 
   [[ -x "$UNITY_PATH" ]] || error "Unity Editor not found at $UNITY_PATH — set UNITY_PATH in .env"
 
-  # Match the host arch so Apple Silicon hosts run the sim natively instead
-  # of going through Rosetta. UNITY_IOS_SIM_ARCH still wins as an override.
-  # Resolved before the cache check so the arch can scope the stamp filename.
-  local simulator_arch
-  case "$(uname -m)" in
-    arm64) simulator_arch="${UNITY_IOS_SIM_ARCH:-arm64}" ;;
-    x86_64) simulator_arch="${UNITY_IOS_SIM_ARCH:-x86_64}" ;;
-    *) error "Unsupported host arch for Unity iOS sim build: $(uname -m)" ;;
-  esac
-
   # Top-level skip: if neither the demo nor the SDK changed and the .app is
   # still on disk, both stages (Unity batchmode 5-10min + xcodebuild 1-2min)
   # would otherwise reproduce identical output. Skip the whole thing.
@@ -1239,7 +1238,7 @@ build_unity_ios() {
   sdk_hash=$(unity_sdk_inputs_hash ios)
   demo_hash=$(unity_demo_inputs_hash "$sdk_hash")
 
-  local stamp="$DEMO_DIR/Build/.unity-build-ios-${simulator_arch}.stamp"
+  local stamp="$DEMO_DIR/Build/.unity-build-ios-${UNITY_IOS_SIM_ARCH}.stamp"
   if unity_build_is_cached "$stamp" "$APP_PATH" "$demo_hash"; then
     info "Unity SDK + demo source unchanged, skipping iOS rebuild"
     info "App: $APP_PATH"
@@ -1247,7 +1246,7 @@ build_unity_ios() {
   fi
 
   local xcode_dir="$DEMO_DIR/Build/iOS"
-  local derived="$DEMO_DIR/Build/iOS-DerivedData"
+  local derived="$DEMO_DIR/Build/iOS-DerivedData-${UNITY_IOS_SIM_ARCH}"
   local log="$DEMO_DIR/Build/build-ios.log"
   mkdir -p "$xcode_dir"
 
@@ -1291,7 +1290,7 @@ build_unity_ios() {
     -derivedDataPath "$derived" \
     -quiet \
     ONLY_ACTIVE_ARCH=YES \
-    ARCHS="$simulator_arch" \
+    ARCHS="$UNITY_IOS_SIM_ARCH" \
     CODE_SIGN_IDENTITY="-" \
     CODE_SIGNING_ALLOWED=YES \
     build
