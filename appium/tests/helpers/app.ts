@@ -599,14 +599,14 @@ export async function waitForDisappear(testId: string, timeoutMs = 5_000) {
  * views don't need this — their click dispatch already waits for layout to
  * settle.
  */
-export async function openModal(triggerTestId: string, expectedTestId: string, firstTryMs = 5_000) {
+export async function openModal(triggerTestId: string, expectedTestId: string, timeoutMs = 5_000) {
   const trigger = await scrollToEl(triggerTestId);
   if (isUnitySDK) {
     await waitForStablePosition(trigger);
   }
   await trigger.click();
   const expected = await byTestId(expectedTestId);
-  await expected.waitForExist({ timeout: firstTryMs });
+  await expected.waitForExist({ timeout: timeoutMs });
   return expected;
 }
 
