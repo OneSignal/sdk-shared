@@ -1273,7 +1273,14 @@ build_unity_ios() {
     target_args=(-project "$xcode_dir/Unity-iPhone.xcodeproj")
   fi
 
-  local simulator_arch="${UNITY_IOS_SIM_ARCH:-x86_64}"
+  # Match the host arch so Apple Silicon hosts run the sim natively instead
+  # of going through Rosetta. UNITY_IOS_SIM_ARCH still wins as an override.
+  local simulator_arch
+  case "$(uname -m)" in
+    arm64) simulator_arch="${UNITY_IOS_SIM_ARCH:-arm64}" ;;
+    x86_64) simulator_arch="${UNITY_IOS_SIM_ARCH:-x86_64}" ;;
+    *) error "Unsupported host arch for Unity iOS sim build: $(uname -m)" ;;
+  esac
 
   xcodebuild \
     "${target_args[@]}" \
