@@ -292,11 +292,16 @@ export async function byTestId(id: string) {
   const platform = getPlatform();
 
   if (sdkType === 'capacitor' || sdkType === 'cordova') return $(`[data-testid="${id}"]`);
+  // Await the chainable before wrapping. Otherwise the Proxy's `then`
+  // trap forwards to the underlying ChainablePromiseElement, so awaiting
+  // byTestId(...) adopts the thenable and unwraps past the Proxy down to
+  // the raw Element — silently bypassing every shim below.
   if (platform === 'android') {
-    const el = $(`id=${id}`);
+    const el = await $(`id=${id}`);
     return withElementInteractionFixes(el);
   }
-  return withElementInteractionFixes($(`~${id}`));
+  const el = await $(`~${id}`);
+  return withElementInteractionFixes(el);
 }
 
 /**
@@ -316,7 +321,8 @@ export async function byText(identifier: string, partial = false) {
       const xpath = partial
         ? `//*[contains(@content-desc, "${identifier}") or contains(@text, "${identifier}")]`
         : `//*[@content-desc="${identifier}" or @text="${identifier}"]`;
-      return withElementInteractionFixes($(xpath));
+      const el = await $(xpath);
+      return withElementInteractionFixes(el);
     }
     return partial
       ? $(`android=new UiSelector().textContains("${identifier}")`)
