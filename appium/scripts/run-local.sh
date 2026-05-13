@@ -281,7 +281,7 @@ elif [[ "$SDK_TYPE" == "unity" ]]; then
     # `Unity-iPhone.xcodeproj` (a fixed Unity convention), but the *product*
     # name is configured to `OneSignalDemo` in Player Settings, so xcodebuild
     # produces `OneSignalDemo.app`.
-    APP_PATH="${APP_PATH:-$DEMO_DIR/Build/iOS-DerivedData/Build/Products/Release-iphonesimulator/OneSignalDemo.app}"
+    APP_PATH="${APP_PATH:-$DEMO_DIR/Build/iOS-DerivedData/Build/Products/ReleaseForRunning-iphonesimulator/OneSignalDemo.app}"
   else
     APP_PATH="${APP_PATH:-$DEMO_DIR/Build/Android/onesignal-demo.apk}"
   fi
@@ -1269,14 +1269,17 @@ build_unity_ios() {
     target_args=(-project "$xcode_dir/Unity-iPhone.xcodeproj")
   fi
 
+  local simulator_arch="${UNITY_IOS_SIM_ARCH:-x86_64}"
+
   xcodebuild \
     "${target_args[@]}" \
     -scheme Unity-iPhone \
-    -configuration Release \
+    -configuration ReleaseForRunning \
     -sdk iphonesimulator \
     -derivedDataPath "$derived" \
     -quiet \
     ONLY_ACTIVE_ARCH=YES \
+    ARCHS="$simulator_arch" \
     CODE_SIGN_IDENTITY="-" \
     CODE_SIGNING_ALLOWED=YES \
     build
@@ -1284,9 +1287,9 @@ build_unity_ios() {
   if [[ ! -d "$APP_PATH" ]]; then
     # Fallback: Unity's product name (and thus the .app filename) is set in
     # Player Settings, so it can drift from our default. Search the derived
-    # data Products dir for any .app, prefer Release-iphonesimulator/.
+    # data Products dir for any .app, prefer ReleaseForRunning-iphonesimulator/.
     local found
-    found=$(find "$derived/Build/Products/Release-iphonesimulator" \
+    found=$(find "$derived/Build/Products/ReleaseForRunning-iphonesimulator" \
                  -maxdepth 1 -name "*.app" -not -name "*.appex" 2>/dev/null | head -1)
     [[ -z "$found" ]] && found=$(find "$derived" -path "*/Build/Products/*" \
                                       -maxdepth 5 -name "*.app" \
