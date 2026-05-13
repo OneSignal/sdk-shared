@@ -292,10 +292,7 @@ export async function byTestId(id: string) {
   const platform = getPlatform();
 
   if (sdkType === 'capacitor' || sdkType === 'cordova') return $(`[data-testid="${id}"]`);
-  // Await the chainable before wrapping. Otherwise the Proxy's `then`
-  // trap forwards to the underlying ChainablePromiseElement, so awaiting
-  // byTestId(...) adopts the thenable and unwraps past the Proxy down to
-  // the raw Element — silently bypassing every shim below.
+  // Resolve the chainable first so awaiting the Proxy doesn't unwrap past it.
   if (platform === 'android') {
     const el = await $(`id=${id}`);
     return withElementInteractionFixes(el);
