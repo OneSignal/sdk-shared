@@ -50,7 +50,6 @@ describe('Triggers', () => {
     const keyInput = await openModal('add_trigger_button', 'trigger_key_input');
 
     // add trigger
-    await keyInput.waitForDisplayed({ timeout: 5_000 });
     await keyInput.setValue('test_trigger_key');
 
     const valueInput = await byTestId('trigger_value_input');
