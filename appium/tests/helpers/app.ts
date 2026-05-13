@@ -291,13 +291,16 @@ async function scrollExtraIfNeeded<
         driver.getWindowSize(),
       ]);
       const threshold = Math.round(height * 0.12);
+      // Elements taller than the safe area (e.g. a populated section
+      // container) can never satisfy both edges; accept them as-is.
+      if (size.height > height - 2 * threshold) return current;
       if (y >= threshold && y + size.height <= height - threshold) return current;
 
       await swipeMainContent(y < threshold ? 'up' : 'down', 'small');
       current = await refetch();
     }
   } catch {
-    /* best-effort: if location read fails, return original ref */
+    /* best-effort: if a location read fails, return the most recent ref */
   }
   return current;
 }
