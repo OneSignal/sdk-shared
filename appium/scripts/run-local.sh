@@ -1222,6 +1222,16 @@ build_unity_ios() {
 
   [[ -x "$UNITY_PATH" ]] || error "Unity Editor not found at $UNITY_PATH — set UNITY_PATH in .env"
 
+  # Match the host arch so Apple Silicon hosts run the sim natively instead
+  # of going through Rosetta. UNITY_IOS_SIM_ARCH still wins as an override.
+  # Resolved before the cache check so the arch can scope the stamp filename.
+  local simulator_arch
+  case "$(uname -m)" in
+    arm64) simulator_arch="${UNITY_IOS_SIM_ARCH:-arm64}" ;;
+    x86_64) simulator_arch="${UNITY_IOS_SIM_ARCH:-x86_64}" ;;
+    *) error "Unsupported host arch for Unity iOS sim build: $(uname -m)" ;;
+  esac
+
   # Top-level skip: if neither the demo nor the SDK changed and the .app is
   # still on disk, both stages (Unity batchmode 5-10min + xcodebuild 1-2min)
   # would otherwise reproduce identical output. Skip the whole thing.
@@ -1229,7 +1239,7 @@ build_unity_ios() {
   sdk_hash=$(unity_sdk_inputs_hash ios)
   demo_hash=$(unity_demo_inputs_hash "$sdk_hash")
 
-  local stamp="$DEMO_DIR/Build/.unity-build-ios.stamp"
+  local stamp="$DEMO_DIR/Build/.unity-build-ios-${simulator_arch}.stamp"
   if unity_build_is_cached "$stamp" "$APP_PATH" "$demo_hash"; then
     info "Unity SDK + demo source unchanged, skipping iOS rebuild"
     info "App: $APP_PATH"
@@ -1272,15 +1282,6 @@ build_unity_ios() {
   else
     target_args=(-project "$xcode_dir/Unity-iPhone.xcodeproj")
   fi
-
-  # Match the host arch so Apple Silicon hosts run the sim natively instead
-  # of going through Rosetta. UNITY_IOS_SIM_ARCH still wins as an override.
-  local simulator_arch
-  case "$(uname -m)" in
-    arm64) simulator_arch="${UNITY_IOS_SIM_ARCH:-arm64}" ;;
-    x86_64) simulator_arch="${UNITY_IOS_SIM_ARCH:-x86_64}" ;;
-    *) error "Unsupported host arch for Unity iOS sim build: $(uname -m)" ;;
-  esac
 
   xcodebuild \
     "${target_args[@]}" \
