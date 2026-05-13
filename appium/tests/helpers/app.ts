@@ -34,13 +34,12 @@ async function swipeMainContent(direction: 'up' | 'down', distance: 'small' | 'n
   // Coordinates must be integers in WebView contexts (Capacitor/Cordova),
   // where chromedriver enforces W3C `actions` typing strictly. Native
   // UiAutomator2/XCUITest tolerate floats but rounding is harmless there.
-  // Unity iOS: anchor in the left section-padding gutter (x≈10pt; sections
-  // pad 16pt). XCUITest swipes can otherwise land PointerDown on a centered
-  // button and trigger AccessibilityBridge's E2E tap fallback before the
-  // drag generates enough PointerMove distance to cancel it (fast `mobile:
-  // scroll` gestures sometimes report Down/Up without intermediate Move).
-  // Other SDKs route swipes through native scroll containers that don't
-  // dispatch into our element handlers, so center is fine.
+  // Unity (both platforms): anchor in the left section-padding gutter
+  // (x≈10pt; sections pad 16pt). Center-anchored swipes can land
+  // PointerDown on a button and trigger AccessibilityBridge's E2E tap
+  // fallback before the drag generates enough PointerMove distance to
+  // cancel it. Other SDKs route swipes through native scroll containers
+  // that don't dispatch into our element handlers, so center is fine.
   const swipeX = isUnitySDK ? 10 : Math.round(width / 2);
   const startY = Math.round(direction === 'down' ? height * 0.85 : height * 0.15);
   const endY = Math.round(direction === 'down' ? startY - swipeDistance : startY + swipeDistance);
@@ -129,12 +128,12 @@ export async function scrollToEl(
   }
 
   // Native fast path: pre-warms the scroll view so the loop below either
-  // returns immediately or has very little work left.
-  // Unity iOS opts out: `mobile: scroll` synthesizes its own center-anchored
-  // touch sequence on the scroll view that can't be moved off the button
-  // column, so it reproduces the same accidental-tap problem we avoid in
-  // `swipeMainContent` by anchoring at the left gutter. Falling through to
-  // the swipe loop costs ~200ms but never taps a button.
+  // returns immediately or has very little work left. Unity opts out on
+  // both platforms: iOS `mobile: scroll` synthesizes a center-anchored
+  // touch sequence that reproduces the accidental-tap problem we avoid in
+  // `swipeMainContent`, and on Android `UiScrollable` doesn't see UI
+  // Toolkit content rendered into the Unity SurfaceView. Falling through
+  // to the swipe loop costs ~200ms but is reliable.
   if (direction === 'down' && !(isFlutterSDK || isUnitySDK)) {
     if (platform === 'android') {
       await tryNativeScrollAndroid(identifier);
