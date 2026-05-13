@@ -49,8 +49,11 @@ export const sharedConfig: WebdriverIO.Config = {
   ],
 
   waitforTimeout: isLocal ? 3_000 : 15_000,
-  connectionRetryTimeout: 180_000,
-  connectionRetryCount: 5,
+  // BrowserStack can hold POST /session open while waiting for a free
+  // parallel slot (up to its 15-min queue cap). Keep the HTTP client
+  // alive long enough that we don't bail before the queue clears.
+  connectionRetryTimeout: 900_000,
+  connectionRetryCount: 2,
 
   // cleans up test data once before all specs run
   onPrepare: async () => {

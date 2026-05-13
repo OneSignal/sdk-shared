@@ -85,7 +85,32 @@ jobs:
           BUILD_NAME: ${{ inputs.build-name }}
           ONESIGNAL_APP_ID: ${{ vars.APPIUM_ONESIGNAL_APP_ID }}
           ONESIGNAL_API_KEY: ${{ secrets.APPIUM_ONESIGNAL_API_KEY }}
-        run: vpx wdio run "wdio.${PLATFORM}.conf.ts"
+        # Retry only on BrowserStack session-creation failures (queue
+        # timeouts, parallel-limit hits, transient hub errors). Real test
+        # failures still fail the job on the first attempt.
+        run: |
+          set +e
+          MAX_ATTEMPTS=10
+          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+            echo "::group::Appium attempt $attempt of $MAX_ATTEMPTS"
+            LOG_FILE="$RUNNER_TEMP/wdio-attempt-$attempt.log"
+            vpx wdio run "wdio.${PLATFORM}.conf.ts" 2>&1 | tee "$LOG_FILE"
+            STATUS=${PIPESTATUS[0]}
+            echo "::endgroup::"
+            if [ "$STATUS" -eq 0 ]; then
+              exit 0
+            fi
+            if grep -qE 'Failed to create a session|aborted due to timeout when running .*\/session|PARALLEL_TEST_LIMIT_REACHED|All parallel tests are currently in use' "$LOG_FILE"; then
+              SLEEP=$((30 * attempt))
+              echo "Session-creation failure detected; retrying in ${SLEEP}s..."
+              sleep "$SLEEP"
+              continue
+            fi
+            echo "Test failure (not a session-creation error); not retrying."
+            exit "$STATUS"
+          done
+          echo "::error::Exhausted $MAX_ATTEMPTS attempts due to session-creation failures."
+          exit 1
 
       - name: Upload test results
         if: always()
