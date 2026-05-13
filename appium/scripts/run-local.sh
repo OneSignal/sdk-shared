@@ -1500,27 +1500,25 @@ start_device() {
 }
 
 # ── 2. Start Appium ──────────────────────────────────────────────────────────
-# Kill leftover WDA processes from prior runs. Appium aborts WDA with
-# `SIGABRT` when it can't bind to port 8100 (its default), and the most
-# common holder of 8100 is a stale `WebDriverAgentRunner-Runner` from an
-# earlier crashed attempt or a Ctrl-C'd session. The accompanying
-# `xcodebuild` wrapper also hangs onto its derived data lock. Killing
-# both is cheap when nothing's running and prevents the cascading
-# "Address already in use" → `xcodebuild exited with code 65` → wdio
-# "Unable to start WebDriverAgent session" failure mode.
+# Free port 8100 when a previous run left WDA bound to it. Scoped to the
+# actual port-holder (not a broad pkill -f) so unrelated WDA sessions or
+# other Xcode UI tests on the same host aren't collateral damage. Prevents
+# the cascading "Address already in use" → `xcodebuild exited with code 65`
+# → wdio "Unable to start WebDriverAgent session" failure mode.
 cleanup_stale_wda() {
   [[ "$PLATFORM" == "ios" ]] || return 0
-  pkill -9 -f "WebDriverAgentRunner-Runner" 2>/dev/null || true
-  pkill -9 -f "xcodebuild.*WebDriverAgent" 2>/dev/null || true
+  local pids
+  pids=$(lsof -ti tcp:8100 2>/dev/null || true)
+  [[ -n "$pids" ]] && kill -9 $pids 2>/dev/null || true
 }
 
 start_appium() {
-  cleanup_stale_wda
-
   if curl -s "http://localhost:$APPIUM_PORT/status" | grep -q '"ready":true' 2>/dev/null; then
     info "Appium already running on port $APPIUM_PORT"
     return
   fi
+
+  cleanup_stale_wda
 
   info "Starting Appium on port $APPIUM_PORT..."
   appium --port "$APPIUM_PORT" --log-level error &
