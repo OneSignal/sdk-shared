@@ -22,6 +22,7 @@ const bstackOptions = {
   debug: true,
   networkLogs: true,
   appiumVersion: '3.2.0',
+  idleTimeout: 300,
 };
 
 export const sharedConfig: WebdriverIO.Config = {
