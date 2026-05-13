@@ -127,8 +127,34 @@ jobs:
 
           echo "✓ No pre-release versions detected"
 
-  versions:
+  wait-for-android-artifact:
+    # Maven Central propagation lags behind publishToMavenCentral by minutes
+    # to hours. Block wrapper PR fan-out until the OneSignal Android SDK pom
+    # is resolvable from repo1.maven.org so downstream wrapper e2e builds do
+    # not fail with "Could not find com.onesignal:OneSignal:X.Y.Z" against a
+    # stale mirror. Always runs (no job-level if) so iOS-only invocations
+    # still satisfy the downstream needs: dependency; the steps no-op when
+    # android_version is empty.
     needs: validate-inputs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip when iOS-only
+        if: inputs.android_version == ''
+        run: echo "No android_version provided; skipping Maven propagation wait."
+      - uses: actions/checkout@v5
+        if: inputs.android_version != ''
+        with:
+          repository: OneSignal/sdk-shared
+          ref: main
+          sparse-checkout: |
+            .github/actions/wait-for-maven-artifact
+      - uses: ./.github/actions/wait-for-maven-artifact
+        if: inputs.android_version != ''
+        with:
+          version: ${{ inputs.android_version }}
+
+  versions:
+    needs: [validate-inputs, wait-for-android-artifact]
     runs-on: ubuntu-latest
     outputs:
       capacitor: ${{ steps.versions.outputs.capacitor }}
