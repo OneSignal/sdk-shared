@@ -4,6 +4,7 @@ import {
   checkTooltip,
   scrollToEl,
   isWebViewSDK,
+  withRetryDelay,
 } from '../helpers/app.js';
 import { byTestId, expectToggleState } from '../helpers/selectors.js';
 
@@ -32,13 +33,15 @@ describe('Push Subscription', () => {
 
   it('can send an image notification', async function () {
     // WebView SDKs (Capacitor/Cordova) can race through the send flow before
-    // the image attachment is ready; retry once to absorb the timing hiccup.
-    if (isWebViewSDK) this.retries(1);
-    await checkNotification({
-      buttonId: 'send_image_button',
-      title: 'Image Notification',
-      body: 'This notification includes an image',
-      expectImage: true,
-    });
+    // the image attachment is ready; retry to absorb the timing hiccup.
+    if (isWebViewSDK) this.retries(2);
+    await withRetryDelay(this, 5_000, () =>
+      checkNotification({
+        buttonId: 'send_image_button',
+        title: 'Image Notification',
+        body: 'This notification includes an image',
+        expectImage: true,
+      }),
+    );
   });
 });

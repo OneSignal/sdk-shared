@@ -28,7 +28,7 @@ SYSTEM_PORT="${SYSTEM_PORT:-}"
 SKIP_BUILD=false
 SKIP_DEVICE=false
 SKIP_RESET=false
-SPEC="tests/specs/**/*.spec.ts"
+SPEC=""
 ANDROID_CHANNEL_ID=7ec2ece9-c538-4656-9516-1316f48a005c
 IOS_REAL_DEVICE=false
 UDID="${UDID:-}"
@@ -76,7 +76,7 @@ Options:
                       Supported SDKs: cordova, capacitor, react-native, expo.
   --udid=ID           Physical device UDID (xcrun devicectl list devices).
                       Required by --device-real; also accepted via UDID env.
-  --spec=GLOB         Spec glob (default: tests/specs/**/*.spec.ts)
+  --spec=GLOB         Spec glob (default: all specs grouped into one session)
   -h, --help          Show this help
 
 Env vars (set in .env or export):
@@ -1287,7 +1287,16 @@ run_tests() {
   vp install
 
   local conf="wdio.${PLATFORM}.conf.ts"
-  info "Running tests (conf: $conf, spec: $SPEC)..."
+  # Only forward --spec when the user explicitly overrode it. Passing --spec
+  # to wdio re-expands the glob into one runner per file (~10-30s of session
+  # setup each on iOS) and bypasses the grouped specs in the conf.
+  local -a wdio_args=("$conf")
+  if [[ -n "$SPEC" ]]; then
+    info "Running tests (conf: $conf, spec: $SPEC)..."
+    wdio_args+=(--spec "$SPEC")
+  else
+    info "Running tests (conf: $conf, spec: <conf default>)..."
+  fi
 
   SDK_TYPE="$SDK_TYPE" \
   PLATFORM="$PLATFORM" \
@@ -1302,7 +1311,7 @@ run_tests() {
   UDID="${UDID:-}" \
   XCODE_TEAM_ID="${XCODE_TEAM_ID:-}" \
   XCODE_SIGNING_ID="${XCODE_SIGNING_ID:-}" \
-  vpx wdio run "$conf" --spec "$SPEC"
+  vpx wdio run "${wdio_args[@]}"
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────

@@ -784,7 +784,7 @@ export async function checkNotification(opts: {
   const button = await scrollToEl(opts.buttonId);
 
   // webview goes through flows really quick so need to pause a bit
-  if (isWebViewSDK) await driver.pause(7_500);
+  if (isWebViewSDK) await driver.pause(3_000);
   await button.click();
   await waitForNotification({
     title: opts.title,
@@ -1013,4 +1013,20 @@ export async function checkTooltip(buttonId: string, key: string) {
 
   const okButton = await byTestId('tooltip_ok_button');
   await okButton.click();
+}
+
+export async function withRetryDelay(
+  ctx: Mocha.Context,
+  delayMs: number,
+  fn: () => Promise<void>,
+) {
+  try {
+    await fn();
+  } catch (err) {
+    const t = ctx.test as Mocha.Test & { _retries: number; _currentRetry: number };
+    if ((t._currentRetry ?? 0) < (t._retries ?? 0)) {
+      await browser.pause(delayMs);
+    }
+    throw err;
+  }
 }

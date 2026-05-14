@@ -34,7 +34,7 @@ Options forwarded to run-local.sh:
   --skip-device    Skip simulator/emulator launch
   --skip-reset     Keep existing app data
   --skip           Shortcut for --skip-build --skip-device --skip-reset
-  --spec=GLOB      Spec glob to run (default: full suite)
+  --spec=GLOB      Spec glob to run (default: full suite, grouped into one session)
   -h, --help       Show this help
 
 Exits non-zero if any combo fails. Prints a summary at the end.
