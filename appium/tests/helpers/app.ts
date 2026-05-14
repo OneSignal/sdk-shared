@@ -14,6 +14,7 @@ const tooltipContent = JSON.parse(
 const sdkType = getSdkType();
 export const isWebViewSDK = sdkType === 'capacitor' || sdkType === 'cordova';
 export const isBrowserStack = Boolean(process.env.BROWSERSTACK_USERNAME);
+export const isUnitySDK = sdkType === 'unity';
 const isFlutterSDK = sdkType === 'flutter';
 
 export function isBrowserStackIos(): boolean {
@@ -33,7 +34,13 @@ async function swipeMainContent(direction: 'up' | 'down', distance: 'small' | 'n
   // Coordinates must be integers in WebView contexts (Capacitor/Cordova),
   // where chromedriver enforces W3C `actions` typing strictly. Native
   // UiAutomator2/XCUITest tolerate floats but rounding is harmless there.
-  const centerX = Math.round(width / 2);
+  // Unity (both platforms): anchor in the left section-padding gutter
+  // (x≈10pt; sections pad 16pt). Center-anchored swipes can land
+  // PointerDown on a button and trigger AccessibilityBridge's E2E tap
+  // fallback before the drag generates enough PointerMove distance to
+  // cancel it. Other SDKs route swipes through native scroll containers
+  // that don't dispatch into our element handlers, so center is fine.
+  const swipeX = isUnitySDK ? 10 : Math.round(width / 2);
   const startY = Math.round(direction === 'down' ? height * 0.85 : height * 0.15);
   const endY = Math.round(direction === 'down' ? startY - swipeDistance : startY + swipeDistance);
 
@@ -50,10 +57,10 @@ async function swipeMainContent(direction: 'up' | 'down', distance: 'small' | 'n
   const SWIPE_TIMEOUT_MS = 5_000;
   const action = browser
     .action('pointer', { parameters: { pointerType: 'touch' } })
-    .move({ x: centerX, y: startY })
+    .move({ x: swipeX, y: startY })
     .down()
     .pause(50)
-    .move({ duration: moveDurationMs, x: centerX, y: endY })
+    .move({ duration: moveDurationMs, x: swipeX, y: endY })
     .up()
     .perform();
   let timer: NodeJS.Timeout | undefined;
@@ -107,7 +114,7 @@ export async function scrollToEl(
   // Safety net for `direction: 'up'` and any case where a native fast path
   // didn't land the element. Flutter has no fast path and uses slower swipes
   // (see `swipeMainContent`), so it needs a higher cap.
-  const { direction = 'down', maxScrolls = isFlutterSDK ? 30 : 20 } = opts;
+  const { direction = 'down', maxScrolls = 30 } = opts;
   const platform = getPlatform();
 
   if (isWebViewSDK) {
@@ -117,12 +124,17 @@ export async function scrollToEl(
       (e: HTMLElement) => e.scrollIntoView({ block: 'center', behavior: 'instant' }),
       el,
     );
-    return el;
+    return byTestId(identifier);
   }
 
   // Native fast path: pre-warms the scroll view so the loop below either
-  // returns immediately or has very little work left.
-  if (direction === 'down' && !isFlutterSDK) {
+  // returns immediately or has very little work left. Unity opts out on
+  // both platforms: iOS `mobile: scroll` synthesizes a center-anchored
+  // touch sequence that reproduces the accidental-tap problem we avoid in
+  // `swipeMainContent`, and on Android `UiScrollable` doesn't see UI
+  // Toolkit content rendered into the Unity SurfaceView. Falling through
+  // to the swipe loop costs ~200ms but is reliable.
+  if (direction === 'down' && !isFlutterSDK && !isUnitySDK) {
     if (platform === 'android') {
       await tryNativeScrollAndroid(identifier);
     } else {
@@ -518,13 +530,8 @@ export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
  * Tap the login button, enter an external user ID, and confirm.
  */
 export async function loginUser(externalUserId: string) {
-  const loginButton = await byTestId('login_user_button');
-  await loginButton.click();
-
-  const userIdInput = await byTestId('login_user_id_input');
-  await userIdInput.waitForDisplayed({ timeout: 5_000 });
+  const userIdInput = await openModal('login_user_button', 'login_user_id_input');
   await userIdInput.setValue(externalUserId);
-
   await confirmModal('singleinput_confirm_button');
 }
 
@@ -557,9 +564,71 @@ export async function togglePushEnabled() {
 export async function confirmModal(buttonTestId: string, timeoutMs = 5_000) {
   const btn = await byTestId(buttonTestId);
   await btn.click();
-  // waitForExist refetches by selector each poll; waitForDisplayed would
-  // hit stale-element warnings against the dismissed modal's cached id.
-  await btn.waitForExist({ timeout: timeoutMs, reverse: true });
+}
+
+export async function waitForDisappear(testId: string, timeoutMs = 5_000) {
+  await browser.waitUntil(
+    async () => {
+      const el = await byTestId(testId);
+      return !(await el.isDisplayed().catch(() => false));
+    },
+    {
+      timeout: timeoutMs,
+      timeoutMsg: `Element "${testId}" still displayed after ${timeoutMs}ms`,
+    },
+  );
+}
+
+/**
+ * Tap a button expected to open a modal/dialog and wait for one of its
+ * elements (`expectedTestId`) to appear. Unity UI Toolkit can still be
+ * settling layout/a11y state after scrolls or prior modal teardown, so Unity
+ * waits for the trigger position to stabilize and retries the tap once if
+ * the modal sentinel does not appear. Other SDKs keep the single-tap path.
+ */
+export async function openModal(triggerTestId: string, expectedTestId: string, timeoutMs = 5_000) {
+  const open = async () => {
+    const trigger = await scrollToEl(triggerTestId);
+    if (isUnitySDK) await waitForStablePosition(trigger);
+
+    await trigger.click();
+
+    const expected = await byTestId(expectedTestId);
+    await expected.waitForDisplayed({ timeout: timeoutMs });
+    return expected;
+  };
+
+  if (!isUnitySDK) return open();
+  return retryOnce(open);
+}
+
+async function retryOnce<T>(fn: () => Promise<T>, delayMs = 250): Promise<T> {
+  try {
+    return await fn();
+  } catch {
+    await driver.pause(delayMs);
+    return fn();
+  }
+}
+
+async function waitForStablePosition(
+  el: { getLocation(): Promise<{ x: number; y: number }> },
+  timeoutMs = 1_000,
+  pollMs = 100,
+) {
+  let prev: number | null = null;
+  let stableHits = 0;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const loc = await el.getLocation().catch(() => null);
+    if (loc && prev !== null && Math.abs(loc.y - prev) < 1) {
+      if (++stableHits >= 2) return;
+    } else {
+      stableHits = 0;
+    }
+    prev = loc ? loc.y : null;
+    await driver.pause(pollMs);
+  }
 }
 
 /**
@@ -633,6 +702,13 @@ export async function returnToApp() {
   }
 
   await ensureMainWebViewContext();
+
+  // Bridge invalidates WDA / UiAutomator2 caches in OnApplicationFocus(true);
+  // this poll covers the gap before Unity's player loop dispatches it.
+  if (isUnitySDK) {
+    const root = await byTestId('main_scroll_view');
+    await root.waitForDisplayed({ timeout: 3_000 });
+  }
 }
 
 /**
@@ -917,18 +993,13 @@ async function switchToIAMWebView(expectedTitle: string, timeoutMs: number) {
 }
 
 /**
- * The first tap on a freshly-scrolled IAM trigger button on Flutter is
- * intermittently dropped: the driver reports the tap delivered, but the
- * onPressed never fires -- most likely intercepted by a leftover OneSignal
- * IAM container window from the previous IAM, which outlives
- * `isWebViewVisible() === false`. The button itself stays tappable, so if
- * no WebView appears in 2.5s we re-fetch the handle and tap again.
- * Banners normally render well under 1.1s, so the gate is only paid on
- * the (rarer) miss path.
+ * The first tap is intermittently swallowed on iOS (all SDKs) and on
+ * Flutter Android by a leftover IAM container window. If no WebView
+ * appears in 2.5s, re-tap. Native Android (non-Flutter) doesn't need this.
  */
 async function tapIamTrigger(buttonId: string) {
   await (await scrollToEl(buttonId)).click();
-  if (!isFlutterSDK) return;
+  if (getPlatform() === 'android' && !isFlutterSDK) return;
   try {
     await driver.waitUntil(() => isWebViewVisible(), { timeout: 2_500 });
   } catch {
@@ -967,6 +1038,17 @@ export async function checkInAppMessage(opts: {
       timeout: 15_000,
       timeoutMsg: 'IAM webview still visible after closing',
     });
+    // The IAM container UIView hosting the WKWebView can outlive the WebView
+    // itself by a few hundred ms (dismiss animation), intercepting both
+    // accessibility hit-tests and pointer events. Wait for the home-screen
+    // scroll view to become hit-testable again before returning, so the next
+    // step's swipes/queries don't race the teardown.
+    if (!isWebViewSDK) {
+      const main = await byTestId('main_scroll_view');
+      await main.waitForDisplayed({ timeout: timeoutMs }).catch(() => {
+        /* best-effort; caller will surface real failure */
+      });
+    }
   }
   await ensureMainWebViewContext();
 }
@@ -999,12 +1081,7 @@ export async function expectSnackbar(text: string, timeoutMs = 5_000) {
 
 export async function checkTooltip(buttonId: string, key: string) {
   const tooltip = tooltipContent[key];
-
-  const infoIcon = await scrollToEl(buttonId);
-  await infoIcon.click();
-
-  const titleEl = await byTestId('tooltip_title');
-  await titleEl.waitForDisplayed({ timeout: 5_000 });
+  const titleEl = await openModal(buttonId, 'tooltip_title');
   const title = await titleEl.getText();
   expect(title).toBe(tooltip.title);
 
@@ -1014,23 +1091,18 @@ export async function checkTooltip(buttonId: string, key: string) {
 
   const okButton = await byTestId('tooltip_ok_button');
   await okButton.click();
+  await waitForDisappear('tooltip_ok_button');
 }
 
-export async function withRetryDelay(
-  ctx: Mocha.Context,
-  delayMs: number,
-  fn: () => Promise<void>,
-) {
+export async function withRetryDelay(ctx: Mocha.Context, delayMs: number, fn: () => Promise<void>) {
   try {
     await fn();
   } catch (err) {
+    const testTitle = ctx.test?.fullTitle() ?? 'unknown test';
+    console.warn(`Retrying for "${testTitle}"...`);
     const currentRetry: unknown = ctx.test ? Reflect.get(ctx.test, '_currentRetry') : 0;
     const retries: unknown = ctx.test ? Reflect.get(ctx.test, '_retries') : 0;
-    if (
-      typeof currentRetry === 'number' &&
-      typeof retries === 'number' &&
-      currentRetry < retries
-    ) {
+    if (typeof currentRetry === 'number' && typeof retries === 'number' && currentRetry < retries) {
       await browser.pause(delayMs);
     }
     throw err;

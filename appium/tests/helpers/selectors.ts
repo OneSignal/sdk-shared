@@ -194,33 +194,27 @@ export function getSdkType(): SdkType {
   );
 }
 
-/**
- * On Flutter Android, two interactions need shimming:
- *
- *   - `getText()` often returns empty because Flutter writes its text into the
- *     `content-desc` / `text` attributes rather than the property UiAutomator2's
- *     getText maps to. We fall back to those attributes.
- *   - `setValue()` doesn't focus the field first because Flutter renders inputs
- *     to a Skia canvas with Semantics shims (no native EditText), so W3C
- *     "send keys" lands without an IME binding and the keystrokes get dropped.
- *     We tap the element first to bind the IME, then forward to setValue.
- *
- * iOS XCUITest doesn't hit either problem in practice.
- */
-function withFlutterAndroidFixes<
-  T extends {
-    getText(): Promise<string>;
-    setValue(value: string): Promise<void>;
-    click(): Promise<void>;
-  },
->(el: T): T {
-  if (!(getPlatform() === 'android' && getSdkType() === 'flutter')) {
+type ElementWithInteractionMethods = {
+  click(): Promise<void>;
+  getAttribute(name: string): Promise<string | null>;
+  getLocation(): Promise<{ x: number; y: number }>;
+  getSize(): Promise<{ width: number; height: number }>;
+  getText(): Promise<string>;
+  setValue(value: string): Promise<void>;
+};
+
+// Centralized element shims: Unity gets raw center taps, while Flutter Android
+// keeps its text fallback and focus-before-setValue behavior.
+function withElementInteractionFixes<T extends ElementWithInteractionMethods>(el: T): T {
+  const isFlutterAndroid = getPlatform() === 'android' && getSdkType() === 'flutter';
+  const isUnity = getSdkType() === 'unity';
+  if (!isFlutterAndroid && !isUnity) {
     return el;
   }
 
   return new Proxy(el, {
     get(target, prop, receiver) {
-      if (prop === 'getText') {
+      if (prop === 'getText' && isFlutterAndroid) {
         return async () => {
           const text = (await target.getText()).trim();
           if (text) return text;
@@ -228,11 +222,7 @@ function withFlutterAndroidFixes<
           const attrs = ['content-desc', 'contentDescription', 'text', 'name'];
           for (const attr of attrs) {
             try {
-              const val = (
-                await (
-                  target as unknown as { getAttribute(n: string): Promise<string | null> }
-                ).getAttribute(attr)
-              )?.trim();
+              const val = (await target.getAttribute(attr))?.trim();
               if (val) return val;
             } catch {
               /* best-effort */
@@ -243,7 +233,7 @@ function withFlutterAndroidFixes<
         };
       }
 
-      if (prop === 'setValue') {
+      if (prop === 'setValue' && isFlutterAndroid) {
         return async (value: string) => {
           await target.click();
           await target.setValue(value);
@@ -281,12 +271,13 @@ export async function byTestId(id: string) {
   const platform = getPlatform();
 
   if (sdkType === 'capacitor' || sdkType === 'cordova') return $(`[data-testid="${id}"]`);
+  // Resolve the chainable first so awaiting the Proxy doesn't unwrap past it.
   if (platform === 'android') {
-    let el = await $(`id=${id}`);
-    if (sdkType === 'flutter') return withFlutterAndroidFixes(el);
-    return el;
+    const el = await $(`id=${id}`);
+    return withElementInteractionFixes(el);
   }
-  return $(`~${id}`);
+  const el = await $(`~${id}`);
+  return withElementInteractionFixes(el);
 }
 
 /**
@@ -306,7 +297,8 @@ export async function byText(identifier: string, partial = false) {
       const xpath = partial
         ? `//*[contains(@content-desc, "${identifier}") or contains(@text, "${identifier}")]`
         : `//*[@content-desc="${identifier}" or @text="${identifier}"]`;
-      return withFlutterAndroidFixes(await $(xpath));
+      const el = await $(xpath);
+      return withElementInteractionFixes(el);
     }
     return partial
       ? $(`android=new UiSelector().textContains("${identifier}")`)

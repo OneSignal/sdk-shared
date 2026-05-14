@@ -24,6 +24,7 @@ error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 APPIUM_PORT="${APPIUM_PORT:-4723}"
+WDA_LOCAL_PORT="${WDA_LOCAL_PORT:-}"
 SYSTEM_PORT="${SYSTEM_PORT:-}"
 SKIP_BUILD=false
 SKIP_DEVICE=false
@@ -42,6 +43,7 @@ for arg in "$@"; do
     --device-real)    IOS_REAL_DEVICE=true; SKIP_DEVICE=true ;;
     --udid=*)         UDID="${arg#--udid=}" ;;
     --appium-port=*)  APPIUM_PORT="${arg#--appium-port=}" ;;
+    --wda-local-port=*) WDA_LOCAL_PORT="${arg#--wda-local-port=}" ;;
     --system-port=*)  SYSTEM_PORT="${arg#--system-port=}" ;;
     --skip)           SKIP_BUILD=true; SKIP_DEVICE=true; SKIP_RESET=true ;;
     --skip-build)     SKIP_BUILD=true ;;
@@ -60,7 +62,7 @@ via flags or env vars.
 
 Options:
   --platform=P        ios | android
-  --sdk=S             flutter | react-native | cordova | capacitor | dotnet | expo
+  --sdk=S             flutter | react-native | cordova | capacitor | dotnet | expo | unity
   --device=NAME       Device/simulator/AVD name (default: iPhone 17 / Samsung Galaxy S26)
   --appium-port=N     Appium server port (default: 4723). Use unique values when
                       running multiple sessions in parallel on the same host.
@@ -92,10 +94,15 @@ Env vars (set in .env or export):
   DOTNET_DIR         .NET MAUI SDK repo root (default: ../../DotNet/OneSignal-DotNet-SDK)
   DOTNET_TFM         .NET target framework moniker base (default: net10.0)
   DOTNET_ANDROID_ABI .NET Android ABI to pack (default: host arch)
+  UNITY_DIR          Unity SDK repo root (default: ../../OneSignal-Unity-SDK)
+  UNITY_PATH         Path to Unity Editor binary
+                     (default: /Applications/Unity/Hub/Editor/6000.4.6f1/Unity.app/Contents/MacOS/Unity)
+  UNITY_IOS_SIM_ARCH Unity iOS simulator arch (default: host arch)
   OS_VERSION         Platform version (default: 26.2 / 16)
   IOS_SIMULATOR      iOS simulator name (default: iPhone 17)
   IOS_RUNTIME        simctl runtime id (default: iOS-26-2)
   APPIUM_PORT        Appium port (default: 4723; same as --appium-port)
+  WDA_LOCAL_PORT     WebDriverAgent local port for iOS parallel runs
   SYSTEM_PORT        UiAutomator2 systemPort (same as --system-port)
   UDID               Physical device UDID (same as --udid; required with
                      --device-real)
@@ -113,6 +120,7 @@ done
 
 # Ensure values set via CLI flags propagate to wdio (which reads them as env).
 export APPIUM_PORT
+[[ -n "$WDA_LOCAL_PORT" ]] && export WDA_LOCAL_PORT
 [[ -n "$SYSTEM_PORT" ]] && export SYSTEM_PORT
 
 # ── Prompt for required vars if not set ───────────────────────────────────────
@@ -145,7 +153,7 @@ prompt_choice() {
 }
 
 prompt_choice PLATFORM "Select platform:" ios android
-prompt_choice SDK_TYPE "Select SDK type:" flutter react-native cordova capacitor dotnet expo
+prompt_choice SDK_TYPE "Select SDK type:" flutter react-native cordova capacitor dotnet expo unity
 
 case "$PLATFORM" in
   ios|android) ;;
@@ -153,8 +161,8 @@ case "$PLATFORM" in
 esac
 
 case "$SDK_TYPE" in
-  flutter|react-native|cordova|capacitor|dotnet|expo) ;;
-  *) error "SDK_TYPE must be 'flutter', 'react-native', 'cordova', 'capacitor', 'dotnet', or 'expo', got '$SDK_TYPE'" ;;
+  flutter|react-native|cordova|capacitor|dotnet|expo|unity) ;;
+  *) error "SDK_TYPE must be 'flutter', 'react-native', 'cordova', 'capacitor', 'dotnet', 'expo', or 'unity', got '$SDK_TYPE'" ;;
 esac
 
 # ── Real-device validation + signing setup ────────────────────────────────────
@@ -262,6 +270,28 @@ elif [[ "$SDK_TYPE" == "dotnet" ]]; then
       *) error "Unsupported host arch for .NET Android build: $(uname -m)" ;;
     esac
     APP_PATH="${APP_PATH:-$DEMO_DIR/bin/Debug/${DOTNET_TFM}-android/com.onesignal.example-Signed.apk}"
+  fi
+elif [[ "$SDK_TYPE" == "unity" ]]; then
+  UNITY_DIR="${UNITY_DIR:-$SDK_ROOT/OneSignal-Unity-SDK}"
+  [[ -d "$UNITY_DIR" ]] || error "Unity SDK not found at $UNITY_DIR — set UNITY_DIR in .env"
+  DEMO_DIR="$UNITY_DIR/examples/demo"
+  UNITY_PATH="${UNITY_PATH:-/Applications/Unity/Hub/Editor/6000.4.6f1/Unity.app/Contents/MacOS/Unity}"
+  if [[ "$PLATFORM" == "ios" ]]; then
+    # Match the host arch so Apple Silicon hosts run the sim natively instead
+    # of going through Rosetta. UNITY_IOS_SIM_ARCH still wins as an override.
+    case "$(uname -m)" in
+      arm64) UNITY_IOS_SIM_ARCH="${UNITY_IOS_SIM_ARCH:-arm64}" ;;
+      x86_64) UNITY_IOS_SIM_ARCH="${UNITY_IOS_SIM_ARCH:-x86_64}" ;;
+      *) error "Unsupported host arch for Unity iOS sim build: $(uname -m)" ;;
+    esac
+    # Unity batchmode emits an Xcode project under Build/iOS named
+    # `Unity-iPhone.xcodeproj` (a fixed Unity convention), but the *product*
+    # name is configured to `OneSignalDemo` in Player Settings, so xcodebuild
+    # produces `OneSignalDemo.app`. Scope the derived-data dir by arch so an
+    # arch flip doesn't return a stale wrong-arch binary from the cache.
+    APP_PATH="${APP_PATH:-$DEMO_DIR/Build/iOS-DerivedData-${UNITY_IOS_SIM_ARCH}/Build/Products/ReleaseForRunning-iphonesimulator/OneSignalDemo.app}"
+  else
+    APP_PATH="${APP_PATH:-$DEMO_DIR/Build/Android/onesignal-demo.apk}"
   fi
 fi
 
@@ -1069,6 +1099,248 @@ build_dotnet_android() {
   info "App built: $APP_PATH"
 }
 
+write_unity_demo_env() {
+  if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
+    info "Writing .env for demo app..."
+    cat > "$DEMO_DIR/.env" <<EOF
+ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
+ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
+E2E_MODE=true
+EOF
+    # DotEnv loads from Application.streamingAssetsPath/.env in the built
+    # player; the demo's project-root .env is only read in the editor.
+    # Copy in lockstep so the built .app/.apk has the same E2E_MODE flag,
+    # which the AccessibilityBridge gates on.
+    mkdir -p "$DEMO_DIR/Assets/StreamingAssets"
+    cp "$DEMO_DIR/.env" "$DEMO_DIR/Assets/StreamingAssets/.env"
+  else
+    warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — skipping demo .env"
+  fi
+}
+
+# Hash any source/asset/config file under the given roots that can affect the
+# compiled .app/.apk for a Unity build. Mirrors `dotnet_hash_paths` in spirit:
+# centralised so SDK and demo hashes stay in sync. Skips Unity-managed caches
+# (Library/, Temp/, Build/, Logs/) and editor-private dirs (UserSettings/,
+# *~ doc/sample folders Unity excludes from imports).
+unity_hash_paths() {
+  # Unity projects routinely have spaces in paths (e.g. "Build Profiles/"),
+  # so we use NUL-delimited find/xargs throughout. Sorting the per-file
+  # shasum output (rather than the input list) keeps results deterministic
+  # without needing a `sort -z`-capable host.
+  find "$@" \
+       -type f \
+       ! -path "*/Library/*" \
+       ! -path "*/Temp/*" \
+       ! -path "*/Build/*" \
+       ! -path "*/Logs/*" \
+       ! -path "*/UserSettings/*" \
+       ! -path "*/Documentation~/*" \
+       ! -path "*/Samples~/*" \
+       \( -name "*.cs" -o -name "*.asmdef" -o -name "*.asmref" \
+          -o -name "*.meta" -o -name "*.json" -o -name "*.xml" \
+          -o -name "*.plist" -o -name "*.strings" \
+          -o -name "*.h" -o -name "*.m" -o -name "*.mm" -o -name "*.swift" \
+          -o -name "*.java" \
+          -o -name "*.a" -o -name "*.aar" -o -name "*.jar" \
+          -o -name "*.so" -o -name "*.dll" -o -name "*.dylib" \
+          -o -name "*.uxml" -o -name "*.uss" -o -name "*.unity" \
+          -o -name "*.prefab" -o -name "*.asset" -o -name "*.mat" \
+          -o -name "*.shader" -o -name "*.png" -o -name "*.jpg" \
+          -o -name "*.txt" -o -name ".env" \) \
+       -print0 2>/dev/null \
+       | xargs -0 shasum 2>/dev/null \
+       | sort \
+       | shasum \
+       | awk '{print $1}'
+}
+
+# SDK package roots for a given platform. The Unity SDK rarely changes during
+# day-to-day demo work, so we hash and fold it into the demo hash so SDK edits
+# still cascade-invalidate the cached build artifact.
+unity_sdk_paths() {
+  local platform="$1"  # ios | android
+  echo "$UNITY_DIR/com.onesignal.unity.core"
+  if [[ "$platform" == "ios" ]]; then
+    echo "$UNITY_DIR/com.onesignal.unity.ios"
+  else
+    echo "$UNITY_DIR/com.onesignal.unity.android"
+  fi
+}
+
+unity_sdk_inputs_hash() {
+  local platform="$1"
+  local roots=()
+  while IFS= read -r p; do roots+=("$p"); done < <(unity_sdk_paths "$platform")
+  unity_hash_paths "${roots[@]}"
+}
+
+# Demo hash folds in the SDK hash so an SDK edit busts the demo cache too.
+unity_demo_inputs_hash() {
+  local sdk_hash="$1"
+  local demo_hash
+  demo_hash=$(unity_hash_paths "$DEMO_DIR/Assets" "$DEMO_DIR/Packages" \
+                               "$DEMO_DIR/ProjectSettings")
+  # Fold the demo .env in separately — `unity_hash_paths` only finds it when
+  # passed as a directory glob, but here we want the file hash if it exists.
+  local env_hash=""
+  [[ -f "$DEMO_DIR/.env" ]] && env_hash=$(shasum < "$DEMO_DIR/.env" | awk '{print $1}')
+  printf '%s\n%s\n%s\n' "$sdk_hash" "$demo_hash" "$env_hash" | shasum | awk '{print $1}'
+}
+
+unity_build_is_cached() {
+  local stamp="$1" artifact="$2" hash="$3"
+  [[ -e "$artifact" ]] || return 1
+  [[ -f "$stamp" ]] || return 1
+  [[ "$(cat "$stamp")" == "$hash" ]] || return 1
+  return 0
+}
+
+unity_failure_hint() {
+  local log="$1"
+  echo "Unity exited non-zero (see $log)."
+  echo ""
+
+  # Surface the actual reason from the log instead of guessing. Order
+  # matters: check most-specific patterns first.
+  if grep -q "No valid Unity Editor license found" "$log" 2>/dev/null; then
+    cat <<EOF
+Cause: no active Unity Editor license. Open Unity Hub → Preferences →
+Licenses, sign in with your Unity ID, and activate a Personal/Pro license.
+EOF
+  elif grep -q "another Unity instance is running" "$log" 2>/dev/null; then
+    cat <<EOF
+Cause: another Unity Editor instance has the project open. Close it
+(only one process can hold the project lock) then re-run.
+EOF
+  elif grep -q "Scripts have compiler errors" "$log" 2>/dev/null; then
+    echo "Cause: C# compile error. First few errors from the log:"
+    grep -E "error CS[0-9]+:|error:" "$log" 2>/dev/null | head -5 | sed 's/^/  /'
+  else
+    echo "See the log above for details."
+  fi
+}
+
+build_unity_ios() {
+  write_unity_demo_env
+
+  [[ -x "$UNITY_PATH" ]] || error "Unity Editor not found at $UNITY_PATH — set UNITY_PATH in .env"
+
+  # Top-level skip: if neither the demo nor the SDK changed and the .app is
+  # still on disk, both stages (Unity batchmode 5-10min + xcodebuild 1-2min)
+  # would otherwise reproduce identical output. Skip the whole thing.
+  local sdk_hash demo_hash
+  sdk_hash=$(unity_sdk_inputs_hash ios)
+  demo_hash=$(unity_demo_inputs_hash "$sdk_hash")
+
+  local stamp="$DEMO_DIR/Build/.unity-build-ios-${UNITY_IOS_SIM_ARCH}.stamp"
+  if unity_build_is_cached "$stamp" "$APP_PATH" "$demo_hash"; then
+    info "Unity SDK + demo source unchanged, skipping iOS rebuild"
+    info "App: $APP_PATH"
+    return
+  fi
+
+  local xcode_dir="$DEMO_DIR/Build/iOS"
+  local derived="$DEMO_DIR/Build/iOS-DerivedData-${UNITY_IOS_SIM_ARCH}"
+  local log="$DEMO_DIR/Build/build-ios.log"
+  mkdir -p "$xcode_dir"
+
+  info "Generating Xcode project from Unity (batchmode, log: $log)..."
+  if ! "$UNITY_PATH" -batchmode -nographics -quit -buildTarget iOS \
+        -projectPath "$DEMO_DIR" -executeMethod BuildScript.BuildiOSSimulator \
+        -logFile "$log"; then
+    unity_failure_hint "$log" >&2
+    error "Unity batchmode build failed"
+  fi
+
+  [[ -d "$xcode_dir/Unity-iPhone.xcodeproj" ]] || error "Unity build produced no Xcode project — see $log"
+
+  if [[ -f "$xcode_dir/Podfile" ]]; then
+    local lock="$xcode_dir/Podfile.lock"
+    local pod_stamp="$derived/.podfile.lock.stamp"
+    if [[ ! -f "$lock" ]] || [[ ! -f "$pod_stamp" ]] || ! cmp -s "$lock" "$pod_stamp"; then
+      info "Installing CocoaPods..."
+      (cd "$xcode_dir" && pod install)
+      mkdir -p "$(dirname "$pod_stamp")"
+      cp "$lock" "$pod_stamp" 2>/dev/null || true
+    else
+      info "Pods up to date, skipping pod install"
+    fi
+  fi
+
+  local ws="$xcode_dir/Unity-iPhone.xcworkspace"
+  info "Building release .app for simulator..."
+  local target_args
+  if [[ -d "$ws" ]]; then
+    target_args=(-workspace "$ws")
+  else
+    target_args=(-project "$xcode_dir/Unity-iPhone.xcodeproj")
+  fi
+
+  xcodebuild \
+    "${target_args[@]}" \
+    -scheme Unity-iPhone \
+    -configuration ReleaseForRunning \
+    -sdk iphonesimulator \
+    -derivedDataPath "$derived" \
+    -quiet \
+    ONLY_ACTIVE_ARCH=YES \
+    ARCHS="$UNITY_IOS_SIM_ARCH" \
+    CODE_SIGN_IDENTITY="-" \
+    CODE_SIGNING_ALLOWED=YES \
+    build
+
+  if [[ ! -d "$APP_PATH" ]]; then
+    # Fallback: Unity's product name (and thus the .app filename) is set in
+    # Player Settings, so it can drift from our default. Search the derived
+    # data Products dir for any .app, prefer ReleaseForRunning-iphonesimulator/.
+    local found
+    found=$(find "$derived/Build/Products/ReleaseForRunning-iphonesimulator" \
+                 -maxdepth 1 -name "*.app" -not -name "*.appex" 2>/dev/null | head -1)
+    [[ -z "$found" ]] && found=$(find "$derived" -path "*/Build/Products/*" \
+                                      -maxdepth 5 -name "*.app" \
+                                      -not -name "*.appex" 2>/dev/null | head -1)
+    [[ -n "$found" ]] || error ".app not found anywhere under $derived"
+    APP_PATH="$found"
+  fi
+  mkdir -p "$(dirname "$stamp")"
+  echo "$demo_hash" > "$stamp"
+  info "App built: $APP_PATH"
+}
+
+build_unity_android() {
+  write_unity_demo_env
+
+  [[ -x "$UNITY_PATH" ]] || error "Unity Editor not found at $UNITY_PATH — set UNITY_PATH in .env"
+
+  local sdk_hash demo_hash
+  sdk_hash=$(unity_sdk_inputs_hash android)
+  demo_hash=$(unity_demo_inputs_hash "$sdk_hash")
+
+  local stamp="$DEMO_DIR/Build/.unity-build-android.stamp"
+  if unity_build_is_cached "$stamp" "$APP_PATH" "$demo_hash"; then
+    info "Unity SDK + demo source unchanged, skipping Android rebuild"
+    info "App: $APP_PATH"
+    return
+  fi
+
+  local log="$DEMO_DIR/Build/build-android.log"
+  mkdir -p "$DEMO_DIR/Build/Android"
+
+  info "Building APK from Unity (batchmode, log: $log)..."
+  if ! "$UNITY_PATH" -batchmode -nographics -quit -buildTarget Android \
+        -projectPath "$DEMO_DIR" -executeMethod BuildScript.BuildAndroidEmulator \
+        -logFile "$log"; then
+    unity_failure_hint "$log" >&2
+    error "Unity batchmode build failed"
+  fi
+
+  [[ -f "$APP_PATH" ]] || error ".apk not found after build at $APP_PATH — see $log"
+  mkdir -p "$(dirname "$stamp")"
+  echo "$demo_hash" > "$stamp"
+  info "App built: $APP_PATH"
+}
+
 build_app() {
   if [[ "$SKIP_BUILD" == true ]]; then
     if [[ "$PLATFORM" == "ios" && ! -d "$APP_PATH" ]] || [[ "$PLATFORM" == "android" && ! -f "$APP_PATH" ]]; then
@@ -1114,11 +1386,32 @@ build_app() {
     else
       build_expo_android
     fi
+  elif [[ "$SDK_TYPE" == "unity" ]]; then
+    if [[ "$PLATFORM" == "ios" ]]; then
+      build_unity_ios
+    else
+      build_unity_android
+    fi
   fi
 }
 
 # ── 2. Start device ──────────────────────────────────────────────────────────
 start_ios_simulator() {
+  if [[ -n "$UDID" ]]; then
+    if xcrun simctl list devices booted 2>/dev/null | grep -q "$UDID"; then
+      info "Simulator already running ($UDID)"
+      return
+    fi
+
+    info "Booting simulator '${IOS_SIMULATOR}' ($UDID)..."
+    xcrun simctl boot "$UDID" 2>/dev/null || true
+    open -a Simulator
+    info "Waiting for simulator..."
+    xcrun simctl bootstatus "$UDID" -b >/dev/null
+    info "Simulator ready"
+    return
+  fi
+
   if xcrun simctl list devices booted 2>/dev/null | grep -q "Booted"; then
     info "Simulator already running"
     return
@@ -1224,11 +1517,26 @@ start_device() {
 }
 
 # ── 2. Start Appium ──────────────────────────────────────────────────────────
+# Free port 8100 when a previous run left WDA bound to it. Scoped to the
+# actual port-holder (not a broad pkill -f) so unrelated WDA sessions or
+# other Xcode UI tests on the same host aren't collateral damage. Prevents
+# the cascading "Address already in use" → `xcodebuild exited with code 65`
+# → wdio "Unable to start WebDriverAgent session" failure mode.
+cleanup_stale_wda() {
+  [[ "$PLATFORM" == "ios" ]] || return 0
+  local port="${WDA_LOCAL_PORT:-8100}"
+  local pids
+  pids=$(lsof -ti tcp:"$port" 2>/dev/null || true)
+  [[ -n "$pids" ]] && kill -9 $pids 2>/dev/null || true
+}
+
 start_appium() {
   if curl -s "http://localhost:$APPIUM_PORT/status" | grep -q '"ready":true' 2>/dev/null; then
     info "Appium already running on port $APPIUM_PORT"
     return
   fi
+
+  cleanup_stale_wda
 
   info "Starting Appium on port $APPIUM_PORT..."
   appium --port "$APPIUM_PORT" --log-level error &
@@ -1259,11 +1567,14 @@ reset_app() {
     if [[ "$IOS_REAL_DEVICE" == true ]]; then
       info "Uninstalling $bundle from device $UDID..."
       xcrun devicectl device uninstall app --device "$UDID" "$bundle" 2>/dev/null || true
-    elif xcrun simctl listapps booted 2>/dev/null | grep -q "$bundle"; then
-      info "Uninstalling $bundle..."
-      xcrun simctl uninstall booted "$bundle" 2>/dev/null || true
     else
-      info "App not installed — nothing to reset"
+      local sim_target="${UDID:-booted}"
+      if xcrun simctl listapps "$sim_target" 2>/dev/null | grep -q "$bundle"; then
+        info "Uninstalling $bundle..."
+        xcrun simctl uninstall "$sim_target" "$bundle" 2>/dev/null || true
+      else
+        info "App not installed — nothing to reset"
+      fi
     fi
   else
     local package="${BUNDLE_ID:-}"
@@ -1292,6 +1603,14 @@ run_tests() {
   # setup each on iOS) and bypasses the grouped specs in the conf.
   local -a wdio_args=("$conf")
   if [[ -n "$SPEC" ]]; then
+    # Normalize bare fragments like `--spec=12_` into a recursive glob so
+    # wdio's ConfigParser globs to a real file instead of substring-matching
+    # the conf's specs array and emitting "pattern X did not match any file".
+    # Pre-existing paths and globs pass through untouched.
+    case "$SPEC" in
+      */*|*\**|*\?*|*\[*) ;;
+      *) [[ -e "$SPEC" ]] || SPEC="**/${SPEC}*.spec.ts" ;;
+    esac
     info "Running tests (conf: $conf, spec: $SPEC)..."
     wdio_args+=(--spec "$SPEC")
   else
@@ -1307,6 +1626,7 @@ run_tests() {
   ONESIGNAL_APP_ID="${ONESIGNAL_APP_ID:-}" \
   ONESIGNAL_API_KEY="${ONESIGNAL_API_KEY:-}" \
   APPIUM_PORT="$APPIUM_PORT" \
+  WDA_LOCAL_PORT="${WDA_LOCAL_PORT:-}" \
   SYSTEM_PORT="${SYSTEM_PORT:-}" \
   UDID="${UDID:-}" \
   XCODE_TEAM_ID="${XCODE_TEAM_ID:-}" \

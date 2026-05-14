@@ -1,4 +1,4 @@
-import { checkTooltip, confirmModal, scrollToEl, waitForAppReady } from '../helpers/app';
+import { checkTooltip, confirmModal, openModal, scrollToEl, waitForAppReady } from '../helpers/app';
 import { byTestId, getTestData } from '../helpers/selectors.js';
 
 describe('SMS', () => {
@@ -14,11 +14,7 @@ describe('SMS', () => {
   it('can add and remove sms', async () => {
     const { sms } = getTestData();
 
-    const addButton = await scrollToEl('add_sms_button');
-    await addButton.click();
-
-    const smsInput = await byTestId('sms_input');
-    await smsInput.waitForDisplayed({ timeout: 5_000 });
+    const smsInput = await openModal('add_sms_button', 'sms_input');
     await smsInput.setValue(sms);
 
     await confirmModal('singleinput_confirm_button');

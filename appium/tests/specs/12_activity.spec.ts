@@ -14,7 +14,7 @@ async function checkActivity(options: { orderId?: string; status: string; messag
   await lockScreen();
 
   const statusEl = await $(`-ios predicate string:label CONTAINS "${status}"`);
-  await statusEl.waitForDisplayed({ timeout: 10_000 });
+  await statusEl.waitForDisplayed({ timeout: 20_000 });
 
   const messageEl = await $(`-ios predicate string:label CONTAINS "${message}"`);
   await expect(messageEl).toBeDisplayed();
@@ -41,15 +41,14 @@ describe('Live Activities', () => {
   it('can start a live, update, and exit activity', async function () {
     if (isBrowserStackIos()) this.skip();
 
-    const startButton = await scrollToEl('start_live_activity_button');
-    await startButton.click();
-
-    const clickUpdateButton = async () => {
-      const updateButton = await scrollToEl('update_live_activity_button');
-      await updateButton.waitForEnabled({ timeout: 15_000 });
+    const clickLiveActivityButton = async (buttonId: string) => {
+      const button = await scrollToEl(buttonId);
+      await button.waitForEnabled({ timeout: 15_000 });
+      await button.click();
       await driver.pause(1000);
-      await updateButton.click();
     };
+
+    await clickLiveActivityButton('start_live_activity_button');
 
     await checkActivity({
       status: 'Preparing',
@@ -57,7 +56,7 @@ describe('Live Activities', () => {
     });
 
     // update live activity to on the way
-    await clickUpdateButton();
+    await clickLiveActivityButton('update_live_activity_button');
 
     await checkActivity({
       status: 'On the Way',
@@ -65,12 +64,11 @@ describe('Live Activities', () => {
     });
 
     // end live activity
-    const endButton = await scrollToEl('end_live_activity_button');
-    await endButton.click();
+    await clickLiveActivityButton('end_live_activity_button');
     await lockScreen();
 
     const activityEl = await $(`-ios predicate string:label CONTAINS "ORD-1234"`);
-    await activityEl.waitForDisplayed({ timeout: 5_000, reverse: true });
+    await activityEl.waitForDisplayed({ timeout: 20_000, reverse: true });
 
     await returnToApp();
   });

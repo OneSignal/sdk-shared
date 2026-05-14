@@ -2,8 +2,10 @@ import {
   checkTooltip,
   confirmModal,
   expectPairInSection,
+  openModal,
   scrollToEl,
   waitForAppReady,
+  waitForDisappear,
 } from '../helpers/app';
 import { byTestId } from '../helpers/selectors.js';
 
@@ -22,12 +24,7 @@ describe('Tags', () => {
   });
 
   it('can add and remove a tag', async () => {
-    const addButton = await scrollToEl('add_tag_button');
-    await addButton.click();
-
-    // add tag
-    const keyInput = await byTestId('tag_key_input');
-    await keyInput.waitForDisplayed({ timeout: 5_000 });
+    const keyInput = await openModal('add_tag_button', 'tag_key_input');
     await keyInput.setValue('test_tag');
 
     const valueInput = await byTestId('tag_value_input');
@@ -41,17 +38,11 @@ describe('Tags', () => {
     const removeButton = await byTestId(`tags_remove_test_tag`);
     await removeButton.click();
 
-    const el = await byTestId('tags_pair_key_test_tag');
-    await el.waitForDisplayed({ timeout: 5_000, reverse: true });
+    await waitForDisappear('tags_pair_key_test_tag');
   });
 
   it('can add and remove multiple tags', async () => {
-    const addButton = await scrollToEl('add_multiple_tags_button');
-    await addButton.click();
-
-    // add tags
-    const key0 = await byTestId('multipair_key_0');
-    await key0.waitForDisplayed({ timeout: 5_000 });
+    const key0 = await openModal('add_multiple_tags_button', 'multipair_key_0');
     await key0.setValue('test_tag_2');
 
     const value0 = await byTestId('multipair_value_0');
@@ -72,12 +63,7 @@ describe('Tags', () => {
     await expectPairInSection('tags', 'test_tag_2', 'test_tag_value_2');
     await expectPairInSection('tags', 'test_tag_3', 'test_tag_value_3');
 
-    // remove tags
-    const removeButton = await scrollToEl('remove_tags_button');
-    await removeButton.click();
-
-    const tag2Checkbox = await byTestId('remove_checkbox_test_tag_2');
-    await tag2Checkbox.waitForDisplayed({ timeout: 5_000 });
+    const tag2Checkbox = await openModal('remove_tags_button', 'remove_checkbox_test_tag_2');
     await tag2Checkbox.click();
 
     const tag3Checkbox = await byTestId('remove_checkbox_test_tag_3');
@@ -87,9 +73,7 @@ describe('Tags', () => {
 
     // wait for tags to be removed
     await scrollToEl('tags_section', { direction: 'up' });
-    const tag2El = await byTestId('tags_pair_key_test_tag_2');
-    const tag3El = await byTestId('tags_pair_key_test_tag_3');
-    await tag2El.waitForDisplayed({ timeout: 5_000, reverse: true });
-    await tag3El.waitForDisplayed({ timeout: 5_000, reverse: true });
+    await waitForDisappear('tags_pair_key_test_tag_2');
+    await waitForDisappear('tags_pair_key_test_tag_3');
   });
 });

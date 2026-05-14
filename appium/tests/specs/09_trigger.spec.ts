@@ -2,16 +2,15 @@ import {
   checkTooltip,
   confirmModal,
   expectPairInSection,
+  openModal,
   scrollToEl,
   waitForAppReady,
+  waitForDisappear,
 } from '../helpers/app';
 import { byTestId } from '../helpers/selectors.js';
 
 async function addMultipleTriggers() {
-  const addButton = await scrollToEl('add_multiple_triggers_button');
-  await addButton.click();
-
-  const addRowButton = await byTestId('multipair_add_row_button');
+  const addRowButton = await openModal('add_multiple_triggers_button', 'multipair_add_row_button');
   await addRowButton.click();
 
   const key0 = await byTestId('multipair_key_0');
@@ -48,12 +47,9 @@ describe('Triggers', () => {
   });
 
   it('can add and remove trigger', async () => {
-    const addButton = await scrollToEl('add_trigger_button');
-    await addButton.click();
+    const keyInput = await openModal('add_trigger_button', 'trigger_key_input');
 
     // add trigger
-    const keyInput = await byTestId('trigger_key_input');
-    await keyInput.waitForDisplayed({ timeout: 5_000 });
     await keyInput.setValue('test_trigger_key');
 
     const valueInput = await byTestId('trigger_value_input');
@@ -67,19 +63,17 @@ describe('Triggers', () => {
     const removeButton = await byTestId(`triggers_remove_test_trigger_key`);
     await removeButton.click();
 
-    const el = await byTestId('triggers_pair_key_test_trigger_key');
-    await el.waitForDisplayed({ timeout: 5_000, reverse: true });
+    await waitForDisappear('triggers_pair_key_test_trigger_key');
   });
 
   it('can add and remove multiple triggers', async () => {
     await addMultipleTriggers();
 
     // remove triggers
-    const removeButton = await scrollToEl('remove_triggers_button');
-    await removeButton.click();
-
-    const trigger2Checkbox = await byTestId('remove_checkbox_test_trigger_key_2');
-    await trigger2Checkbox.waitForDisplayed({ timeout: 5_000 });
+    const trigger2Checkbox = await openModal(
+      'remove_triggers_button',
+      'remove_checkbox_test_trigger_key_2',
+    );
     await trigger2Checkbox.click();
 
     const trigger3Checkbox = await byTestId('remove_checkbox_test_trigger_key_3');
@@ -90,10 +84,8 @@ describe('Triggers', () => {
     await scrollToEl('triggers_section', { direction: 'up' });
 
     // wait for triggers to be removed
-    const trigger2El = await byTestId('triggers_pair_key_test_trigger_key_2');
-    const trigger3El = await byTestId('triggers_pair_key_test_trigger_key_3');
-    await trigger2El.waitForDisplayed({ timeout: 5_000, reverse: true });
-    await trigger3El.waitForDisplayed({ timeout: 5_000, reverse: true });
+    await waitForDisappear('triggers_pair_key_test_trigger_key_2');
+    await waitForDisappear('triggers_pair_key_test_trigger_key_3');
   });
 
   it('can clear all triggers', async () => {
