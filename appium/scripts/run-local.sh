@@ -30,6 +30,8 @@ SKIP_DEVICE=false
 SKIP_RESET=false
 SPEC="tests/specs/**/*.spec.ts"
 ANDROID_CHANNEL_ID=7ec2ece9-c538-4656-9516-1316f48a005c
+IOS_REAL_DEVICE=false
+UDID="${UDID:-}"
 
 # ── Parse args ────────────────────────────────────────────────────────────────
 for arg in "$@"; do
@@ -37,6 +39,8 @@ for arg in "$@"; do
     --platform=*)     PLATFORM="${arg#--platform=}" ;;
     --sdk=*)          SDK_TYPE="${arg#--sdk=}" ;;
     --device=*)       DEVICE="${arg#--device=}" ;;
+    --device-real)    IOS_REAL_DEVICE=true; SKIP_DEVICE=true ;;
+    --udid=*)         UDID="${arg#--udid=}" ;;
     --appium-port=*)  APPIUM_PORT="${arg#--appium-port=}" ;;
     --system-port=*)  SYSTEM_PORT="${arg#--system-port=}" ;;
     --skip)           SKIP_BUILD=true; SKIP_DEVICE=true; SKIP_RESET=true ;;
@@ -67,6 +71,11 @@ Options:
   --skip-build        Skip app build (reuse existing)
   --skip-device       Skip simulator/emulator launch
   --skip-reset        Keep existing app data
+  --device-real       Build & run against a physical iPhone (requires --udid
+                      and XCODE_TEAM_ID). Implies --skip-device. iOS only.
+                      Supported SDKs: cordova, capacitor, react-native, expo.
+  --udid=ID           Physical device UDID (xcrun devicectl list devices).
+                      Required by --device-real; also accepted via UDID env.
   --spec=GLOB         Spec glob (default: tests/specs/**/*.spec.ts)
   -h, --help          Show this help
 
@@ -88,6 +97,13 @@ Env vars (set in .env or export):
   IOS_RUNTIME        simctl runtime id (default: iOS-26-2)
   APPIUM_PORT        Appium port (default: 4723; same as --appium-port)
   SYSTEM_PORT        UiAutomator2 systemPort (same as --system-port)
+  UDID               Physical device UDID (same as --udid; required with
+                     --device-real)
+  XCODE_TEAM_ID      Apple Developer team ID for codesigning (required with
+                     --device-real). Find via:
+                       security find-identity -v -p codesigning
+  XCODE_SIGNING_ID   Codesigning identity name (default: 'iPhone Developer'
+                     when --device-real is set)
 USAGE
       exit 0
       ;;
@@ -141,6 +157,39 @@ case "$SDK_TYPE" in
   *) error "SDK_TYPE must be 'flutter', 'react-native', 'cordova', 'capacitor', 'dotnet', or 'expo', got '$SDK_TYPE'" ;;
 esac
 
+# ── Real-device validation + signing setup ────────────────────────────────────
+# When --device-real is set, we need a physical-device build and codesigning
+# inputs. Centralised here so the rest of the script stays simulator-shaped
+# and just expands a few variables (IOS_SDK, IOS_BUILD_DIR, IOS_DESTINATION,
+# IOS_SIGNING_ARGS) instead of branching at every xcodebuild call site.
+if [[ "$IOS_REAL_DEVICE" == true ]]; then
+  [[ "$PLATFORM" == "ios" ]] || error "--device-real only supports --platform=ios"
+  case "$SDK_TYPE" in
+    cordova|capacitor|react-native|expo) ;;
+    flutter|dotnet) error "--device-real not yet supported for $SDK_TYPE — patch run-local.sh's build_${SDK_TYPE//-/_}_ios to invoke the device build" ;;
+  esac
+  [[ -n "$UDID" ]] || error "--device-real requires --udid=<id> (or UDID env). Find via: xcrun devicectl list devices"
+  [[ -n "${XCODE_TEAM_ID:-}" ]] || error "--device-real requires XCODE_TEAM_ID env. Find via: security find-identity -v -p codesigning"
+  XCODE_SIGNING_ID="${XCODE_SIGNING_ID:-iPhone Developer}"
+  IOS_SDK="iphoneos"
+  IOS_BUILD_DIR="Release-iphoneos"
+  IOS_DESTINATION="id=$UDID"
+  # Clear PROVISIONING_PROFILE_SPECIFIER/PROVISIONING_PROFILE so any per-
+  # target manual profiles in the project (e.g. CI's "Appium Demo - Main",
+  # "Appium Demo - NSE", "Appium Demo - Live Activity") don't conflict with
+  # CODE_SIGN_STYLE=Automatic. Pair with -allowProvisioningUpdates on the
+  # xcodebuild call so Xcode can fetch/create dev profiles for your team.
+  IOS_SIGNING_ARGS="CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=$XCODE_TEAM_ID PROVISIONING_PROFILE_SPECIFIER= PROVISIONING_PROFILE="
+  IOS_XCODE_EXTRA_ARGS="-allowProvisioningUpdates"
+  export UDID XCODE_TEAM_ID XCODE_SIGNING_ID
+else
+  IOS_SDK="iphonesimulator"
+  IOS_BUILD_DIR="Release-iphonesimulator"
+  IOS_DESTINATION=""
+  IOS_SIGNING_ARGS='CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES'
+  IOS_XCODE_EXTRA_ARGS=""
+fi
+
 BUNDLE_ID="${BUNDLE_ID:-com.onesignal.example}"
 
 if [[ "$SDK_TYPE" == "flutter" ]]; then
@@ -157,7 +206,7 @@ elif [[ "$SDK_TYPE" == "react-native" ]]; then
   [[ -d "$RN_DIR" ]] || error "React Native SDK not found at $RN_DIR — set RN_DIR in .env"
   DEMO_DIR="$RN_DIR/examples/demo"
   if [[ "$PLATFORM" == "ios" ]]; then
-    APP_PATH="${APP_PATH:-$DEMO_DIR/ios/build/Build/Products/Release-iphonesimulator/demo.app}"
+    APP_PATH="${APP_PATH:-$DEMO_DIR/ios/build/Build/Products/${IOS_BUILD_DIR}/demo.app}"
   else
     APP_PATH="${APP_PATH:-$DEMO_DIR/android/app/build/outputs/apk/release/app-release.apk}"
   fi
@@ -166,7 +215,7 @@ elif [[ "$SDK_TYPE" == "cordova" ]]; then
   [[ -d "$CORDOVA_DIR" ]] || error "Cordova SDK not found at $CORDOVA_DIR — set CORDOVA_DIR in .env"
   DEMO_DIR="$CORDOVA_DIR/examples/demo"
   if [[ "$PLATFORM" == "ios" ]]; then
-    APP_PATH="${APP_PATH:-$DEMO_DIR/ios/App/build/Build/Products/Release-iphonesimulator/App.app}"
+    APP_PATH="${APP_PATH:-$DEMO_DIR/ios/App/build/Build/Products/${IOS_BUILD_DIR}/App.app}"
   else
     APP_PATH="${APP_PATH:-$DEMO_DIR/android/app/build/outputs/apk/debug/app-debug.apk}"
   fi
@@ -175,7 +224,7 @@ elif [[ "$SDK_TYPE" == "capacitor" ]]; then
   [[ -d "$CAPACITOR_DIR" ]] || error "Capacitor SDK not found at $CAPACITOR_DIR — set CAPACITOR_DIR in .env"
   DEMO_DIR="$CAPACITOR_DIR/examples/demo"
   if [[ "$PLATFORM" == "ios" ]]; then
-    APP_PATH="${APP_PATH:-$DEMO_DIR/ios/App/build/Build/Products/Release-iphonesimulator/App.app}"
+    APP_PATH="${APP_PATH:-$DEMO_DIR/ios/App/build/Build/Products/${IOS_BUILD_DIR}/App.app}"
   else
     APP_PATH="${APP_PATH:-$DEMO_DIR/android/app/build/outputs/apk/debug/app-debug.apk}"
   fi
@@ -184,7 +233,7 @@ elif [[ "$SDK_TYPE" == "expo" ]]; then
   [[ -d "$EXPO_DIR" ]] || error "Expo plugin not found at $EXPO_DIR — set EXPO_DIR in .env"
   DEMO_DIR="$EXPO_DIR/examples/demo"
   if [[ "$PLATFORM" == "ios" ]]; then
-    APP_PATH="${APP_PATH:-$DEMO_DIR/ios/build/Build/Products/Release-iphonesimulator/OneSignalDemo.app}"
+    APP_PATH="${APP_PATH:-$DEMO_DIR/ios/build/Build/Products/${IOS_BUILD_DIR}/OneSignalDemo.app}"
   else
     APP_PATH="${APP_PATH:-$DEMO_DIR/android/app/build/outputs/apk/release/app-release.apk}"
   fi
@@ -342,20 +391,20 @@ build_rn_ios() {
     info "Pods up to date, skipping pod install"
   fi
 
-  info "Building release .app for simulator (self-contained, no Metro required)..."
+  info "Building release .app for ${IOS_SDK} (self-contained, no Metro required)..."
   (cd "$DEMO_DIR/ios" && xcodebuild \
     -workspace demo.xcworkspace \
     -scheme demo \
     -configuration Release \
-    -sdk iphonesimulator \
+    -sdk "$IOS_SDK" \
+    ${IOS_DESTINATION:+-destination} ${IOS_DESTINATION:+"$IOS_DESTINATION"} $IOS_XCODE_EXTRA_ARGS \
     -derivedDataPath build \
     -quiet \
     ONLY_ACTIVE_ARCH=YES \
     ENABLE_USER_SCRIPT_SANDBOXING=NO \
     COMPILER_INDEX_STORE_ENABLE=NO \
     SWIFT_INDEX_STORE_ENABLE=NO \
-    CODE_SIGN_IDENTITY="-" \
-    CODE_SIGNING_ALLOWED=YES)
+    $IOS_SIGNING_ARGS)
 
   [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
   info "App built: $APP_PATH"
@@ -485,20 +534,20 @@ build_cordova_ios() {
     echo "$sync_hash" > "$sync_stamp"
   fi
 
-  info "Building release .app for simulator..."
+  info "Building release .app for ${IOS_SDK}..."
   (cd "$DEMO_DIR/ios/App" && xcodebuild \
     -workspace App.xcworkspace \
     -scheme App \
     -configuration Release \
-    -sdk iphonesimulator \
+    -sdk "$IOS_SDK" \
+    ${IOS_DESTINATION:+-destination} ${IOS_DESTINATION:+"$IOS_DESTINATION"} $IOS_XCODE_EXTRA_ARGS \
     -derivedDataPath build \
     -quiet \
     ONLY_ACTIVE_ARCH=YES \
     ENABLE_USER_SCRIPT_SANDBOXING=NO \
     COMPILER_INDEX_STORE_ENABLE=NO \
     SWIFT_INDEX_STORE_ENABLE=NO \
-    CODE_SIGN_IDENTITY="-" \
-    CODE_SIGNING_ALLOWED=YES)
+    $IOS_SIGNING_ARGS)
 
   [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
   info "App built: $APP_PATH"
@@ -613,20 +662,20 @@ build_capacitor_ios() {
   # Capacitor 7 uses Swift Package Manager (no Pods/.xcworkspace), so we
   # build the .xcodeproj directly. Xcode auto-generates the "App" scheme
   # from the App target on first build.
-  info "Building release .app for simulator..."
+  info "Building release .app for ${IOS_SDK}..."
   (cd "$DEMO_DIR/ios/App" && xcodebuild \
     -project App.xcodeproj \
     -scheme App \
     -configuration Release \
-    -sdk iphonesimulator \
+    -sdk "$IOS_SDK" \
+    ${IOS_DESTINATION:+-destination} ${IOS_DESTINATION:+"$IOS_DESTINATION"} $IOS_XCODE_EXTRA_ARGS \
     -derivedDataPath build \
     -quiet \
     ONLY_ACTIVE_ARCH=YES \
     ENABLE_USER_SCRIPT_SANDBOXING=NO \
     COMPILER_INDEX_STORE_ENABLE=NO \
     SWIFT_INDEX_STORE_ENABLE=NO \
-    CODE_SIGN_IDENTITY="-" \
-    CODE_SIGNING_ALLOWED=YES)
+    $IOS_SIGNING_ARGS)
 
   [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
   info "App built: $APP_PATH"
@@ -795,12 +844,13 @@ build_expo_ios() {
   # DEBUG_INFORMATION_FORMAT=dwarf: skips dSYM bundle generation (~5-15s on
   # an Expo Release build). Simulator E2E never needs symbolicated crash
   # reports, so we save the I/O. Default for Release would be `dwarf-with-dsym`.
-  info "Building release .app for simulator (self-contained, no Metro required)..."
+  info "Building release .app for ${IOS_SDK} (self-contained, no Metro required)..."
   (cd "$DEMO_DIR/ios" && xcodebuild \
     -workspace OneSignalDemo.xcworkspace \
     -scheme OneSignalDemo \
     -configuration Release \
-    -sdk iphonesimulator \
+    -sdk "$IOS_SDK" \
+    ${IOS_DESTINATION:+-destination} ${IOS_DESTINATION:+"$IOS_DESTINATION"} $IOS_XCODE_EXTRA_ARGS \
     -derivedDataPath build \
     -quiet \
     ONLY_ACTIVE_ARCH=YES \
@@ -808,8 +858,7 @@ build_expo_ios() {
     COMPILER_INDEX_STORE_ENABLE=NO \
     SWIFT_INDEX_STORE_ENABLE=NO \
     DEBUG_INFORMATION_FORMAT=dwarf \
-    CODE_SIGN_IDENTITY="-" \
-    CODE_SIGNING_ALLOWED=YES)
+    $IOS_SIGNING_ARGS)
 
   [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
   mkdir -p "$(dirname "$build_stamp")"
@@ -1207,7 +1256,10 @@ reset_app() {
       info "No BUNDLE_ID set — skipping reset"
       return
     fi
-    if xcrun simctl listapps booted 2>/dev/null | grep -q "$bundle"; then
+    if [[ "$IOS_REAL_DEVICE" == true ]]; then
+      info "Uninstalling $bundle from device $UDID..."
+      xcrun devicectl device uninstall app --device "$UDID" "$bundle" 2>/dev/null || true
+    elif xcrun simctl listapps booted 2>/dev/null | grep -q "$bundle"; then
       info "Uninstalling $bundle..."
       xcrun simctl uninstall booted "$bundle" 2>/dev/null || true
     else
@@ -1247,6 +1299,9 @@ run_tests() {
   ONESIGNAL_API_KEY="${ONESIGNAL_API_KEY:-}" \
   APPIUM_PORT="$APPIUM_PORT" \
   SYSTEM_PORT="${SYSTEM_PORT:-}" \
+  UDID="${UDID:-}" \
+  XCODE_TEAM_ID="${XCODE_TEAM_ID:-}" \
+  XCODE_SIGNING_ID="${XCODE_SIGNING_ID:-}" \
   vpx wdio run "$conf" --spec "$SPEC"
 }
 
