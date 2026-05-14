@@ -34,11 +34,7 @@ export const sharedConfig: WebdriverIO.Config = {
   maxInstances: 1,
   logLevel: 'warn',
 
-  // Run all specs in a single grouped runner so we reuse one Appium/XCUITest
-  // session across files. WDIO only groups specs when the inner array is a
-  // pre-expanded list of paths — leaving a glob inside the array still spins
-  // up a fresh runner per file (~10-30s of session setup each on iOS).
-  // Note: `--spec` on the wdio CLI overrides this and forces per-file runners.
+  // Pre-expand the glob so WDIO groups all specs into one runner and reuses a single Appium session (a raw glob or `--spec` flag spawns one runner per file, costing ~10-30s of iOS session setup each).
   specs: [globSync('tests/specs/**/*.spec.ts', { cwd: SHARED_CONF_DIR, absolute: true }).sort()],
 
   capabilities: [],
