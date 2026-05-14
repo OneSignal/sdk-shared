@@ -784,7 +784,7 @@ export async function checkNotification(opts: {
   const button = await scrollToEl(opts.buttonId);
 
   // webview goes through flows really quick so need to pause a bit
-  if (isWebViewSDK) await driver.pause(5_000);
+  if (isWebViewSDK) await driver.pause(7_500);
   await button.click();
   await waitForNotification({
     title: opts.title,
@@ -975,9 +975,20 @@ export async function checkInAppMessage(opts: {
  */
 export async function expectSnackbar(text: string, timeoutMs = 5_000) {
   if (sdkType === 'cordova' || sdkType === 'capacitor') {
-    const escaped = text.replace(/"/g, '\\"');
-    const toast = await $(`ion-toast[message="${escaped}"]`);
-    await toast.waitForDisplayed({ timeout: timeoutMs });
+    // useIonToast() creates ion-toast imperatively and sets `message` as a
+    // property, not an attribute, so attribute selectors don't match. Poll
+    // every visible ion-toast and compare the property.
+    await browser.waitUntil(
+      async () => {
+        const toasts = await $$('ion-toast');
+        for (const toast of toasts) {
+          const message = (await toast.getProperty('message')) as string | null;
+          if (message === text && (await toast.isDisplayed())) return true;
+        }
+        return false;
+      },
+      { timeout: timeoutMs, timeoutMsg: `toast "${text}" not displayed within ${timeoutMs}ms` },
+    );
     return;
   }
 
