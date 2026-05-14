@@ -809,6 +809,19 @@ export async function isWebViewVisible() {
     return await webview.isExisting();
   }
 
+  // Android Capacitor/Cordova: the main app WebView is always a WEBVIEW_*
+  // context, so `contexts.some(...WEBVIEW)` would always be true. Each IAM
+  // instead opens in its own window inside the same context, so count
+  // live window handles -- 1 = main app only, >1 = at least one IAM is up.
+  // Filter stale IAM handles (chromedriver doesn't detach closed-IAM
+  // windows from getWindowHandles(); see switchToIAMWebView), otherwise
+  // we'd get false positives after a previous IAM was matched/closed.
+  if (isWebViewSDK) {
+    const handles = await driver.getWindowHandles();
+    const live = handles.filter((h) => !knownStaleIAMHandles.has(h));
+    return live.length > 1;
+  }
+
   const contexts = await driver.getContexts();
   return contexts.some((c) => String(c).includes('WEBVIEW'));
 }
@@ -942,8 +955,10 @@ export async function checkInAppMessage(opts: {
   await driver.switchContext('NATIVE_APP');
 
   if (getPlatform() === 'ios') {
+    // iOS can hold the dismissed IAM's WKWebView for several seconds
+    // before GC, so use a generous wait independent of `timeoutMs`.
     await driver.waitUntil(async () => !(await isWebViewVisible()), {
-      timeout: timeoutMs,
+      timeout: 15_000,
       timeoutMsg: 'IAM webview still visible after closing',
     });
   }

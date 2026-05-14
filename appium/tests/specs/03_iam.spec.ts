@@ -43,13 +43,18 @@ describe('In-App Messaging', () => {
     await toggle.click();
     await expectToggleState(toggle, true);
 
+    // Drain the previous IAM's lingering context so we measure pause, not GC.
+    await driver.waitUntil(async () => !(await isWebViewVisible()), {
+      timeout: 15_000,
+      timeoutMsg: 'Previous IAM context never released; cannot validate pause behavior',
+    });
+
     // try to show top banner, should fail since IAM is paused
     const button = await scrollToEl('send_iam_top_banner_button');
     await button.click();
 
-    if (driver.isIOS) {
-      expect(await isWebViewVisible()).toBe(false);
-    }
+    // Give the SDK time to evaluate triggers before asserting no IAM showed.
+    expect(await isWebViewVisible()).toBe(false);
 
     // reset back
     await toggle.click();
