@@ -13,7 +13,13 @@ const tooltipContent = JSON.parse(
 
 const sdkType = getSdkType();
 export const isWebViewSDK = sdkType === 'capacitor' || sdkType === 'cordova';
+export const isBrowserStack = Boolean(process.env.BROWSERSTACK_USERNAME);
 const isFlutterSDK = sdkType === 'flutter';
+
+export function isBrowserStackIos(): boolean {
+  return isBrowserStack && getPlatform() === 'ios';
+}
+
 /**
  * Scroll the main content area in the given direction using native scroll APIs.
  * Targets the main_scroll_view element to avoid scrolling the log view.
@@ -968,16 +974,11 @@ export async function checkInAppMessage(opts: {
 /**
  * Asserts a transient snackbar/toast appears with the expected text
  *
- * Cordova/Capacitor render the toast as `<ion-toast>` (Ionic), whose visible
- * text lives inside the component's shadow root and is not reachable via
- * UiAutomator/XPath. Ionic reflects the `message` prop onto the host element
- * as a `message` attribute, so we match the host directly.
+ * Cordova/Capacitor render Ionic `<ion-toast>` elements whose visible text is
+ * inside a shadow root, so we compare the host element's message property.
  */
 export async function expectSnackbar(text: string, timeoutMs = 5_000) {
   if (sdkType === 'cordova' || sdkType === 'capacitor') {
-    // useIonToast() creates ion-toast imperatively and sets `message` as a
-    // property, not an attribute, so attribute selectors don't match. Poll
-    // every visible ion-toast and compare the property.
     await browser.waitUntil(
       async () => {
         const toasts = await $$('ion-toast');
@@ -1023,8 +1024,13 @@ export async function withRetryDelay(
   try {
     await fn();
   } catch (err) {
-    const t = ctx.test as Mocha.Test & { _retries: number; _currentRetry: number };
-    if ((t._currentRetry ?? 0) < (t._retries ?? 0)) {
+    const currentRetry: unknown = ctx.test ? Reflect.get(ctx.test, '_currentRetry') : 0;
+    const retries: unknown = ctx.test ? Reflect.get(ctx.test, '_retries') : 0;
+    if (
+      typeof currentRetry === 'number' &&
+      typeof retries === 'number' &&
+      currentRetry < retries
+    ) {
       await browser.pause(delayMs);
     }
     throw err;
