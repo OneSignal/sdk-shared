@@ -24,12 +24,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Create release notes
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         id: release_notes
         env:
           VERSION: ${{ inputs.version }}
@@ -58,7 +58,7 @@ jobs:
             core.setOutput('notes', releaseNotes);
 
       - name: Create GitHub Release
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           RELEASE_NOTES: ${{ steps.release_notes.outputs.notes }}
         with:

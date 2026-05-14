@@ -35,7 +35,7 @@ jobs:
     outputs:
       release_branch: ${{ steps.release_branch.outputs.releaseBranch }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref:

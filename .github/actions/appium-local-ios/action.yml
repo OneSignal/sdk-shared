@@ -131,7 +131,7 @@ runs:
 
     - name: Upload Appium + test results
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v7
       with:
         name: appium-local-ios-${{ inputs.sdk-type }}
         path: |

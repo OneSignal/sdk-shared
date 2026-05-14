@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download app artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.app-artifact }}
 
@@ -114,7 +114,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: appium-results-${{ inputs.platform }}-${{ inputs.sdk-type }}
           path: _sdk-shared/appium/results/

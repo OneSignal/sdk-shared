@@ -59,7 +59,7 @@ jobs:
       TARGET_REPO: ${{ inputs.target_repo || github.repository }}
       GH_TOKEN: ${{ secrets.GH_PUSH_TOKEN || github.token }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.target_branch }}
           fetch-depth: 0
@@ -87,7 +87,7 @@ jobs:
 
       - name: Get merged PRs
         id: get_prs
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const lastReleaseDate = '${{ steps.last_commit.outputs.date }}';
@@ -129,7 +129,7 @@ jobs:
 
       - name: Generate release notes
         id: release_notes
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           PR_DATA: ${{ steps.get_prs.outputs.prs }}
         with:
@@ -292,7 +292,7 @@ jobs:
       - name: Merge release notes with existing PR
         id: merged_notes
         if: steps.check_pr.outputs.exists == 'true'
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');

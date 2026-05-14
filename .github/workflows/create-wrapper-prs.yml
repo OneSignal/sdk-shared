@@ -141,7 +141,7 @@ jobs:
       - name: Skip when iOS-only
         if: inputs.android_version == ''
         run: echo "No android_version provided; skipping Maven propagation wait."
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         if: inputs.android_version != ''
         with:
           repository: OneSignal/sdk-shared
