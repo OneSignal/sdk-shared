@@ -37,10 +37,7 @@ describe('Push Subscription', () => {
 
   it('can send an image notification', async function () {
     if (isBrowserStackIos()) this.skip();
-
-    // WebView SDKs (Capacitor/Cordova) can race through the send flow before
-    // the image attachment is ready; retry to absorb the timing hiccup.
-    if (isWebViewSDK || isUnitySDK) this.retries(2);
+    this.retries(2);
     await withRetryDelay(this, 5_000, () =>
       checkNotification({
         buttonId: 'send_image_button',
