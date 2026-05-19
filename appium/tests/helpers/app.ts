@@ -17,6 +17,11 @@ export const isBrowserStack = Boolean(process.env.BROWSERSTACK_USERNAME);
 export const isUnitySDK = sdkType === 'unity';
 const isFlutterSDK = sdkType === 'flutter';
 
+function isAppWebViewContext(context: unknown) {
+  const name = String(context);
+  return name !== 'NATIVE_APP' && name.includes('WEBVIEW') && !name.includes('WEBVIEW_Terrace');
+}
+
 export function isBrowserStackIos(): boolean {
   return isBrowserStack && getPlatform() === 'ios';
 }
@@ -427,7 +432,7 @@ export async function ensureMainWebViewContext() {
   await driver.waitUntil(
     async () => {
       const contexts = await driver.getContexts();
-      const webview = contexts.find((c) => String(c) !== 'NATIVE_APP');
+      const webview = contexts.find(isAppWebViewContext);
       if (!webview) return false;
       const current = await driver.getContext();
       if (String(current) !== String(webview)) {
@@ -908,19 +913,23 @@ export async function isWebViewVisible() {
   // Samsung's `WEBVIEW_Terrace` from Samsung Internet) that are never
   // attached to the app under test, so a naive `c.includes("WEBVIEW")`
   // returns true forever and `waitUntil(!isWebViewVisible())` times out.
-  // OneSignal IAMs always inflate inside the demo's own process, so filter
-  // to contexts scoped to the app's package.
-  const caps = driver.capabilities as Record<string, unknown>;
-  const appPackage =
-    (typeof caps['appPackage'] === 'string' && caps['appPackage']) ||
-    (typeof caps['appium:appPackage'] === 'string' && caps['appium:appPackage']) ||
-    process.env.BUNDLE_ID ||
-    'com.onesignal.example';
   const contexts = await driver.getContexts();
-  return contexts.some((c) => {
-    const name = String(c);
-    return name !== 'NATIVE_APP' && name.includes(appPackage);
-  });
+  const webviewContext = contexts.find(isAppWebViewContext);
+  if (!webviewContext) return false;
+
+  const previousContext = String(await driver.getContext());
+  try {
+    if (previousContext !== String(webviewContext)) {
+      await driver.switchContext(String(webviewContext));
+    }
+    const handles = await driver.getWindowHandles();
+    const live = handles.filter((h) => !knownStaleIAMHandles.has(h));
+    return live.length > (isWebViewSDK ? 1 : 0);
+  } finally {
+    if (previousContext !== String(webviewContext)) {
+      await driver.switchContext(previousContext).catch(() => undefined);
+    }
+  }
 }
 
 /**
@@ -930,7 +939,7 @@ export async function isWebViewVisible() {
  */
 async function switchToWebViewContext() {
   const contexts = await driver.getContexts();
-  const webviewContext = contexts.find((c) => String(c) !== 'NATIVE_APP');
+  const webviewContext = contexts.find(isAppWebViewContext);
   if (!webviewContext) return false;
   await driver.switchContext(String(webviewContext));
   return true;

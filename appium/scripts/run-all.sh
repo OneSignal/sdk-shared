@@ -46,7 +46,7 @@ USAGE
 done
 
 PLATFORMS=(ios android)
-SDKS=(cordova react-native flutter dotnet expo)
+SDKS=(cordova react-native flutter dotnet expo unity)
 
 declare -a RESULTS
 FAILED=0
