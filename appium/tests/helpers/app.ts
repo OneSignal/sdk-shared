@@ -637,7 +637,7 @@ function isIamCandidateContext(context: string): boolean {
 }
 
 function appPackageName(): string {
-  for (const key of ['appPackage', 'appium:appPackage']) {
+  for (const key of ['bundleId', 'appium:bundleId', 'appPackage', 'appium:appPackage']) {
     const value = Reflect.get(driver.capabilities, key);
     if (typeof value === 'string' && value) return value;
   }
