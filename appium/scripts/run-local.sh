@@ -1406,36 +1406,7 @@ build_unity_android() {
   info "App built: $APP_PATH"
 }
 
-write_android_demo_strings_xml() {
-  # Native Android demo reads onesignal_app_id from strings.xml at app start
-  # (see MainApplication.kt). There's no .env hook like the hybrid demos, so
-  # we sed-replace the value in-place when an override is provided. The file
-  # is tracked, so this leaves a working-tree change — restored by the caller
-  # via a stash of `app/src/main/res/values/strings.xml` only when needed.
-  local strings_xml="$DEMO_DIR/app/src/main/res/values/strings.xml"
-  if [[ -z "${ONESIGNAL_APP_ID:-}" ]]; then
-    warn "ONESIGNAL_APP_ID not set — using checked-in default in $strings_xml"
-    return
-  fi
-
-  if grep -q "<string name=\"onesignal_app_id\">${ONESIGNAL_APP_ID}</string>" "$strings_xml"; then
-    info "onesignal_app_id already set in strings.xml"
-    return
-  fi
-
-  info "Setting onesignal_app_id in strings.xml..."
-  local tmp
-  tmp=$(mktemp)
-  # macOS sed needs an extension arg with -i; using a temp file keeps the
-  # script portable across BSD/GNU sed without juggling that.
-  sed "s|<string name=\"onesignal_app_id\">[^<]*</string>|<string name=\"onesignal_app_id\">${ONESIGNAL_APP_ID}</string>|" \
-    "$strings_xml" > "$tmp"
-  mv "$tmp" "$strings_xml"
-}
-
 build_android_native() {
-  write_android_demo_strings_xml
-
   # Building from OneSignalSDK/ (not examples/demo/) so the demo's :app
   # transitively pulls in local SDK source via settings.gradle dependency
   # substitution. This is the whole point of --sdk=android for SDK dev:
@@ -1457,8 +1428,21 @@ build_android_native() {
   local type_cap="$(tr '[:lower:]' '[:upper:]' <<< "${ANDROID_BUILD_TYPE:0:1}")${ANDROID_BUILD_TYPE:1}"
   local task="assemble${flavor_cap}${type_cap}"
 
+  # Demo reads ONESIGNAL_APP_ID / ONESIGNAL_ANDROID_CHANNEL_ID / E2E_MODE from
+  # `BuildConfig.*` (see examples/demo/app/build.gradle.kts:demoOverride). Pass
+  # them as Gradle -P props so the CLI value wins over examples/demo/local.properties.
+  local -a gradle_args=("-PSDK_VERSION=$sdk_version" "-PE2E_MODE=true")
+  if [[ -n "${ONESIGNAL_APP_ID:-}" ]]; then
+    gradle_args+=("-PONESIGNAL_APP_ID=$ONESIGNAL_APP_ID")
+  else
+    warn "ONESIGNAL_APP_ID not set — demo will fall back to its built-in default"
+  fi
+  if [[ -n "${ANDROID_CHANNEL_ID:-}" ]]; then
+    gradle_args+=("-PONESIGNAL_ANDROID_CHANNEL_ID=$ANDROID_CHANNEL_ID")
+  fi
+
   info "Building :app:$task with local SDK source (SDK_VERSION=$sdk_version)..."
-  (cd "$sdk_dir" && ./gradlew ":app:$task" "-PSDK_VERSION=$sdk_version")
+  (cd "$sdk_dir" && ./gradlew ":app:$task" "${gradle_args[@]}")
 
   [[ -f "$APP_PATH" ]] || error ".apk not found after build at $APP_PATH"
   info "App built: $APP_PATH"

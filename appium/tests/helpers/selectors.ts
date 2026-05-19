@@ -254,12 +254,15 @@ function withElementInteractionFixes<T extends ElementWithInteractionMethods>(el
  * Select an element by its cross-platform test ID.
  *
  * iOS native / RN / Compose all surface as Appium accessibility id (`~`) on iOS.
- * On Android the mapping varies by SDK:
+ * On Android every SDK is normalized to resource-id (`id=`):
  *   - Flutter Semantics(identifier:) → resource-id (`id=`)
  *   - React Native testID → resource-id (`id=`) under Fabric/new arch; the old
  *     bridge surfaced it as content-desc but new arch sets it as the view tag,
  *     which UiAutomator2 exposes via resource-id.
- *   - Native Android Compose testTag → accessibility id (`~`)
+ *   - Native Android Compose testTag → resource-id (`id=`) *only* when the
+ *     demo opts in with `Modifier.semantics { testTagsAsResourceId = true }`
+ *     on (or above) the root composable. Without that opt-in the tag stays a
+ *     Compose-only Semantics property and is invisible to UiAutomator2.
  *   - .NET MAUI AutomationId → resource-id (`id=`), but namespaced as
  *     `<package>:id/<name>`. The wdio Android config disables locator
  *     autocompletion to dodge a Flutter quirk, so for dotnet we re-enable
