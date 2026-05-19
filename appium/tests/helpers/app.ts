@@ -35,7 +35,7 @@ async function swipeMainContent(direction: 'up' | 'down', distance: 'small' | 'n
   const endY = Math.round(direction === 'down' ? startY - swipeDistance : startY + swipeDistance);
 
   // Slow Flutter drags to avoid fling momentum.
-  const moveDurationMs = isFlutterSDK ? 700 : 300;
+  const moveDurationMs = 300;
 
   // Bound pointer actions; stale WebView handles can otherwise hang.
   const SWIPE_TIMEOUT_MS = 5_000;
@@ -64,6 +64,7 @@ async function swipeMainContent(direction: 'up' | 'down', distance: 'small' | 'n
   } finally {
     if (timer) clearTimeout(timer);
   }
+  if (isFlutterSDK) await driver.pause(1000);
 }
 
 /** Scroll to a test id using the fastest reliable SDK-specific path. */
@@ -93,24 +94,17 @@ export async function scrollToEl(
       return await scrollExtraIfNeeded(el, () => byTestId(identifier));
     }
     await swipeMainContent(direction);
-    // Let Flutter realize newly visible widgets.
-    if (isFlutterSDK) await driver.pause(250);
   }
   throw new Error(`Element "${identifier}" not found after ${maxScrolls} scrolls`);
 }
 
-/** Flutter can be visible in a11y even when `isDisplayed()` lies. */
-async function isVisibleInViewport(
-  el: {
-    isDisplayed(): Promise<boolean>;
-    isExisting(): Promise<boolean>;
-    getLocation(): Promise<{ x: number; y: number }>;
-    getSize(): Promise<{ width: number; height: number }>;
-  },
-): Promise<boolean> {
+async function isVisibleInViewport(el: {
+  isDisplayed(): Promise<boolean>;
+  getLocation(): Promise<{ x: number; y: number }>;
+  getSize(): Promise<{ width: number; height: number }>;
+}): Promise<boolean> {
   if (await el.isDisplayed().catch(() => false)) return true;
-  if (!isFlutterSDK) return false;
-  if (!(await el.isExisting().catch(() => false))) return false;
+  // Fallback for SDKs whose `isDisplayed` lies (e.g. Flutter on iOS).
   try {
     const [loc, size] = await Promise.all([el.getLocation(), el.getSize()]);
     if (size.width <= 0 || size.height <= 0) return false;
