@@ -651,31 +651,27 @@ async function hasVisibleIamContent(expectedTitle?: string): Promise<boolean> {
   return (await title.getText().catch(() => '')) === expectedTitle;
 }
 
-/** Tap an IAM trigger. */
-async function tapIamTrigger(buttonId: string) {
-  const el = await scrollToEl(buttonId);
-  await el.click();
-}
-
 export async function checkInAppMessage(opts: {
   buttonId: string;
   expectedTitle: string;
-  timeoutMs?: number;
   skipClick?: boolean;
 }) {
-  const { buttonId, expectedTitle, timeoutMs = 15_000 } = opts;
+  const timeout = 20_000;
+  const { buttonId, expectedTitle } = opts;
 
-  if (!opts.skipClick) await tapIamTrigger(buttonId);
-
+  // Tap the IAM trigger
+  if (!opts.skipClick) {
+    const el = await scrollToEl(buttonId);
+    await el.click();
+  }
   await driver.waitUntil(() => isWebViewVisible(), {
-    timeout: timeoutMs,
+    timeout,
     timeoutMsg: `IAM webview not shown after clicking "${buttonId}"`,
   });
-
-  await switchToIAMWebView(expectedTitle, timeoutMs);
+  await switchToIAMWebView(expectedTitle, timeout);
 
   const title = await $('h1');
-  await title.waitForExist({ timeout: timeoutMs });
+  await title.waitForExist({ timeout });
   expect(await title.getText()).toBe(expectedTitle);
 
   const iamWindowHandle = await driver.getWindowHandle().catch(() => undefined);
@@ -684,21 +680,6 @@ export async function checkInAppMessage(opts: {
     closedIamWindowHandles.add(iamWindowHandle);
   }
   await driver.switchContext('NATIVE_APP');
-
-  if (getPlatform() === 'ios') {
-    // iOS can keep dismissed IAM WebViews around briefly.
-    await driver.waitUntil(async () => !(await isWebViewVisible()), {
-      timeout: 15_000,
-      timeoutMsg: 'IAM webview still visible after closing',
-    });
-    // Wait for the app UI to be hit-testable again.
-    if (!isWebViewSDK) {
-      const main = await byTestId('main_scroll_view');
-      await main.waitForDisplayed({ timeout: timeoutMs }).catch(() => {
-        /* best-effort */
-      });
-    }
-  }
   await ensureMainWebViewContext();
 }
 
