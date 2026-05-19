@@ -18,7 +18,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-info()  { echo -e "${GREEN}[INFO]${NC} $*"; }
+info()  { [[ "${QUIET:-false}" == true ]] || echo -e "${GREEN}[INFO]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
@@ -30,6 +30,7 @@ SKIP_BUILD=false
 SKIP_DEVICE=false
 SKIP_RESET=false
 SPEC=""
+QUIET=false
 ANDROID_CHANNEL_ID=7ec2ece9-c538-4656-9516-1316f48a005c
 IOS_REAL_DEVICE=false
 UDID="${UDID:-}"
@@ -50,6 +51,7 @@ for arg in "$@"; do
     --skip-device)    SKIP_DEVICE=true ;;
     --skip-reset)     SKIP_RESET=true ;;
     --spec=*)         SPEC="${arg#--spec=}" ;;
+    --quiet|-q)       QUIET=true ;;
     --help|-h)
       cat <<USAGE
 Usage: $0 [OPTIONS]
@@ -81,6 +83,7 @@ Options:
   --udid=ID           Physical device UDID (xcrun devicectl list devices).
                       Required by --device-real; also accepted via UDID env.
   --spec=GLOB         Spec glob (default: all specs grouped into one session)
+  -q, --quiet         Hide [INFO] log lines
   -h, --help          Show this help
 
 Env vars (set in .env or export):

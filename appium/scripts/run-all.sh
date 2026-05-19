@@ -23,7 +23,7 @@ SDKS_FILTER=""
 BAIL=0
 for arg in "$@"; do
   case "$arg" in
-    --skip-build|--skip-device|--skip-reset|--skip)
+    --skip-build|--skip-device|--skip-reset|--skip|--quiet|-q)
       EXTRA_ARGS+=("$arg") ;;
     --spec=*)
       EXTRA_ARGS+=("$arg") ;;
@@ -58,6 +58,7 @@ Options forwarded to run-local.sh:
   --skip-reset     Keep existing app data
   --skip           Shortcut for --skip-build --skip-device --skip-reset
   --spec=GLOB      Spec glob to run (default: full suite, grouped into one session)
+  -q, --quiet      Hide run-local [INFO] log lines
   -h, --help       Show this help
 
 Exits non-zero if any combo fails. Prints a summary at the end.
