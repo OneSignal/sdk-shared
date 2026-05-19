@@ -669,30 +669,10 @@ async function hasVisibleIamContent(expectedTitle?: string): Promise<boolean> {
   return (await title.getText().catch(() => '')) === expectedTitle;
 }
 
-/** Tap an IAM trigger and retry where overlay teardown can swallow taps. */
+/** Tap an IAM trigger. */
 async function tapIamTrigger(buttonId: string) {
-  if (isWebViewSDK) {
-    await scrollToEl(buttonId);
-    await clickWebViewTestId(buttonId);
-  } else {
-    await (await scrollToEl(buttonId)).click();
-  }
-  try {
-    await driver.waitUntil(() => isWebViewVisible(), { timeout: 2_500 });
-  } catch {
-    if (isWebViewSDK) {
-      await clickWebViewTestId(buttonId);
-    } else {
-      await (await byTestId(buttonId)).click();
-    }
-  }
-}
-
-async function clickWebViewTestId(testId: string) {
-  await browser.execute((id: string) => {
-    const button = document.querySelector<HTMLElement>(`[data-testid="${id}"]`);
-    button?.click();
-  }, testId);
+  const el = await scrollToEl(buttonId);
+  await el.click();
 }
 
 export async function checkInAppMessage(opts: {
