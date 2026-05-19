@@ -99,7 +99,7 @@ export async function scrollToEl(
 
   for (let i = 0; i < maxScrolls; i++) {
     const el = await byTestId(identifier);
-    if (await isVisibleInViewport(el, sdkType)) {
+    if (await isVisibleInViewport(el)) {
       return await scrollExtraIfNeeded(el, () => byTestId(identifier));
     }
     await swipeMainContent(direction);
@@ -109,8 +109,8 @@ export async function scrollToEl(
   throw new Error(`Element "${identifier}" not found after ${maxScrolls} scrolls`);
 }
 
-/** Android native scroll fast path; returns false so callers can fall back. */
-async function tryNativeScrollAndroid(id: string): Promise<boolean> {
+/** Android native scroll fast path. */
+async function tryNativeScrollAndroid(id: string): Promise<void> {
   try {
     const fullId =
       sdkType === 'dotnet' ? `${process.env.BUNDLE_ID || 'com.onesignal.example'}:id/${id}` : id;
@@ -118,28 +118,27 @@ async function tryNativeScrollAndroid(id: string): Promise<boolean> {
       `new UiScrollable(new UiSelector().scrollable(true).instance(0))` +
       `.scrollIntoView(new UiSelector().resourceId("${fullId}"))`;
     const result = await $(`android=${sel}`);
-    return await result.isExisting();
+    await result.isExisting();
   } catch {
-    return false;
+    // Fall back to swipe loop.
   }
 }
 
 /** iOS native scroll fast path; avoids WDA match-scroll caps. */
-async function tryNativeScrollIos(id: string): Promise<boolean> {
+async function tryNativeScrollIos(id: string): Promise<void> {
   try {
     const main = await byTestId('main_scroll_view');
-    if (!(await main.isExisting())) return false;
+    if (!(await main.isExisting())) return;
     for (let i = 0; i < 30; i++) {
       const el = await byTestId(id);
-      if (await el.isDisplayed().catch(() => false)) return true;
+      if (await el.isDisplayed().catch(() => false)) return;
       await driver.execute('mobile: scroll', {
         elementId: main.elementId,
         direction: 'down',
       });
     }
-    return false;
   } catch {
-    return false;
+    // Fall back to swipe loop.
   }
 }
 
@@ -151,7 +150,6 @@ async function isVisibleInViewport(
     getLocation(): Promise<{ x: number; y: number }>;
     getSize(): Promise<{ width: number; height: number }>;
   },
-  sdk: string,
 ): Promise<boolean> {
   if (await el.isDisplayed().catch(() => false)) return true;
   if (!isFlutterSDK) return false;
@@ -389,14 +387,8 @@ export async function logoutUser() {
   await logoutButton.click();
 }
 
-/** Toggle push enabled. */
-export async function togglePushEnabled() {
-  const toggle = await byTestId('push_enabled_toggle');
-  await toggle.click();
-}
-
 /** Tap a modal confirm button. */
-export async function confirmModal(buttonTestId: string, timeoutMs = 5_000) {
+export async function confirmModal(buttonTestId: string) {
   const btn = await byTestId(buttonTestId);
   await btn.click();
 }
@@ -458,21 +450,6 @@ async function waitForStablePosition(
     prev = loc ? loc.y : null;
     await driver.pause(pollMs);
   }
-}
-
-/** Add a single tag through the UI. */
-export async function addTag(key: string, value: string) {
-  const addButton = await byTestId('add_tag_button');
-  await addButton.click();
-
-  const keyInput = await byTestId('tag_key_input');
-  await keyInput.waitForDisplayed({ timeout: 5_000 });
-  await keyInput.setValue(key);
-
-  const valueInput = await byTestId('tag_value_input');
-  await valueInput.setValue(value);
-
-  await confirmModal('tag_confirm_button');
 }
 
 /** Assert a unique key-value pair appears in a section. */
