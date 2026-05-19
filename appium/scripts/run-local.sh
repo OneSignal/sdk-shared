@@ -62,7 +62,9 @@ via flags or env vars.
 
 Options:
   --platform=P        ios | android
-  --sdk=S             flutter | react-native | cordova | capacitor | dotnet | expo | unity
+  --sdk=S             flutter | react-native | cordova | capacitor | dotnet | expo | unity | android
+                      android = native Android (OneSignal-Android-SDK/examples/demo);
+                      only valid with --platform=android.
   --device=NAME       Device/simulator/AVD name (default: iPhone 17 / Samsung Galaxy S26)
   --appium-port=N     Appium server port (default: 4723). Use unique values when
                       running multiple sessions in parallel on the same host.
@@ -98,6 +100,9 @@ Env vars (set in .env or export):
   UNITY_PATH         Path to Unity Editor binary
                      (default: /Applications/Unity/Hub/Editor/6000.4.6f1/Unity.app/Contents/MacOS/Unity)
   UNITY_IOS_SIM_ARCH Unity iOS simulator arch (default: host arch)
+  ANDROID_DIR        Native Android SDK repo root (default: ../../OneSignal-Android-SDK)
+  ANDROID_FLAVOR     Native Android product flavor (default: gms; also: huawei)
+  ANDROID_BUILD_TYPE Native Android build type (default: debug; also: release)
   OS_VERSION         Platform version (default: 26.2 / 16)
   IOS_SIMULATOR      iOS simulator name (default: iPhone 17)
   IOS_RUNTIME        simctl runtime id (default: iOS-26-2)
@@ -152,8 +157,15 @@ prompt_choice() {
   done
 }
 
+# --sdk=android implies --platform=android (the native demo only targets
+# Android), so resolve PLATFORM first to skip the platform prompt when the
+# user only passed --sdk=android.
+if [[ "${SDK_TYPE:-}" == "android" && -z "${PLATFORM:-}" ]]; then
+  PLATFORM="android"
+fi
+
 prompt_choice PLATFORM "Select platform:" ios android
-prompt_choice SDK_TYPE "Select SDK type:" flutter react-native cordova capacitor dotnet expo unity
+prompt_choice SDK_TYPE "Select SDK type:" flutter react-native cordova capacitor dotnet expo unity android
 
 case "$PLATFORM" in
   ios|android) ;;
@@ -161,9 +173,13 @@ case "$PLATFORM" in
 esac
 
 case "$SDK_TYPE" in
-  flutter|react-native|cordova|capacitor|dotnet|expo|unity) ;;
-  *) error "SDK_TYPE must be 'flutter', 'react-native', 'cordova', 'capacitor', 'dotnet', 'expo', or 'unity', got '$SDK_TYPE'" ;;
+  flutter|react-native|cordova|capacitor|dotnet|expo|unity|android) ;;
+  *) error "SDK_TYPE must be 'flutter', 'react-native', 'cordova', 'capacitor', 'dotnet', 'expo', 'unity', or 'android', got '$SDK_TYPE'" ;;
 esac
+
+if [[ "$SDK_TYPE" == "android" && "$PLATFORM" != "android" ]]; then
+  error "--sdk=android only supports --platform=android"
+fi
 
 # ── Real-device validation + signing setup ────────────────────────────────────
 # When --device-real is set, we need a physical-device build and codesigning
@@ -174,6 +190,7 @@ if [[ "$IOS_REAL_DEVICE" == true ]]; then
   [[ "$PLATFORM" == "ios" ]] || error "--device-real only supports --platform=ios"
   case "$SDK_TYPE" in
     cordova|capacitor|react-native|expo) ;;
+    android) error "--device-real not applicable to --sdk=android (native Android)" ;;
     flutter|dotnet) error "--device-real not yet supported for $SDK_TYPE — patch run-local.sh's build_${SDK_TYPE//-/_}_ios to invoke the device build" ;;
   esac
   [[ -n "$UDID" ]] || error "--device-real requires --udid=<id> (or UDID env). Find via: xcrun devicectl list devices"
@@ -293,6 +310,22 @@ elif [[ "$SDK_TYPE" == "unity" ]]; then
   else
     APP_PATH="${APP_PATH:-$DEMO_DIR/Build/Android/onesignal-demo.apk}"
   fi
+elif [[ "$SDK_TYPE" == "android" ]]; then
+  ANDROID_DIR="${ANDROID_DIR:-$SDK_ROOT/OneSignal-Android-SDK}"
+  [[ -d "$ANDROID_DIR" ]] || error "Native Android SDK not found at $ANDROID_DIR — set ANDROID_DIR in .env"
+  DEMO_DIR="$ANDROID_DIR/examples/demo"
+  ANDROID_FLAVOR="${ANDROID_FLAVOR:-gms}"
+  ANDROID_BUILD_TYPE="${ANDROID_BUILD_TYPE:-debug}"
+  case "$ANDROID_FLAVOR" in
+    gms|huawei) ;;
+    *) error "ANDROID_FLAVOR must be 'gms' or 'huawei', got '$ANDROID_FLAVOR'" ;;
+  esac
+  case "$ANDROID_BUILD_TYPE" in
+    debug|release) ;;
+    *) error "ANDROID_BUILD_TYPE must be 'debug' or 'release', got '$ANDROID_BUILD_TYPE'" ;;
+  esac
+  # Gradle emits per-flavor/type APKs under app/build/outputs/apk/<flavor>/<buildType>/.
+  APP_PATH="${APP_PATH:-$DEMO_DIR/app/build/outputs/apk/${ANDROID_FLAVOR}/${ANDROID_BUILD_TYPE}/app-${ANDROID_FLAVOR}-${ANDROID_BUILD_TYPE}.apk}"
 fi
 
 # ── Platform defaults ────────────────────────────────────────────────────────
@@ -1373,6 +1406,64 @@ build_unity_android() {
   info "App built: $APP_PATH"
 }
 
+write_android_demo_strings_xml() {
+  # Native Android demo reads onesignal_app_id from strings.xml at app start
+  # (see MainApplication.kt). There's no .env hook like the hybrid demos, so
+  # we sed-replace the value in-place when an override is provided. The file
+  # is tracked, so this leaves a working-tree change — restored by the caller
+  # via a stash of `app/src/main/res/values/strings.xml` only when needed.
+  local strings_xml="$DEMO_DIR/app/src/main/res/values/strings.xml"
+  if [[ -z "${ONESIGNAL_APP_ID:-}" ]]; then
+    warn "ONESIGNAL_APP_ID not set — using checked-in default in $strings_xml"
+    return
+  fi
+
+  if grep -q "<string name=\"onesignal_app_id\">${ONESIGNAL_APP_ID}</string>" "$strings_xml"; then
+    info "onesignal_app_id already set in strings.xml"
+    return
+  fi
+
+  info "Setting onesignal_app_id in strings.xml..."
+  local tmp
+  tmp=$(mktemp)
+  # macOS sed needs an extension arg with -i; using a temp file keeps the
+  # script portable across BSD/GNU sed without juggling that.
+  sed "s|<string name=\"onesignal_app_id\">[^<]*</string>|<string name=\"onesignal_app_id\">${ONESIGNAL_APP_ID}</string>|" \
+    "$strings_xml" > "$tmp"
+  mv "$tmp" "$strings_xml"
+}
+
+build_android_native() {
+  write_android_demo_strings_xml
+
+  # Building from OneSignalSDK/ (not examples/demo/) so the demo's :app
+  # transitively pulls in local SDK source via settings.gradle dependency
+  # substitution. This is the whole point of --sdk=android for SDK dev:
+  # changes under OneSignal-Android-SDK/OneSignalSDK/onesignal/ get exercised.
+  # See OneSignalSDK/settings.gradle for the substitution rules.
+  local sdk_dir="$ANDROID_DIR/OneSignalSDK"
+  [[ -x "$sdk_dir/gradlew" ]] || error "gradlew not found or not executable at $sdk_dir/gradlew"
+
+  # SDK_VERSION is required by settings.gradle; pull it from gradle.properties
+  # (defaults to whatever the local repo is on, e.g. 5.9.2) so callers don't
+  # have to keep it in sync.
+  local sdk_version
+  sdk_version=$(grep -E "^SDK_VERSION=" "$sdk_dir/gradle.properties" 2>/dev/null | head -1 | cut -d= -f2 | tr -d '[:space:]')
+  [[ -n "$sdk_version" ]] || error "Could not read SDK_VERSION from $sdk_dir/gradle.properties"
+
+  # Capitalize flavor + buildType to assemble the Gradle task name
+  # (assemble<Flavor><BuildType>, e.g. assembleGmsDebug).
+  local flavor_cap="$(tr '[:lower:]' '[:upper:]' <<< "${ANDROID_FLAVOR:0:1}")${ANDROID_FLAVOR:1}"
+  local type_cap="$(tr '[:lower:]' '[:upper:]' <<< "${ANDROID_BUILD_TYPE:0:1}")${ANDROID_BUILD_TYPE:1}"
+  local task="assemble${flavor_cap}${type_cap}"
+
+  info "Building :app:$task with local SDK source (SDK_VERSION=$sdk_version)..."
+  (cd "$sdk_dir" && ./gradlew ":app:$task" "-PSDK_VERSION=$sdk_version")
+
+  [[ -f "$APP_PATH" ]] || error ".apk not found after build at $APP_PATH"
+  info "App built: $APP_PATH"
+}
+
 build_app() {
   if [[ "$SKIP_BUILD" == true ]]; then
     if [[ "$PLATFORM" == "ios" && ! -d "$APP_PATH" ]] || [[ "$PLATFORM" == "android" && ! -f "$APP_PATH" ]]; then
@@ -1424,6 +1515,8 @@ build_app() {
     else
       build_unity_android
     fi
+  elif [[ "$SDK_TYPE" == "android" ]]; then
+    build_android_native
   fi
 }
 

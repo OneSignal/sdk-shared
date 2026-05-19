@@ -15,7 +15,7 @@ warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; }
 
 # ── Args (forwarded as-is to run-local.sh) ────────────────────────────────────
-ALL_SDKS=(cordova capacitor dotnet expo flutter react-native unity)
+ALL_SDKS=(cordova capacitor dotnet expo flutter react-native unity android)
 
 EXTRA_ARGS=()
 PLATFORM_FILTER=""
@@ -41,13 +41,15 @@ for arg in "$@"; do
 Usage: $0 [OPTIONS]
 
 Runs the Appium E2E suite across every SDK/platform combo by delegating
-to run-local.sh. Combos: cordova, react-native, flutter, dotnet, expo,
-unity on ios + android.
+to run-local.sh. Combos: cordova, capacitor, react-native, flutter, dotnet,
+expo, unity on ios + android, plus android (native) on android only.
 
 Options:
   --platform=ios|android   Only run combos for the given platform (default: both)
   --sdks=LIST              Comma-separated SDKs to run (default: all)
-                           Valid: cordova, react-native, flutter, dotnet, expo, unity
+                           Valid: cordova, capacitor, react-native, flutter,
+                                  dotnet, expo, unity, android
+                           Note: 'android' (native) only runs on --platform=android.
   --bail                   Stop after the first failing combo
 
 Options forwarded to run-local.sh:
@@ -94,6 +96,13 @@ BAILED=0
 
 for platform in "${PLATFORMS[@]}"; do
   for sdk in "${SDKS[@]}"; do
+    # Native Android demo only exists for Android; silently skip the iOS
+    # combo when iterating both platforms so the matrix stays clean. When
+    # the user explicitly requested `--sdks=android --platform=ios`, fall
+    # through and let run-local.sh emit the real error.
+    if [[ "$sdk" == "android" && "$platform" == "ios" && -z "$PLATFORM_FILTER" ]]; then
+      continue
+    fi
     label="${sdk} / ${platform}"
     echo ""
     echo -e "${BOLD}━━━ Running: ${label} ━━━${NC}"
