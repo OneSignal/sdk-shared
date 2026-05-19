@@ -904,8 +904,23 @@ export async function isWebViewVisible() {
     return live.length > 1;
   }
 
+  // Some Android OEMs surface persistent system WebView contexts (e.g.
+  // Samsung's `WEBVIEW_Terrace` from Samsung Internet) that are never
+  // attached to the app under test, so a naive `c.includes("WEBVIEW")`
+  // returns true forever and `waitUntil(!isWebViewVisible())` times out.
+  // OneSignal IAMs always inflate inside the demo's own process, so filter
+  // to contexts scoped to the app's package.
+  const caps = driver.capabilities as Record<string, unknown>;
+  const appPackage =
+    (typeof caps['appPackage'] === 'string' && caps['appPackage']) ||
+    (typeof caps['appium:appPackage'] === 'string' && caps['appium:appPackage']) ||
+    process.env.BUNDLE_ID ||
+    'com.onesignal.example';
   const contexts = await driver.getContexts();
-  return contexts.some((c) => String(c).includes('WEBVIEW'));
+  return contexts.some((c) => {
+    const name = String(c);
+    return name !== 'NATIVE_APP' && name.includes(appPackage);
+  });
 }
 
 /**

@@ -3,10 +3,8 @@ import {
   checkNotification,
   checkTooltip,
   scrollToEl,
-  isWebViewSDK,
   isBrowserStackIos,
   withRetryDelay,
-  isUnitySDK,
 } from '../helpers/app.js';
 import { byTestId, expectToggleState } from '../helpers/selectors.js';
 
