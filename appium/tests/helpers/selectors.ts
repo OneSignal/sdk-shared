@@ -1,15 +1,4 @@
-type SdkType =
-  | 'android'
-  | 'capacitor'
-  | 'cordova'
-  | 'dotnet'
-  | 'expo'
-  | 'flutter'
-  | 'ios'
-  | 'react-native'
-  | 'unity';
-
-const VALID_SDK_TYPES = new Set<string>([
+const VALID_SDK_TYPES = [
   'android',
   'capacitor',
   'cordova',
@@ -19,7 +8,10 @@ const VALID_SDK_TYPES = new Set<string>([
   'ios',
   'react-native',
   'unity',
-]);
+] as const;
+
+type SdkType = (typeof VALID_SDK_TYPES)[number];
+const VALID_SDK_TYPE_SET = new Set<string>(VALID_SDK_TYPES);
 
 type Platform = 'ios' | 'android';
 
@@ -178,19 +170,21 @@ export async function expectToggleState(
 
 export function getSdkType(): SdkType {
   const sdkType = process.env.SDK_TYPE;
-  if (sdkType && VALID_SDK_TYPES.has(sdkType)) {
-    return sdkType as SdkType;
+  if (isSdkType(sdkType)) {
+    return sdkType;
   }
   throw new Error(
-    `SDK_TYPE env var must be one of: ${[...VALID_SDK_TYPES].join(', ')}. Got: ${sdkType}`,
+    `SDK_TYPE env var must be one of: ${VALID_SDK_TYPES.join(', ')}. Got: ${sdkType}`,
   );
+}
+
+function isSdkType(value: string | undefined): value is SdkType {
+  return typeof value === 'string' && VALID_SDK_TYPE_SET.has(value);
 }
 
 type ElementWithInteractionMethods = {
   click(): Promise<void>;
   getAttribute(name: string): Promise<string | null>;
-  getLocation(): Promise<{ x: number; y: number }>;
-  getSize(): Promise<{ width: number; height: number }>;
   getText(): Promise<string>;
   setValue(value: string): Promise<void>;
 };
@@ -198,8 +192,7 @@ type ElementWithInteractionMethods = {
 // Centralized SDK-specific element shims.
 function withElementInteractionFixes<T extends ElementWithInteractionMethods>(el: T): T {
   const isFlutterAndroid = getPlatform() === 'android' && getSdkType() === 'flutter';
-  const isUnity = getSdkType() === 'unity';
-  if (!isFlutterAndroid && !isUnity) {
+  if (!isFlutterAndroid) {
     return el;
   }
 
