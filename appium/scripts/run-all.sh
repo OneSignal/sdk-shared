@@ -15,19 +15,40 @@ warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; }
 
 # ── Args (forwarded as-is to run-local.sh) ────────────────────────────────────
+ALL_SDKS=(cordova capacitor react-native flutter dotnet expo unity)
+
 EXTRA_ARGS=()
+PLATFORM_FILTER=""
+SDKS_FILTER=""
+BAIL=0
 for arg in "$@"; do
   case "$arg" in
     --skip-build|--skip-device|--skip-reset|--skip)
       EXTRA_ARGS+=("$arg") ;;
     --spec=*)
       EXTRA_ARGS+=("$arg") ;;
+    --platform=ios|--platform=android)
+      PLATFORM_FILTER="${arg#--platform=}" ;;
+    --platform=*)
+      error "Invalid --platform value: ${arg#--platform=} (expected: ios or android)"
+      exit 2 ;;
+    --sdks=*|--sdk=*)
+      SDKS_FILTER="${arg#*=}" ;;
+    --bail)
+      BAIL=1 ;;
     --help|-h)
       cat <<USAGE
 Usage: $0 [OPTIONS]
 
 Runs the Appium E2E suite across every SDK/platform combo by delegating
-to run-local.sh. Combos: cordova, react-native, flutter on ios + android.
+to run-local.sh. Combos: cordova, react-native, flutter, dotnet, expo,
+unity on ios + android.
+
+Options:
+  --platform=ios|android   Only run combos for the given platform (default: both)
+  --sdks=LIST              Comma-separated SDKs to run (default: all)
+                           Valid: cordova, react-native, flutter, dotnet, expo, unity
+  --bail                   Stop after the first failing combo
 
 Options forwarded to run-local.sh:
   --skip-build     Skip per-app build (reuse existing artifact)
@@ -45,11 +66,31 @@ USAGE
   esac
 done
 
-PLATFORMS=(ios android)
-SDKS=(cordova react-native flutter dotnet expo unity)
+if [[ -n "$PLATFORM_FILTER" ]]; then
+  PLATFORMS=("$PLATFORM_FILTER")
+else
+  PLATFORMS=(ios android)
+fi
+
+if [[ -n "$SDKS_FILTER" ]]; then
+  IFS=',' read -r -a SDKS <<< "$SDKS_FILTER"
+  for sdk in "${SDKS[@]}"; do
+    valid=0
+    for known in "${ALL_SDKS[@]}"; do
+      if [[ "$sdk" == "$known" ]]; then valid=1; break; fi
+    done
+    if (( ! valid )); then
+      error "Invalid --sdks value: '$sdk' (valid: ${ALL_SDKS[*]})"
+      exit 2
+    fi
+  done
+else
+  SDKS=("${ALL_SDKS[@]}")
+fi
 
 declare -a RESULTS
 FAILED=0
+BAILED=0
 
 for platform in "${PLATFORMS[@]}"; do
   for sdk in "${SDKS[@]}"; do
@@ -63,6 +104,11 @@ for platform in "${PLATFORMS[@]}"; do
     else
       RESULTS+=("FAIL  ${label}")
       FAILED=$((FAILED + 1))
+      if (( BAIL )); then
+        BAILED=1
+        warn "Bailing out after first failure (--bail)"
+        break 2
+      fi
     fi
   done
 done
@@ -79,7 +125,11 @@ done
 
 if (( FAILED > 0 )); then
   echo ""
-  error "${FAILED} combo(s) failed"
+  if (( BAILED )); then
+    error "${FAILED} combo(s) failed (bailed out after first failure)"
+  else
+    error "${FAILED} combo(s) failed"
+  fi
   exit 1
 fi
 
