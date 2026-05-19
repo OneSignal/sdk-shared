@@ -435,7 +435,7 @@ Use the platform's native accessibility/test ID mechanism. The ids MUST match ex
 
 | Platform                | Mechanism                |
 | ----------------------- | ------------------------ |
-| Android (native Kotlin) | `Modifier.testTag(...)`  |
+| Android (native Kotlin) | `Modifier.testTag(...)` with `testTagsAsResourceId = true` |
 | iOS (native Swift)      | `accessibilityIdentifier`|
 | Flutter                 | `Semantics(identifier:)` |
 | React Native            | `testID`                 |
@@ -476,7 +476,7 @@ Section keys: `app`, `user`, `push`, `send_push`, `iam`, `send_iam`, `aliases`, 
 | `add_tag_button`, `add_multiple_tags_button`, `remove_tags_button`                                                          | Tags section actions                                                       |
 | `add_trigger_button`, `add_multiple_triggers_button`, `remove_triggers_button`, `clear_triggers_button`                     | Triggers section actions                                                   |
 | `send_outcome_button`                                                                                                       | Send Outcome (opens dialog)                                                |
-| `track_event_button`                                                                                                        | Track Event (opens dialog)                                                 |
+| `track_event_button`                                                                                                        | Custom Events / Track Event action (opens dialog)                          |
 | `prompt_location_button`, `check_location_button`                                                                           | Location section actions                                                   |
 | `start_live_activity_button`, `update_live_activity_button`, `end_live_activity_button`                                     | Live Activities section actions (iOS only)                                 |
 | `next_screen_button`                                                                                                        | Bottom NEXT SCREEN navigation button                                       |
@@ -506,6 +506,7 @@ Confirm buttons on the shared SingleInput, SinglePair, MultiPair and MultiSelect
 | `multiselect_confirm_button`       | Confirm on the MultiSelectRemove dialog                     |
 | `remove_checkbox_{key}`            | Checkbox in MultiSelectRemove dialog (one per item)         |
 | `login_user_id_input`              | Login External User Id field                                |
+| `login_user_jwt_input`             | Login JWT field                                             |
 | `alias_label_input`                | Add Alias label field                                       |
 | `alias_id_input`                   | Add Alias ID field                                          |
 | `email_input`                      | Add Email field                                             |
