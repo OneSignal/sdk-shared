@@ -49,7 +49,7 @@ Options:
   --sdks=LIST              Comma-separated SDKs to run (default: all)
                            Valid: cordova, capacitor, react-native, flutter,
                                   dotnet, expo, unity, android
-                           Note: 'android' (native) only runs on --platform=android.
+                           Note: 'android' (native) skips --platform=ios.
   --bail                   Stop after the first failing combo
 
 Options forwarded to run-local.sh:
@@ -94,14 +94,17 @@ fi
 declare -a RESULTS
 FAILED=0
 BAILED=0
+SKIPPED=0
 
 for platform in "${PLATFORMS[@]}"; do
   for sdk in "${SDKS[@]}"; do
-    # Native Android demo only exists for Android; silently skip the iOS
-    # combo when iterating both platforms so the matrix stays clean. When
-    # the user explicitly requested `--sdks=android --platform=ios`, fall
-    # through and let run-local.sh emit the real error.
-    if [[ "$sdk" == "android" && "$platform" == "ios" && -z "$PLATFORM_FILTER" ]]; then
+    # Native Android demo only exists for Android.
+    if [[ "$sdk" == "android" && "$platform" == "ios" ]]; then
+      if [[ -n "$PLATFORM_FILTER" ]]; then
+        warn "--sdk=android only runs on --platform=android; skipping --platform=ios"
+        RESULTS+=("SKIP  ${sdk} / ${platform}")
+        SKIPPED=$((SKIPPED + 1))
+      fi
       continue
     fi
     label="${sdk} / ${platform}"
@@ -128,6 +131,8 @@ echo -e "${BOLD}━━━ Summary ━━━${NC}"
 for line in "${RESULTS[@]}"; do
   if [[ "$line" == PASS* ]]; then
     echo -e "  ${GREEN}${line}${NC}"
+  elif [[ "$line" == SKIP* ]]; then
+    echo -e "  ${YELLOW}${line}${NC}"
   else
     echo -e "  ${RED}${line}${NC}"
   fi
@@ -144,4 +149,8 @@ if (( FAILED > 0 )); then
 fi
 
 echo ""
-info "All combos passed"
+if (( SKIPPED > 0 )); then
+  info "No combos failed"
+else
+  info "All combos passed"
+fi

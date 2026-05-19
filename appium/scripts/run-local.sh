@@ -66,7 +66,7 @@ Options:
   --platform=P        ios | android
   --sdk=S             flutter | react-native | cordova | capacitor | dotnet | expo | unity | android
                       android = native Android (OneSignal-Android-SDK/examples/demo);
-                      only valid with --platform=android.
+                      skips with exit 0 when --platform=ios.
   --device=NAME       Device/simulator/AVD name (default: iPhone 17 / Samsung Galaxy S26)
   --appium-port=N     Appium server port (default: 4723). Use unique values when
                       running multiple sessions in parallel on the same host.
@@ -181,7 +181,8 @@ case "$SDK_TYPE" in
 esac
 
 if [[ "$SDK_TYPE" == "android" && "$PLATFORM" != "android" ]]; then
-  error "--sdk=android only supports --platform=android"
+  warn "--sdk=android only runs on --platform=android; skipping --platform=$PLATFORM"
+  exit 0
 fi
 
 # ── Real-device validation + signing setup ────────────────────────────────────
