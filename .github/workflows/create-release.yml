@@ -293,11 +293,13 @@ jobs:
         id: merged_notes
         if: steps.check_pr.outputs.exists == 'true'
         uses: actions/github-script@v9
+        env:
+          NEW_NOTES: ${{ steps.release_notes.outputs.notes }}
         with:
           script: |
             const fs = require('fs');
             const existingBody = fs.readFileSync('existing_body.md', 'utf8');
-            const newNotes = `${{ steps.release_notes.outputs.notes }}`;
+            const newNotes = process.env.NEW_NOTES;
 
             // Regex to extract a single SDK update entry (main bullet + sub-bullets)
             // Matches: "- Update {SDK} from X to Y\n" followed by any "  - " sub-bullets
