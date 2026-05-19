@@ -913,22 +913,13 @@ export async function isWebViewVisible() {
   // Samsung's `WEBVIEW_Terrace` from Samsung Internet) that are never
   // attached to the app under test, so a naive `c.includes("WEBVIEW")`
   // returns true forever and `waitUntil(!isWebViewVisible())` times out.
-  const contexts = await driver.getContexts();
-  const webviewContext = contexts.find(isAppWebViewContext);
-  if (!webviewContext) return false;
-
   const previousContext = String(await driver.getContext());
   try {
-    if (previousContext !== String(webviewContext)) {
-      await driver.switchContext(String(webviewContext));
-    }
+    if (!(await switchToWebViewContext())) return false;
     const handles = await driver.getWindowHandles();
-    const live = handles.filter((h) => !knownStaleIAMHandles.has(h));
-    return live.length > (isWebViewSDK ? 1 : 0);
+    return handles.some((h) => !knownStaleIAMHandles.has(h));
   } finally {
-    if (previousContext !== String(webviewContext)) {
-      await driver.switchContext(previousContext).catch(() => undefined);
-    }
+    await driver.switchContext(previousContext).catch(() => undefined);
   }
 }
 
