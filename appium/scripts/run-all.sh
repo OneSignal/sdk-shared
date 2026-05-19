@@ -15,7 +15,7 @@ warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; }
 
 # ── Args (forwarded as-is to run-local.sh) ────────────────────────────────────
-ALL_SDKS=(cordova capacitor react-native flutter dotnet expo unity)
+ALL_SDKS=(cordova capacitor dotnet expo flutter react-native unity)
 
 EXTRA_ARGS=()
 PLATFORM_FILTER=""

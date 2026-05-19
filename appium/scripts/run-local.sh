@@ -1003,12 +1003,40 @@ build_dotnet_sdk() {
     return
   fi
 
+  local -a xcode_args
+  if [[ "$platform" == "ios" ]]; then
+    read -r -a xcode_args <<<"$(dotnet_ios_xcode_check_args)"
+  fi
+
   info "Building .NET SDK + bindings for ${tfm}..."
-  dotnet build "$sdk_proj" -c Debug -f "$tfm"
+  dotnet build "$sdk_proj" -c Debug -f "$tfm" ${xcode_args[@]+"${xcode_args[@]}"}
 
   [[ -f "$sdk_dll" ]] || error "SDK build did not produce $sdk_dll"
   mkdir -p "$(dirname "$stamp")"
   echo "$hash" > "$stamp"
+}
+
+# If the installed Microsoft.iOS.Sdk workload was published for a different
+# Xcode major.minor than what's on the host, MSBuild aborts the build via the
+# _ValidateXcodeVersion target. Echoes `-p:ValidateXcodeVersion=false` when a
+# mismatch is detected (and logs once) so the build still runs without
+# requiring the user to keep dotnet workloads and Xcode in lockstep.
+dotnet_ios_xcode_check_args() {
+  local host_xcode pack_dir workload_xcode host_mm workload_mm
+  host_xcode=$(xcodebuild -version 2>/dev/null | head -n1 | awk '{print $2}')
+  for root in /usr/local/share/dotnet "$HOME/.dotnet"; do
+    pack_dir=$(ls -1d "$root/packs/Microsoft.iOS.Sdk.${DOTNET_TFM}_"* 2>/dev/null | sort -V | tail -n1)
+    [[ -n "$pack_dir" ]] && break
+  done
+  [[ -n "$host_xcode" && -n "$pack_dir" ]] || return 0
+
+  workload_xcode=$(basename "$pack_dir" | sed "s|Microsoft.iOS.Sdk.${DOTNET_TFM}_||")
+  host_mm=$(awk -F. '{printf "%s.%s", $1, $2}' <<<"$host_xcode")
+  workload_mm=$(awk -F. '{printf "%s.%s", $1, $2}' <<<"$workload_xcode")
+  if [[ "$host_mm" != "$workload_mm" ]]; then
+    info ".NET iOS workload targets Xcode ${workload_mm}; host has ${host_mm} — bypassing Xcode version check" >&2
+    echo "-p:ValidateXcodeVersion=false"
+  fi
 }
 
 build_dotnet_ios() {
@@ -1029,6 +1057,9 @@ build_dotnet_ios() {
 
   build_dotnet_sdk ios "$sdk_hash"
 
+  local -a xcode_args
+  read -r -a xcode_args <<<"$(dotnet_ios_xcode_check_args)"
+
   # --no-dependencies: SDK is already built (and cached) by build_dotnet_sdk,
   # so MSBuild can skip even checking referenced projects for up-to-date.
   info "Building Debug .app for iOS simulator (${DOTNET_IOS_RID})..."
@@ -1036,6 +1067,7 @@ build_dotnet_ios() {
     -c Debug \
     -f "${DOTNET_TFM}-ios" \
     -p:RuntimeIdentifier="${DOTNET_IOS_RID}" \
+    ${xcode_args[@]+"${xcode_args[@]}"} \
     --no-dependencies)
 
   [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"

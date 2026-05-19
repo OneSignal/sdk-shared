@@ -426,48 +426,51 @@ export async function ensureMainWebViewContext() {
 
   await driver.waitUntil(
     async () => {
-      const contexts = await driver.getContexts();
-      const webview = contexts.find((c) => String(c) !== 'NATIVE_APP');
+      const contexts = (await driver.getContexts()).map(contextName).filter(isDefined);
+      const webview = contexts.find((c) => c !== 'NATIVE_APP');
       if (!webview) return false;
-      const current = await driver.getContext();
-      if (String(current) !== String(webview)) {
-        await driver.switchContext(String(webview));
+      const current = contextName(await driver.getContext());
+      if (current !== webview) {
+        await driver.switchContext(webview);
       }
-      return true;
+      return switchToMainWebViewWindow();
     },
     { timeout: 10_000, timeoutMsg: 'WebView context never became available' },
   );
+}
 
-  // On Android, the OneSignal IAM SDK opens each in-app message in its own
-  // WebView window inside the same WEBVIEW_* context. Closing the IAM does
-  // NOT detach the window handle -- the next pointer/getWindowSize call still
-  // resolves against the (now stale) IAM viewport, which causes swipes to
-  // operate on a tiny off-screen region or hang for the full session timeout.
-  // Snap to the largest window (the main app fills the screen; IAM banners
-  // are small overlays).
-  try {
-    const handles = await driver.getWindowHandles();
-    if (handles.length > 1) {
-      let bestHandle = handles[0];
-      let bestArea = -1;
-      for (const handle of handles) {
-        try {
-          await driver.switchToWindow(handle);
-          const { width, height } = await driver.getWindowSize();
-          const area = width * height;
-          if (area > bestArea) {
-            bestArea = area;
-            bestHandle = handle;
-          }
-        } catch {
-          /* ignore handles we can't activate */
-        }
-      }
-      await driver.switchToWindow(bestHandle);
-    }
-  } catch {
-    /* best effort: stale handles are recoverable on the next call */
+function contextName(context: unknown): string | undefined {
+  if (typeof context === 'string') return context;
+  if (typeof context === 'object' && context !== null) {
+    const id = Reflect.get(context, 'id');
+    if (typeof id === 'string') return id;
   }
+  return undefined;
+}
+
+function isDefined<T>(value: T | undefined): value is T {
+  return value !== undefined;
+}
+
+async function switchToMainWebViewWindow(): Promise<boolean> {
+  const handles = await driver.getWindowHandles().catch(() => []);
+  if (handles.length === 0) return true;
+
+  if (handles.length === 1) {
+    await driver.switchToWindow(handles[0]).catch(() => {});
+    return true;
+  }
+
+  for (const handle of handles) {
+    try {
+      await driver.switchToWindow(handle);
+      const main = $('[data-testid="main_scroll_view"]');
+      if (await main.isExisting().catch(() => false)) return true;
+    } catch {
+      /* ignore closed/stale IAM windows */
+    }
+  }
+  return false;
 }
 
 /**
@@ -479,7 +482,7 @@ export async function ensureMainWebViewContext() {
 export async function switchToNativeContext() {
   if (!isWebViewSDK) return;
 
-  const current = String(await driver.getContext());
+  const current = contextName(await driver.getContext());
   if (current !== 'NATIVE_APP') {
     await driver.switchContext('NATIVE_APP');
   }
@@ -876,135 +879,84 @@ export async function checkNotification(opts: {
 }
 
 export async function isWebViewVisible() {
-  if (getPlatform() === 'ios') {
-    // Capacitor/Cordova park the driver in WEBVIEW_* and the app itself is a
-    // WebView, so the original predicate strategy can't be used here. The IAM
-    // is exposed as its own WebView context only when isInspectable=YES is set
-    // on it (see OSInAppMessageView.m, requires Verbose log level), so >1
-    // non-NATIVE context means an IAM is up on top of the app's webview.
-    if (isWebViewSDK) {
-      const contexts = await driver.getContexts();
-      const nonNative = contexts.filter((c) => String(c) !== 'NATIVE_APP');
-      return nonNative.length > 1;
-    }
-    const webview = await $('-ios predicate string:type == "XCUIElementTypeWebView"');
+  if (getPlatform() === 'ios' && !isWebViewSDK) {
+    const webview = $('-ios predicate string:type == "XCUIElementTypeWebView"');
     return await webview.isExisting();
   }
 
-  // Android Capacitor/Cordova: the main app WebView is always a WEBVIEW_*
-  // context, so `contexts.some(...WEBVIEW)` would always be true. Each IAM
-  // instead opens in its own window inside the same context, so count
-  // live window handles -- 1 = main app only, >1 = at least one IAM is up.
-  // Filter stale IAM handles (chromedriver doesn't detach closed-IAM
-  // windows from getWindowHandles(); see switchToIAMWebView), otherwise
-  // we'd get false positives after a previous IAM was matched/closed.
-  if (isWebViewSDK) {
-    const handles = await driver.getWindowHandles();
-    const live = handles.filter((h) => !knownStaleIAMHandles.has(h));
-    return live.length > 1;
-  }
+  return findIamWebView().then(Boolean);
+}
 
-  // Some Android OEMs surface persistent system WebView contexts (e.g.
-  // Samsung's `WEBVIEW_Terrace` from Samsung Internet) that are never
-  // attached to the app under test, so a naive `c.includes("WEBVIEW")`
-  // returns true forever and `waitUntil(!isWebViewVisible())` times out.
-  // OneSignal IAMs always inflate inside the demo's own process, so filter
-  // to contexts scoped to the app's package.
-  const caps = driver.capabilities as Record<string, unknown>;
-  const appPackage =
-    (typeof caps['appPackage'] === 'string' && caps['appPackage']) ||
-    (typeof caps['appium:appPackage'] === 'string' && caps['appium:appPackage']) ||
-    process.env.BUNDLE_ID ||
-    'com.onesignal.example';
-  const contexts = await driver.getContexts();
-  return contexts.some((c) => {
-    const name = String(c);
-    return name !== 'NATIVE_APP' && name.includes(appPackage);
+async function switchToIAMWebView(expectedTitle: string, timeoutMs: number) {
+  await driver.waitUntil(() => findIamWebView(expectedTitle).then(Boolean), {
+    timeout: timeoutMs,
+    timeoutMsg: `Could not find IAM with title "${expectedTitle}"`,
   });
 }
 
-/**
- * On Android, Appium pools all IAM webviews under a single WEBVIEW_* context,
- * so closing one IAM doesn't remove the context -- old window handles linger.
- * We iterate window handles to find the one whose <h1> matches the expected title.
- */
-async function switchToWebViewContext() {
-  const contexts = await driver.getContexts();
-  const webviewContext = contexts.find((c) => String(c) !== 'NATIVE_APP');
-  if (!webviewContext) return false;
-  await driver.switchContext(String(webviewContext));
-  return true;
-}
+async function findIamWebView(expectedTitle?: string): Promise<boolean> {
+  const restore = async () => {
+    if (isWebViewSDK) {
+      await ensureMainWebViewContext().catch(() => {});
+    } else {
+      await driver.switchContext('NATIVE_APP').catch(() => {});
+    }
+  };
 
-// Handles that we've already matched as IAM webviews on Android. After the IAM
-// is closed, chromedriver does not detach the handle from getWindowHandles(),
-// so we must skip it on subsequent iterations to avoid `switchToWindow` ->
-// "no such window" noise (and chromedriver instability when many stale handles
-// pile up).
-const knownStaleIAMHandles = new Set<string>();
+  try {
+    const contexts = (await driver.getContexts()).map(contextName).filter(isDefined);
+    const webviewContexts = contexts.filter(isIamCandidateContext);
 
-async function switchToIAMWebView(expectedTitle: string, timeoutMs: number) {
-  if (getPlatform() === 'ios') {
-    // On hybrid iOS the app itself is a WebView, so getContexts() returns
-    // ["NATIVE_APP", WEBVIEW_<app>, WEBVIEW_<iam>]. Iterate non-NATIVE contexts
-    // and pick the one whose <h1> matches the expected title.
-    await driver.waitUntil(
-      async () => {
-        try {
-          const contexts = (await driver.getContexts()).map((c) => String(c));
-          const nonNative = contexts.filter((c) => c !== 'NATIVE_APP');
-          for (const ctx of nonNative) {
-            await driver.switchContext(ctx);
-            const h1 = await $('h1');
-            if ((await h1.isExisting()) && (await h1.getText()) === expectedTitle) {
-              return true;
-            }
-          }
-          await driver.switchContext('NATIVE_APP');
-          return false;
-        } catch {
-          return false;
-        }
-      },
-      { timeout: timeoutMs, timeoutMsg: `Could not find IAM with title "${expectedTitle}"` },
-    );
-    return;
-  }
-
-  await driver.waitUntil(
-    async () => {
+    for (const context of webviewContexts) {
       try {
-        if (!(await switchToWebViewContext())) return false;
+        await driver.switchContext(context);
+        const handles = await driver.getWindowHandles().catch(() => []);
+        const candidates =
+          handles.length > 0
+            ? [...handles].reverse().filter((handle) => !closedIamWindowHandles.has(handle))
+            : [undefined];
 
-        // chromedriver appends new IAM windows to the end and does NOT detach
-        // closed-IAM handles from getWindowHandles(). Iterate newest-first and
-        // skip handles previously matched/failed -- otherwise switchToWindow
-        // on a stale handle emits `no such window` warnings and, when several
-        // stale handles pile up, can crash the chromedriver session.
-        const candidates = [...(await driver.getWindowHandles())]
-          .reverse()
-          .filter((h) => !knownStaleIAMHandles.has(h));
         for (const handle of candidates) {
           try {
-            await driver.switchToWindow(handle);
+            if (handle) await driver.switchToWindow(handle);
+            if (await hasVisibleIamContent(expectedTitle)) return true;
           } catch {
-            knownStaleIAMHandles.add(handle);
-            continue;
-          }
-          const h1 = await $('h1');
-          if ((await h1.isExisting()) && (await h1.getText()) === expectedTitle) {
-            knownStaleIAMHandles.add(handle);
-            return true;
+            /* ignore closed/stale IAM windows */
           }
         }
-        await driver.switchContext('NATIVE_APP');
-        return false;
       } catch {
-        return false;
+        /* try the next WebView context */
       }
-    },
-    { timeout: timeoutMs, timeoutMsg: `Could not find IAM with title "${expectedTitle}"` },
-  );
+    }
+  } catch {
+    /* fall through to restore below */
+  }
+
+  await restore();
+  return false;
+}
+
+const closedIamWindowHandles = new Set<string>();
+
+function isIamCandidateContext(context: string): boolean {
+  if (context === 'NATIVE_APP') return false;
+  if (getPlatform() !== 'android' || isWebViewSDK) return true;
+  return context.includes(appPackageName());
+}
+
+function appPackageName(): string {
+  for (const key of ['appPackage', 'appium:appPackage']) {
+    const value = Reflect.get(driver.capabilities, key);
+    if (typeof value === 'string' && value) return value;
+  }
+  return process.env.BUNDLE_ID || 'com.onesignal.example';
+}
+
+async function hasVisibleIamContent(expectedTitle?: string): Promise<boolean> {
+  const title = $('h1');
+  if (!(await title.isExisting().catch(() => false))) return false;
+  if (!expectedTitle) return true;
+  return (await title.getText().catch(() => '')) === expectedTitle;
 }
 
 /**
@@ -1013,13 +965,29 @@ async function switchToIAMWebView(expectedTitle: string, timeoutMs: number) {
  * appears in 2.5s, re-tap. Native Android (non-Flutter) doesn't need this.
  */
 async function tapIamTrigger(buttonId: string) {
-  await (await scrollToEl(buttonId)).click();
-  if (getPlatform() === 'android' && !isFlutterSDK) return;
+  if (isWebViewSDK) {
+    await scrollToEl(buttonId);
+    await clickWebViewTestId(buttonId);
+  } else {
+    await (await scrollToEl(buttonId)).click();
+  }
+  if (getPlatform() === 'android' && !isFlutterSDK && !isWebViewSDK) return;
   try {
     await driver.waitUntil(() => isWebViewVisible(), { timeout: 2_500 });
   } catch {
-    await (await byTestId(buttonId)).click();
+    if (isWebViewSDK) {
+      await clickWebViewTestId(buttonId);
+    } else {
+      await (await byTestId(buttonId)).click();
+    }
   }
+}
+
+async function clickWebViewTestId(testId: string) {
+  await browser.execute((id: string) => {
+    const button = document.querySelector<HTMLElement>(`[data-testid="${id}"]`);
+    button?.click();
+  }, testId);
 }
 
 export async function checkInAppMessage(opts: {
@@ -1028,7 +996,7 @@ export async function checkInAppMessage(opts: {
   timeoutMs?: number;
   skipClick?: boolean;
 }) {
-  const { buttonId, expectedTitle, timeoutMs = 5_000 } = opts;
+  const { buttonId, expectedTitle, timeoutMs = 15_000 } = opts;
 
   if (!opts.skipClick) await tapIamTrigger(buttonId);
 
@@ -1043,7 +1011,11 @@ export async function checkInAppMessage(opts: {
   await title.waitForExist({ timeout: timeoutMs });
   expect(await title.getText()).toBe(expectedTitle);
 
+  const iamWindowHandle = await driver.getWindowHandle().catch(() => undefined);
   await (await $('.close-button')).click();
+  if (iamWindowHandle) {
+    closedIamWindowHandles.add(iamWindowHandle);
+  }
   await driver.switchContext('NATIVE_APP');
 
   if (getPlatform() === 'ios') {

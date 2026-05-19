@@ -2,23 +2,20 @@ import { sharedConfig, bstackOptions } from './wdio.shared.conf.js';
 
 const isLocal = !process.env.BROWSERSTACK_USERNAME;
 const isDotNet = process.env.SDK_TYPE === 'dotnet';
+const appPackage = process.env.BUNDLE_ID || 'com.onesignal.example';
+const appWaitPackages = [
+  appPackage,
+  'com.android.permissioncontroller',
+  'com.google.android.permissioncontroller',
+  'com.android.packageinstaller',
+].join(',');
 
-// `appWaitForLaunch: false` for every Android SDK on purpose:
-//   1. On Android 13+ first launch, the runtime notification permission dialog
-//      (`com.android.permissioncontroller/...GrantPermissionsActivity`) replaces
-//      MainActivity as the resumed activity within ~500ms of launch and stays
-//      until the user taps Allow. Appium's launchable-activity wait keeps
-//      polling for MainActivity in the foreground, hits its 20s default
-//      `appWaitDuration`, and emits a noisy "MainActivity never started"
-//      WebDriverError. The session creation still succeeds afterward, but the
-//      first test pays a ~26s slowdown for nothing.
-//   2. .NET MAUI compiles activities with CRC-hashed Java class names
-//      (e.g. `crc64126b3a41c71c5f27.MainActivity`), which Appium's check can't
-//      match against the C# namespace path even when MainActivity is foreground.
-// `waitForAppReady()` waits for `main_scroll_view` and clicks Allow on the
-// permission dialog, which is the correct app-level readiness signal.
+// Accept app or permission UI at session start; waitForAppReady owns readiness.
+// .NET needs longer install/startup time.
 const androidCaps = {
   'appium:appWaitForLaunch': false,
+  'appium:appWaitPackage': appWaitPackages,
+  'appium:appWaitActivity': '*',
   ...(isDotNet
     ? {
         'appium:appWaitDuration': 120_000,
@@ -27,10 +24,7 @@ const androidCaps = {
     : {}),
 };
 
-// Per-session UiAutomator2 ports. Required when running 2+ Android sessions
-// in parallel on one host so the instrumentation/chromedriver sockets don't
-// collide on the defaults (8200 / random). Single-session runs can leave both
-// unset and let Appium pick the defaults.
+// Optional per-session ports for parallel Android runs.
 const parallelPortCaps = {
   ...(process.env.SYSTEM_PORT ? { 'appium:systemPort': Number(process.env.SYSTEM_PORT) } : {}),
   ...(process.env.CHROMEDRIVER_PORT
@@ -47,8 +41,7 @@ export const config: WebdriverIO.Config = {
       'appium:deviceName': process.env.DEVICE || 'Samsung Galaxy S24',
       'appium:platformVersion': process.env.OS_VERSION || '16.0',
       'appium:automationName': 'UiAutomator2',
-      // Pin to the emulator the runner script resolved (matches AVD_NAME).
-      // Without this, multi-emulator hosts let Appium pick non-deterministically.
+      // Pin runner-selected emulator.
       ...(process.env.APPIUM_UDID ? { 'appium:udid': process.env.APPIUM_UDID } : {}),
       ...(process.env.BUNDLE_ID ? { 'appium:appPackage': process.env.BUNDLE_ID } : {}),
       'appium:autoGrantPermissions': false,
@@ -60,15 +53,11 @@ export const config: WebdriverIO.Config = {
 
       ...(isLocal ? {} : { 'bstack:options': bstackOptions }),
 
-      // Disable ID locator autocompletion to avoid Flutter's Semantics(container:true) wrapping inputs in a View.
-      // .NET MAUI exposes AutomationId as the Android resource-id but namespaced
-      // (e.g. `com.onesignal.example:id/main_scroll_view`); the test suite
-      // queries by short id, so leave autocompletion ON for dotnet so Appium
-      // prepends the package automatically.
-      // @ts-expect-error - Appium types are not fully compatible with WebdriverIO types
+      // Flutter needs raw ids; .NET needs Appium package-prefixing.
+      // @ts-expect-error - Appium settings cap is not in WDIO types.
       'appium:settings[disableIdLocatorAutocompletion]': !isDotNet,
 
-      // Hide keyboard during session
+      // Hide keyboard during session.
       'appium:hideKeyboard': true,
     },
   ],
