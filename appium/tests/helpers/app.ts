@@ -76,7 +76,6 @@ export async function scrollToEl(
 ) {
   // Swipe loop is the fallback and handles upward searches.
   const { direction = 'down', maxScrolls = 30 } = opts;
-  const platform = getPlatform();
 
   if (isWebViewSDK) {
     const el = await byTestId(identifier);
@@ -86,15 +85,6 @@ export async function scrollToEl(
       el,
     );
     return byTestId(identifier);
-  }
-
-  // Skip fast paths that target the wrong scroll container or a11y tree.
-  if (direction === 'down' && !isFlutterSDK && !isUnitySDK && !isNativeAndroidSDK) {
-    if (platform === 'android') {
-      await tryNativeScrollAndroid(identifier);
-    } else {
-      await tryNativeScrollIos(identifier);
-    }
   }
 
   for (let i = 0; i < maxScrolls; i++) {
@@ -107,39 +97,6 @@ export async function scrollToEl(
     if (isFlutterSDK) await driver.pause(250);
   }
   throw new Error(`Element "${identifier}" not found after ${maxScrolls} scrolls`);
-}
-
-/** Android native scroll fast path. */
-async function tryNativeScrollAndroid(id: string): Promise<void> {
-  try {
-    const fullId =
-      sdkType === 'dotnet' ? `${process.env.BUNDLE_ID || 'com.onesignal.example'}:id/${id}` : id;
-    const sel =
-      `new UiScrollable(new UiSelector().scrollable(true).instance(0))` +
-      `.scrollIntoView(new UiSelector().resourceId("${fullId}"))`;
-    const result = await $(`android=${sel}`);
-    await result.isExisting();
-  } catch {
-    // Fall back to swipe loop.
-  }
-}
-
-/** iOS native scroll fast path; avoids WDA match-scroll caps. */
-async function tryNativeScrollIos(id: string): Promise<void> {
-  try {
-    const main = await byTestId('main_scroll_view');
-    if (!(await main.isExisting())) return;
-    for (let i = 0; i < 30; i++) {
-      const el = await byTestId(id);
-      if (await el.isDisplayed().catch(() => false)) return;
-      await driver.execute('mobile: scroll', {
-        elementId: main.elementId,
-        direction: 'down',
-      });
-    }
-  } catch {
-    // Fall back to swipe loop.
-  }
 }
 
 /** Flutter can be visible in a11y even when `isDisplayed()` lies. */
@@ -419,7 +376,7 @@ export async function openModal(triggerTestId: string, expectedTestId: string, t
     return expected;
   };
 
-  if (!isUnitySDK && !isNativeAndroidSDK) return open();
+  if (!isUnitySDK) return open();
   return retryOnce(open);
 }
 
