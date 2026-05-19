@@ -213,18 +213,6 @@ export async function allowNotifications() {
   ]);
 }
 
-/** Dismiss Android IME before the next native click. */
-export async function dismissKeyboard() {
-  if (getPlatform() !== 'android') return;
-  if (isWebViewSDK) return;
-  if (!(await driver.isKeyboardShown())) return;
-  try {
-    await driver.execute('mobile: hideKeyboard');
-  } catch (error) {
-    console.error('Error dismissing keyboard', error);
-  }
-}
-
 /** Tap the location permission allow button if present. */
 export async function allowLocation() {
   if (driver.isIOS) return clickIosPermissionButton('Allow While Using App');
