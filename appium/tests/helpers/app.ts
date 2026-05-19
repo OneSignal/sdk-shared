@@ -677,7 +677,6 @@ async function tapIamTrigger(buttonId: string) {
   } else {
     await (await scrollToEl(buttonId)).click();
   }
-  if (getPlatform() === 'android' && !isFlutterSDK && !isWebViewSDK) return;
   try {
     await driver.waitUntil(() => isWebViewVisible(), { timeout: 2_500 });
   } catch {
