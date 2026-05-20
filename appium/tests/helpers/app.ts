@@ -273,10 +273,8 @@ async function switchToMainWebViewWindow(): Promise<boolean> {
   return false;
 }
 
-/** Switch hybrid SDKs to native context for system UI. */
+/** Switch to NATIVE_APP for system UI. Usually a no-op outside WebView SDKs. */
 export async function switchToNativeContext() {
-  if (!isWebViewSDK) return;
-
   const current = contextName(await driver.getContext());
   if (current !== 'NATIVE_APP') {
     await driver.switchContext('NATIVE_APP');
