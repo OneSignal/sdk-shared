@@ -1664,6 +1664,16 @@ start_appium() {
   info "Appium ready (pid $pid)"
 }
 
+# Clear stale UiAutomator2 state between Android combos without rebooting the emulator.
+cleanup_android_automation() {
+  [[ "$PLATFORM" == "android" ]] || return 0
+  adb shell cmd statusbar collapse >/dev/null 2>&1 || true
+  adb shell input keyevent KEYCODE_BACK >/dev/null 2>&1 || true
+  adb shell input keyevent KEYCODE_HOME >/dev/null 2>&1 || true
+  adb shell am force-stop io.appium.uiautomator2.server >/dev/null 2>&1 || true
+  adb shell am force-stop io.appium.uiautomator2.server.test >/dev/null 2>&1 || true
+}
+
 # ── 3. Reset app ─────────────────────────────────────────────────────────────
 reset_app() {
   if [[ "$SKIP_RESET" == true ]]; then
@@ -1755,6 +1765,7 @@ main() {
   build_app
   start_device
   start_appium
+  cleanup_android_automation
   reset_app
   run_tests
 

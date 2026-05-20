@@ -685,6 +685,7 @@ export async function withRetryDelay(ctx: Mocha.Context, delayMs: number, fn: ()
     const currentRetry: unknown = ctx.test ? Reflect.get(ctx.test, '_currentRetry') : 0;
     const retries: unknown = ctx.test ? Reflect.get(ctx.test, '_retries') : 0;
     if (typeof currentRetry === 'number' && typeof retries === 'number' && currentRetry < retries) {
+      await returnToApp().catch(() => {});
       await browser.pause(delayMs);
     }
     throw err;
