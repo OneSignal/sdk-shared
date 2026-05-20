@@ -15,7 +15,7 @@ warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; }
 
 # ── Args (forwarded as-is to run-local.sh) ────────────────────────────────────
-ALL_SDKS=(cordova capacitor dotnet expo flutter react-native unity)
+ALL_SDKS=(android cordova capacitor dotnet expo flutter react-native unity)
 
 EXTRA_ARGS=()
 PLATFORM_FILTER=""
@@ -23,7 +23,7 @@ SDKS_FILTER=""
 BAIL=0
 for arg in "$@"; do
   case "$arg" in
-    --skip-build|--skip-device|--skip-reset|--skip)
+    --skip-build|--skip-device|--skip-reset|--skip|--quiet|-q)
       EXTRA_ARGS+=("$arg") ;;
     --spec=*)
       EXTRA_ARGS+=("$arg") ;;
@@ -41,13 +41,15 @@ for arg in "$@"; do
 Usage: $0 [OPTIONS]
 
 Runs the Appium E2E suite across every SDK/platform combo by delegating
-to run-local.sh. Combos: cordova, react-native, flutter, dotnet, expo,
-unity on ios + android.
+to run-local.sh. Combos: cordova, capacitor, react-native, flutter, dotnet,
+expo, unity on ios + android, plus android (native) on android only.
 
 Options:
   --platform=ios|android   Only run combos for the given platform (default: both)
   --sdks=LIST              Comma-separated SDKs to run (default: all)
-                           Valid: cordova, react-native, flutter, dotnet, expo, unity
+                           Valid: cordova, capacitor, react-native, flutter,
+                                  dotnet, expo, unity, android
+                           Note: 'android' (native) skips --platform=ios.
   --bail                   Stop after the first failing combo
 
 Options forwarded to run-local.sh:
@@ -56,6 +58,7 @@ Options forwarded to run-local.sh:
   --skip-reset     Keep existing app data
   --skip           Shortcut for --skip-build --skip-device --skip-reset
   --spec=GLOB      Spec glob to run (default: full suite, grouped into one session)
+  -q, --quiet      Hide run-local [INFO] log lines
   -h, --help       Show this help
 
 Exits non-zero if any combo fails. Prints a summary at the end.
@@ -91,9 +94,19 @@ fi
 declare -a RESULTS
 FAILED=0
 BAILED=0
+SKIPPED=0
 
 for platform in "${PLATFORMS[@]}"; do
   for sdk in "${SDKS[@]}"; do
+    # Native Android demo only exists for Android.
+    if [[ "$sdk" == "android" && "$platform" == "ios" ]]; then
+      if [[ -n "$PLATFORM_FILTER" ]]; then
+        warn "--sdk=android only runs on --platform=android; skipping --platform=ios"
+        RESULTS+=("SKIP  ${sdk} / ${platform}")
+        SKIPPED=$((SKIPPED + 1))
+      fi
+      continue
+    fi
     label="${sdk} / ${platform}"
     echo ""
     echo -e "${BOLD}━━━ Running: ${label} ━━━${NC}"
@@ -118,6 +131,8 @@ echo -e "${BOLD}━━━ Summary ━━━${NC}"
 for line in "${RESULTS[@]}"; do
   if [[ "$line" == PASS* ]]; then
     echo -e "  ${GREEN}${line}${NC}"
+  elif [[ "$line" == SKIP* ]]; then
+    echo -e "  ${YELLOW}${line}${NC}"
   else
     echo -e "  ${RED}${line}${NC}"
   fi
@@ -134,4 +149,8 @@ if (( FAILED > 0 )); then
 fi
 
 echo ""
-info "All combos passed"
+if (( SKIPPED > 0 )); then
+  info "No combos failed"
+else
+  info "All combos passed"
+fi

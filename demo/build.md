@@ -2,6 +2,11 @@
 
 Prompts and requirements to build the OneSignal {{PLATFORM}} Sample App from scratch.
 
+> `{{PLATFORM}}` is a placeholder. Each wrapper SDK's `examples/build.md`
+> extends this document and instructs readers to substitute the platform
+> name (`Android`, `iOS`, `Flutter`, `Capacitor`, `React Native`,
+> `Cordova`, `.NET MAUI`) before use.
+
 ---
 
 ## Phase 1: Initial Setup
@@ -10,7 +15,10 @@ Prompts and requirements to build the OneSignal {{PLATFORM}} Sample App from scr
 
 Create a new {{PLATFORM}} project at `examples/demo/` (relative to the SDK repo root).
 
-- Clean architecture: platform-idiomatic state container that calls the OneSignal SDK directly — a `useOneSignal` hook for React (react-native, react), Cordova, and Capacitor; an `AppViewModel` for .NET MAUI (C#) and Flutter. No repository wrapper layer.
+- Clean architecture: a platform-idiomatic state container that calls the
+  OneSignal SDK directly. No repository wrapper layer.
+  - `useOneSignal` hook for React, React Native, Cordova, Capacitor
+  - `AppViewModel` for .NET MAUI (C#) and Flutter
 - App name: "OneSignal Demo"
 - Top app bar: centered title with OneSignal logo SVG + "{{PLATFORM}}" text
 - Android package name / iOS bundle identifier: `com.onesignal.example`
@@ -37,7 +45,7 @@ Reference the OneSignal SDK from the parent repo using a local path/file depende
 
 ### Prompt 1.3 - OneSignal SDK Operations
 
-Call the OneSignal SDK directly from the state container — a `useOneSignal` hook for React (react-native, react), Cordova, and Capacitor; an `AppViewModel` for .NET MAUI (C#) and Flutter. Do not introduce a repository/wrapper layer. The state container should expose the operations below as actions/methods:
+The state container (see Prompt 1.1) calls the OneSignal SDK directly and exposes the operations below as actions/methods:
 
 - **User**: loginUser(externalUserId) -> async, logoutUser() -> async
 - **Aliases**: addAlias(label, id), addAliases(map)
@@ -92,13 +100,16 @@ hasApiKey:
 
 ### Prompt 1.5 - SDK Observers
 
-Initialize before UI renders:
+**1. Initialize before UI renders.** Cached consent flags must be applied before `initialize`; IAM/location flags must be restored after:
 
 ```
 OneSignal.Debug.setLogLevel(verbose)
 OneSignal.consentRequired(cachedConsentRequired)
 OneSignal.consentGiven(cachedPrivacyConsent)
 OneSignal.initialize(appId)
+
+OneSignal.InAppMessages.setPaused(cachedIamPaused)
+OneSignal.Location.setShared(cachedLocationShared)
 
 // iOS only
 OneSignal.LiveActivities.setupDefault({
@@ -107,20 +118,18 @@ OneSignal.LiveActivities.setupDefault({
 })
 ```
 
-Register listeners:
+**2. Register SDK lifecycle/click listeners.** These belong with the SDK init, not the state container:
 
 - InAppMessages: willDisplay, didDisplay, willDismiss, didDismiss, click
 - Notifications: click, foregroundWillDisplay
 
-Restore cached SDK states: IAM paused status, location shared status.
-
-Register observers in state management layer:
+**3. Register state-layer observers.** Wire these in the state container so they can mutate UI state:
 
 - Push subscription change
 - Notification permission change
-- User state change -> log the new onesignalId/externalId, and when `onesignalId` is non-null, trigger `fetchUserDataFromApi()` so the post-login fetch runs once the SDK has actually assigned an id (see Phase 3.1). When `onesignalId` is null (logout), skip the fetch — the logout path already clears local lists.
+- User state change — log the new `onesignalId`/`externalId`. When `onesignalId` is non-null, call `fetchUserDataFromApi()` so the post-login fetch runs once the SDK has actually assigned an id (see Phase 3.1). When `onesignalId` is null (logout), skip the fetch — the logout path already cleared local lists.
 
-Clean up listeners on teardown (if platform requires it).
+Clean up listeners on teardown if the platform requires it.
 
 ---
 
@@ -205,7 +214,7 @@ Separate SectionCard titled "User":
   3. CENTER MODAL - crop-square icon, trigger: "iam_type" = "center_modal"
   4. FULL SCREEN - fullscreen icon, trigger: "iam_type" = "full_screen"
 - Styling: primary (red) background, white text, icon on LEFT, full width, left-aligned, UPPERCASE
-- On tap: adds trigger, shows "Sent In-App Message: {type}", upserts `iam_type` in Triggers list
+- On tap: upserts `iam_type` in Triggers list. No snackbar (silent action — see Prompt 7.6)
 
 ### Prompt 2.6 - Aliases Section
 
@@ -305,15 +314,7 @@ Widget extension requirements:
 - Status-based theming: preparing (orange), on_the_way (blue), delivered (green)
 - If the file `examples/demo/ios/OneSignalWidget/OneSignalWidgetLiveActivity.swift` already exists, replace its contents with the shared reference implementation at `https://raw.githubusercontent.com/OneSignal/sdk-shared/main/demo/LiveActivity.swift`
 
-Environment / API key setup:
-
-- `.env` file with two variables:
-  - `ONESIGNAL_APP_ID=your-onesignal-app-id` (overrides default app ID; falls back to default if empty or missing)
-  - `ONESIGNAL_API_KEY=your-onesignal-api-key` (required for Live Activity update/end)
-  - `E2E_MODE=true` (optional, masks sensitive IDs in the UI for deterministic Appium screenshots)
-- Provide `.env.example` with placeholder values and a comment noting the default app ID
-- Add `.env` to `.gitignore`
-- `hasApiKey()` on the API service checks that the key is present and not the placeholder
+For `.env` setup and `hasApiKey()` semantics see the Configuration section at the bottom of this guide.
 
 ### Prompt 2.15 - Secondary Screen
 
@@ -417,7 +418,7 @@ All dialog fields EMPTY by default. Appium enters:
 | Dialog              | Fields                                               |
 | ------------------- | ---------------------------------------------------- |
 | Login               | External User Id = "test"                            |
-| Add Alias           | Key = "Test", Value = "Value"                        |
+| Add Alias           | Label = "Test", ID = "Value"                         |
 | Add Email           | Email = "test@onesignal.com"                         |
 | Add SMS             | SMS = "123-456-5678"                                 |
 | Add Tag             | Key = "Test", Value = "Value"                        |
@@ -430,7 +431,16 @@ Add Multiple dialogs use the same values for the first row and support multiple 
 
 ### Prompt 6.2 - Accessibility Identifiers (Appium)
 
-Use the platform's accessibility/test ID mechanism (e.g. `Semantics(identifier:)` in Flutter, `accessibilityIdentifier` in iOS, `testID` in React Native, `data-testid` in Cordova/Capacitor web, `AutomationId` in .NET MAUI). These identifiers allow Appium to locate elements reliably and MUST match exactly across platforms — the shared Appium suite under `sdk-shared/appium/tests/` selects elements by these ids.
+Use the platform's native accessibility/test ID mechanism. The ids MUST match exactly across platforms — the shared Appium suite under `sdk-shared/appium/tests/` selects elements by these ids.
+
+| Platform                | Mechanism                |
+| ----------------------- | ------------------------ |
+| Android (native Kotlin) | `Modifier.testTag(...)` with `testTagsAsResourceId = true` |
+| iOS (native Swift)      | `accessibilityIdentifier`|
+| Flutter                 | `Semantics(identifier:)` |
+| React Native            | `testID`                 |
+| Capacitor / Cordova     | `data-testid`            |
+| .NET MAUI               | `AutomationId`           |
 
 **Scroll view**: `main_scroll_view`
 
@@ -466,7 +476,7 @@ Section keys: `app`, `user`, `push`, `send_push`, `iam`, `send_iam`, `aliases`, 
 | `add_tag_button`, `add_multiple_tags_button`, `remove_tags_button`                                                          | Tags section actions                                                       |
 | `add_trigger_button`, `add_multiple_triggers_button`, `remove_triggers_button`, `clear_triggers_button`                     | Triggers section actions                                                   |
 | `send_outcome_button`                                                                                                       | Send Outcome (opens dialog)                                                |
-| `track_event_button`                                                                                                        | Track Event (opens dialog)                                                 |
+| `track_event_button`                                                                                                        | Custom Events / Track Event action (opens dialog)                          |
 | `prompt_location_button`, `check_location_button`                                                                           | Location section actions                                                   |
 | `start_live_activity_button`, `update_live_activity_button`, `end_live_activity_button`                                     | Live Activities section actions (iOS only)                                 |
 | `next_screen_button`                                                                                                        | Bottom NEXT SCREEN navigation button                                       |
@@ -496,6 +506,7 @@ Confirm buttons on the shared SingleInput, SinglePair, MultiPair and MultiSelect
 | `multiselect_confirm_button`       | Confirm on the MultiSelectRemove dialog                     |
 | `remove_checkbox_{key}`            | Checkbox in MultiSelectRemove dialog (one per item)         |
 | `login_user_id_input`              | Login External User Id field                                |
+| `login_user_jwt_input`             | Login JWT field                                             |
 | `alias_label_input`                | Add Alias label field                                       |
 | `alias_id_input`                   | Add Alias ID field                                          |
 | `email_input`                      | Add Email field                                             |
@@ -534,25 +545,13 @@ Confirm buttons on the shared SingleInput, SinglePair, MultiPair and MultiSelect
 
 ---
 
-## Phase 7: Implementation Details
+## Phase 7: Architecture
 
-### Alias Management
-
-Hybrid approach: fetched from API on start/login, local adds are immediate (SDK syncs async), fresh data from API on next launch.
-
-### Notification Permission
-
-Auto-request in home screen's init/mount lifecycle. PROMPT PUSH button as fallback if denied. Hidden once granted. Push "Enabled" toggle disabled until permission granted.
-
----
-
-## Phase 8: Architecture
-
-### Prompt 8.1 - State Management
+### Prompt 7.1 - State Management
 
 Single state container at app root. Holds all UI state with public getters. Exposes action methods that update state and notify UI. Implementation is platform-idiomatic: a `useOneSignal` hook for React (react-native, react), Cordova, and Capacitor; an `AppViewModel` for .NET MAUI (C#) and Flutter. The state container calls the OneSignal SDK directly (no repository wrapper) and depends only on `PreferencesService` and `OneSignalApiService`. Initialize SDK before rendering. Fetch tooltips in background.
 
-### Prompt 8.2 - Reusable Components
+### Prompt 7.2 - Reusable Components
 
 - **SectionCard**: card with title, optional info icon, content slot, onInfoTap callback, optional `sectionKey` for accessibility identifiers (generates `{sectionKey}_section` on the container and `{sectionKey}_info_icon` on the info button)
 - **ToggleRow**: label, optional description, toggle control, optional `semanticsLabel` for accessibility identifier
@@ -562,7 +561,7 @@ Single state container at app root. Holds all UI state with public getters. Expo
   - SingleInputDialog, PairInputDialog (same row), MultiPairInputDialog (dynamic rows, dividers, X to delete, batch submit), MultiSelectRemoveDialog (checkboxes, batch remove)
   - LoginDialog, OutcomeDialog, TrackEventDialog, CustomNotificationDialog, TooltipDialog
 
-### Prompt 8.3 - MultiPairInputDialog
+### Prompt 7.3 - MultiPairInputDialog
 
 Shared by Aliases, Tags, and Triggers ADD MULTIPLE buttons.
 
@@ -572,7 +571,7 @@ Shared by Aliases, Tags, and Triggers ADD MULTIPLE buttons.
 - "Add All" disabled until all fields filled, validates on every change
 - Submits as batch via SDK bulk APIs
 
-### Prompt 8.4 - MultiSelectRemoveDialog
+### Prompt 7.4 - MultiSelectRemoveDialog
 
 Shared by Tags and Triggers REMOVE buttons.
 
@@ -580,13 +579,13 @@ Shared by Tags and Triggers REMOVE buttons.
 - "Remove (N)" button shows selected count, disabled when none
 - Returns selected keys list
 
-### Prompt 8.5 - Theme
+### Prompt 7.5 - Theme
 
 All styling defined in: `https://raw.githubusercontent.com/OneSignal/sdk-shared/refs/heads/main/demo/styles.md`
 
 Implement theme constants/tokens mapping style reference to the platform's theming system.
 
-### Prompt 8.6 - Feedback Messages (SnackBar/Toast)
+### Prompt 7.6 - Feedback Messages (SnackBar/Toast)
 
 Feedback messages are shown directly from the UI layer (not centralized in the state management layer). Use a `BuildContext` extension or helper that calls the platform's transient message API (SnackBar/Toast). The extension should hide the current message before showing a new one. Show snackbars from UI widget callbacks after awaiting the action, using a context-mounted check before displaying.
 
@@ -607,14 +606,22 @@ Logging:
 
 ## Configuration
 
-Default app id: `77e32082-ea27-42e3-a898-c72e141824ef` (used when `ONESIGNAL_APP_ID` env var is empty or missing)
+### Environment variables (`.env`)
 
-App ID is loaded from the `.env` file's `ONESIGNAL_APP_ID` variable at startup, NOT from local preferences. If the env var is empty or absent, fall back to the default app ID above.
+| Variable                      | Required                  | Default                                          | Purpose                                                                                                |
+| ----------------------------- | ------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `ONESIGNAL_APP_ID`            | No                        | `77e32082-ea27-42e3-a898-c72e141824ef`           | OneSignal App ID. Loaded at startup from `.env`, NOT from local preferences. Falls back to default when empty or missing. |
+| `ONESIGNAL_API_KEY`           | Live Activities only      | —                                                | REST API key. Required for Live Activity update/end. `hasApiKey()` returns true when set and not the placeholder; UPDATE / END buttons disable when false. |
+| `E2E_MODE`                    | No                        | `false`                                          | Masks sensitive IDs in the UI (App ID, Push ID) for deterministic Appium screenshots.                  |
+| `ONESIGNAL_ANDROID_CHANNEL_ID`| No (Send-Sound only)      | `b3b015d9-c050-4042-8548-dcc34aa44aa4`           | Notification channel for the WITH SOUND payload.                                                       |
 
-REST API key is NOT required for the fetchUser endpoint.
+- Provide `.env.example` with placeholder values and a comment noting the default app ID.
+- Add `.env` to `.gitignore`.
 
-REST API key IS required for Live Activity update/end operations. Store in `.env` as `ONESIGNAL_API_KEY`. Disable update/end buttons when not configured.
+### Identifiers
 
-Android channel ID is optional for the WITH SOUND notification. Load from `.env` as `ONESIGNAL_ANDROID_CHANNEL_ID`; if empty or absent, fall back to `b3b015d9-c050-4042-8548-dcc34aa44aa4`.
+Android package name / iOS bundle identifier MUST be `com.onesignal.example` so the checked-in `google-services.json` and `agconnect-services.json` keep working without regeneration.
 
-Identifiers MUST be `com.onesignal.example` to work with existing `google-services.json` and `agconnect-services.json`.
+### REST API authentication
+
+The `fetchUser` endpoint does NOT require an API key. All other authenticated endpoints (currently just Live Activity update/end) use `Authorization: Key {ONESIGNAL_API_KEY}`.

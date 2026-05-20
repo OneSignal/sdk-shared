@@ -1,15 +1,4 @@
-type SdkType =
-  | 'android'
-  | 'capacitor'
-  | 'cordova'
-  | 'dotnet'
-  | 'expo'
-  | 'flutter'
-  | 'ios'
-  | 'react-native'
-  | 'unity';
-
-const VALID_SDK_TYPES = new Set<string>([
+const VALID_SDK_TYPES = [
   'android',
   'capacitor',
   'cordova',
@@ -19,7 +8,10 @@ const VALID_SDK_TYPES = new Set<string>([
   'ios',
   'react-native',
   'unity',
-]);
+] as const;
+
+type SdkType = (typeof VALID_SDK_TYPES)[number];
+const VALID_SDK_TYPE_SET = new Set<string>(VALID_SDK_TYPES);
 
 type Platform = 'ios' | 'android';
 
@@ -150,10 +142,7 @@ export async function getToggleState(el: {
 }): Promise<boolean> {
   const sdkType = getSdkType();
 
-  // Capacitor/Cordova render the toggle as an <ion-toggle> custom element in
-  // the WebView. `getAttribute('checked')` doesn't reliably return 'true' for
-  // a reflected boolean attribute, so prefer ARIA semantics with a
-  // presence-based fallback on the boolean `checked` attribute.
+  // Ionic toggles expose state most reliably through ARIA.
   if (sdkType === 'capacitor' || sdkType === 'cordova') {
     const ariaChecked = await el.getAttribute('aria-checked');
     if (ariaChecked !== null) return ariaChecked === 'true';
@@ -166,12 +155,7 @@ export async function getToggleState(el: {
   return (await el.getAttribute('checked')) === 'true';
 }
 
-/**
- * Polls `getToggleState(el)` until it equals `expected`. Use this instead of a
- * synchronous `expect(await getToggleState(el)).toBe(...)` after a click, since
- * Ionic's <ion-toggle> reflects `aria-checked` only after Stencil's next render
- * tick and WebDriver clicks on the host can take a beat to register.
- */
+/** Poll until a toggle reaches the expected state. */
 export async function expectToggleState(
   el: { getAttribute(name: string): Promise<string | null> },
   expected: boolean,
@@ -186,29 +170,29 @@ export async function expectToggleState(
 
 export function getSdkType(): SdkType {
   const sdkType = process.env.SDK_TYPE;
-  if (sdkType && VALID_SDK_TYPES.has(sdkType)) {
-    return sdkType as SdkType;
+  if (isSdkType(sdkType)) {
+    return sdkType;
   }
   throw new Error(
-    `SDK_TYPE env var must be one of: ${[...VALID_SDK_TYPES].join(', ')}. Got: ${sdkType}`,
+    `SDK_TYPE env var must be one of: ${VALID_SDK_TYPES.join(', ')}. Got: ${sdkType}`,
   );
+}
+
+function isSdkType(value: string | undefined): value is SdkType {
+  return typeof value === 'string' && VALID_SDK_TYPE_SET.has(value);
 }
 
 type ElementWithInteractionMethods = {
   click(): Promise<void>;
   getAttribute(name: string): Promise<string | null>;
-  getLocation(): Promise<{ x: number; y: number }>;
-  getSize(): Promise<{ width: number; height: number }>;
   getText(): Promise<string>;
   setValue(value: string): Promise<void>;
 };
 
-// Centralized element shims: Unity gets raw center taps, while Flutter Android
-// keeps its text fallback and focus-before-setValue behavior.
+// Centralized SDK-specific element shims.
 function withElementInteractionFixes<T extends ElementWithInteractionMethods>(el: T): T {
   const isFlutterAndroid = getPlatform() === 'android' && getSdkType() === 'flutter';
-  const isUnity = getSdkType() === 'unity';
-  if (!isFlutterAndroid && !isUnity) {
+  if (!isFlutterAndroid) {
     return el;
   }
 
@@ -250,28 +234,13 @@ function withElementInteractionFixes<T extends ElementWithInteractionMethods>(el
   });
 }
 
-/**
- * Select an element by its cross-platform test ID.
- *
- * iOS native / RN / Compose all surface as Appium accessibility id (`~`) on iOS.
- * On Android the mapping varies by SDK:
- *   - Flutter Semantics(identifier:) → resource-id (`id=`)
- *   - React Native testID → resource-id (`id=`) under Fabric/new arch; the old
- *     bridge surfaced it as content-desc but new arch sets it as the view tag,
- *     which UiAutomator2 exposes via resource-id.
- *   - Native Android Compose testTag → accessibility id (`~`)
- *   - .NET MAUI AutomationId → resource-id (`id=`), but namespaced as
- *     `<package>:id/<name>`. The wdio Android config disables locator
- *     autocompletion to dodge a Flutter quirk, so for dotnet we re-enable
- *     it (see wdio.android.conf.ts) and short ids match transparently.
- * Capacitor uses `data-testid` as a CSS attribute inside a WebView.
- */
+/** Select by shared test id: WebView CSS, Android id, iOS accessibility id. */
 export async function byTestId(id: string) {
   const sdkType = getSdkType();
   const platform = getPlatform();
 
   if (sdkType === 'capacitor' || sdkType === 'cordova') return $(`[data-testid="${id}"]`);
-  // Resolve the chainable first so awaiting the Proxy doesn't unwrap past it.
+  // Resolve before proxying.
   if (platform === 'android') {
     const el = await $(`id=${id}`);
     return withElementInteractionFixes(el);
@@ -280,14 +249,7 @@ export async function byTestId(id: string) {
   return withElementInteractionFixes(el);
 }
 
-/**
- * Select an element by visible text content.
- * Use partial: true to match elements that contain the text.
- *
- * Flutter on Android renders text into the `content-desc` attribute (via
- * Semantics), not the `text` attribute that UiSelector().text() looks at,
- * so we fall back to an XPath that matches either attribute.
- */
+/** Select by visible text; partial=true allows contains matching. */
 export async function byText(identifier: string, partial = false) {
   const platform = getPlatform();
   const sdkType = getSdkType();

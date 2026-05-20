@@ -6,6 +6,8 @@ import { getValue, setValue } from '@wdio/shared-store-service';
 
 import { byTestId, byText, getPlatform, getSdkType, getTestExternalId } from './selectors.js';
 
+const PACKAGE_ID = 'com.onesignal.example';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const tooltipContent = JSON.parse(
   readFileSync(resolve(__dirname, '../../../demo/tooltip_content.json'), 'utf-8'),
@@ -21,39 +23,22 @@ export function isBrowserStackIos(): boolean {
   return isBrowserStack && getPlatform() === 'ios';
 }
 
-/**
- * Scroll the main content area in the given direction using native scroll APIs.
- * Targets the main_scroll_view element to avoid scrolling the log view.
- */
+/** Swipe the main content, not the log panel. */
 async function swipeMainContent(direction: 'up' | 'down', distance: 'small' | 'normal' = 'normal') {
   const distances = { small: 0.2, normal: 0.33 };
 
   const { width, height } = await driver.getWindowSize();
   const swipeArea = height * 0.8;
   const swipeDistance = swipeArea * distances[distance];
-  // Coordinates must be integers in WebView contexts (Capacitor/Cordova),
-  // where chromedriver enforces W3C `actions` typing strictly. Native
-  // UiAutomator2/XCUITest tolerate floats but rounding is harmless there.
-  // Unity (both platforms): anchor in the left section-padding gutter
-  // (x≈10pt; sections pad 16pt). Center-anchored swipes can land
-  // PointerDown on a button and trigger AccessibilityBridge's E2E tap
-  // fallback before the drag generates enough PointerMove distance to
-  // cancel it. Other SDKs route swipes through native scroll containers
-  // that don't dispatch into our element handlers, so center is fine.
+  // Round coords for WebViews. Unity swipes in the left gutter to avoid taps.
   const swipeX = isUnitySDK ? 10 : Math.round(width / 2);
   const startY = Math.round(direction === 'down' ? height * 0.85 : height * 0.15);
   const endY = Math.round(direction === 'down' ? startY - swipeDistance : startY + swipeDistance);
 
-  // Slower drag on Flutter stays under the fling threshold; momentum
-  // otherwise carries the target past the viewport between polls.
-  const moveDurationMs = isFlutterSDK ? 700 : 300;
+  // Slow Flutter drags to avoid fling momentum.
+  const moveDurationMs = 300;
 
-  // Hard-bound the W3C pointer chain. If we ever end up swiping against a
-  // stale/closed WebView window handle (e.g. a leftover IAM banner), the
-  // chromedriver `actions` endpoint can stop responding indefinitely. Without
-  // this guard a single stuck swipe would consume ~3 minutes per test until
-  // wdio's session DELETE timeout fires. A failed swipe naturally surfaces as
-  // a test failure via scrollToEl, which is the correct signal.
+  // Bound pointer actions; stale WebView handles can otherwise hang.
   const SWIPE_TIMEOUT_MS = 5_000;
   const action = browser
     .action('pointer', { parameters: { pointerType: 'touch' } })
@@ -80,30 +65,10 @@ async function swipeMainContent(direction: 'up' | 'down', distance: 'small' | 'n
   } finally {
     if (timer) clearTimeout(timer);
   }
+  if (isFlutterSDK) await driver.pause(1000);
 }
 
-/**
- * Scroll to the given testId, returning a handle to the element.
- *
- * Strategy is SDK-specific to avoid the cost and flakiness of full pointer-swipe
- * loops where the driver provides a faster primitive:
- *
- *   - Capacitor / Cordova: DOM `scrollIntoView({block: 'center'})` inside the
- *     WebView. One round-trip, no pointer chain, no chromedriver staleness.
- *   - Native Android (RN, .NET MAUI, expo, native): UiAutomator2's
- *     `UiScrollable.scrollIntoView` walks the first scrollable forward until
- *     the resource-id matches, in a single driver call.
- *   - Native iOS (RN, .NET MAUI, expo, native): pages `main_scroll_view`
- *     downward via XCUITest's directional `mobile: scroll`, checking
- *     visibility between pages.
- *   - Flutter: Skia-canvas rendering means lazy children aren't in the native
- *     a11y tree until they're realised, so neither UiScrollable nor
- *     `mobile: scroll` can find them. Always uses the swipe loop.
- *
- * Native fast paths only run for downward searches. `direction: 'up'` falls
- * through to the swipe loop, which also catches any case where a fast path
- * silently failed to land the element.
- */
+/** Scroll to a test id using the fastest reliable SDK-specific path. */
 export async function scrollToEl(
   identifier: string,
   opts: {
@@ -111,11 +76,8 @@ export async function scrollToEl(
     maxScrolls?: number;
   } = {},
 ) {
-  // Safety net for `direction: 'up'` and any case where a native fast path
-  // didn't land the element. Flutter has no fast path and uses slower swipes
-  // (see `swipeMainContent`), so it needs a higher cap.
+  // Swipe loop is the fallback and handles upward searches.
   const { direction = 'down', maxScrolls = 30 } = opts;
-  const platform = getPlatform();
 
   if (isWebViewSDK) {
     const el = await byTestId(identifier);
@@ -127,129 +89,23 @@ export async function scrollToEl(
     return byTestId(identifier);
   }
 
-  // Native fast path: pre-warms the scroll view so the loop below either
-  // returns immediately or has very little work left. Unity opts out on
-  // both platforms: iOS `mobile: scroll` synthesizes a center-anchored
-  // touch sequence that reproduces the accidental-tap problem we avoid in
-  // `swipeMainContent`, and on Android `UiScrollable` doesn't see UI
-  // Toolkit content rendered into the Unity SurfaceView. Falling through
-  // to the swipe loop costs ~200ms but is reliable.
-  if (direction === 'down' && !isFlutterSDK && !isUnitySDK) {
-    if (platform === 'android') {
-      await tryNativeScrollAndroid(identifier);
-    } else {
-      await tryNativeScrollIos(identifier);
-    }
-  }
-
   for (let i = 0; i < maxScrolls; i++) {
     const el = await byTestId(identifier);
-    if (await isVisibleInViewport(el, sdkType)) {
+    if (await isVisibleInViewport(el)) {
       return await scrollExtraIfNeeded(el, () => byTestId(identifier));
     }
     await swipeMainContent(direction);
-    // Let Flutter realize freshly scrolled-in widgets before the next poll.
-    if (isFlutterSDK) await driver.pause(250);
   }
   throw new Error(`Element "${identifier}" not found after ${maxScrolls} scrolls`);
 }
 
-/**
- * UiAutomator2 `UiScrollable.scrollIntoView` finds the first scrollable
- * container and pages forward until a child's resource-id matches.
- *
- * Resource-id namespacing differs by SDK:
- *   - Flutter / RN / Capacitor / Cordova / Expo: ids are bare (`my_button`).
- *   - .NET MAUI: ids are package-prefixed (`com.onesignal.example:id/my_button`).
- *
- * Appium's `id=` strategy hides this via the `disableIdLocatorAutocompletion`
- * setting (see `wdio.android.conf.ts`), but inline `UiSelector` strings bypass
- * that setting and need the full id directly.
- *
- * Returns a boolean (rather than throwing) so the caller can transparently
- * fall back to the swipe loop when the element isn't reachable forward.
- */
-async function tryNativeScrollAndroid(id: string): Promise<boolean> {
-  try {
-    const fullId =
-      sdkType === 'dotnet' ? `${process.env.BUNDLE_ID || 'com.onesignal.example'}:id/${id}` : id;
-    const sel =
-      `new UiScrollable(new UiSelector().scrollable(true).instance(0))` +
-      `.scrollIntoView(new UiSelector().resourceId("${fullId}"))`;
-    const result = await $(`android=${sel}`);
-    return await result.isExisting();
-  } catch {
-    return false;
-  }
-}
-
-/**
- * XCUITest's match-based `mobile: scroll` modes (`predicateString`, `name`,
- * `toVisible`) call WDA's internal `scrollToVisible`, which is hard-capped by
- * `maxScrollCellCount` (default 25). Hitting the cap surfaces as "Failed to
- * perform scroll with visible cell due to max scroll count reached", and the
- * cap is reached *slowly* (~1s per attempt × 25 = ~25s before failure), which
- * is enough to blow the 60s mocha hook budget on deep scroll views.
- *
- * Instead, drive the scroll view directionally and check visibility ourselves
- * between pages. `mobile: scroll { direction }` has no internal cap, each call
- * is ~200ms, and we stop the moment the element appears.
- *
- * `byTestId` on iOS uses accessibility-id, which XCUITest exposes as `name`,
- * so this works for every iOS SDK that lands testIds via accessibility
- * identifiers (RN, .NET MAUI, expo, native iOS — Flutter is skipped by the
- * caller because lazy widgets aren't in the a11y tree to find).
- */
-async function tryNativeScrollIos(id: string): Promise<boolean> {
-  try {
-    const main = await byTestId('main_scroll_view');
-    if (!(await main.isExisting())) return false;
-    for (let i = 0; i < 30; i++) {
-      const el = await byTestId(id);
-      if (await el.isDisplayed().catch(() => false)) return true;
-      await driver.execute('mobile: scroll', {
-        elementId: main.elementId,
-        direction: 'down',
-      });
-    }
-    return false;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * If the element sits in the bottom portion of the viewport, swipe a small
- * amount in the same direction so it lands further into safe territory, then
- * re-fetch the (potentially staled) handle.
- *
- * `scrollIntoView` on native Appium has no notion of centering — it stops the
- * moment the element first becomes visible, which on a downward scroll means
- * the element lands at the bottom edge. Sitting there risks the tap being
- * intercepted by snackbars, keyboard insets, or system gesture areas, and any
- * modal that opens from the tap can race against those overlays before its
- * accessibility tree fully registers.
- */
-/**
- * XCUITest's `isDisplayed` does a hit-test against the standard UIView
- * hierarchy, which doesn't include Flutter-rendered widgets exposed only via
- * the Semantics tree. The element still has a valid frame in the a11y tree,
- * but `_AXVisible` returns false (false negative). For Flutter we fall back
- * to a rect-in-viewport check so we don't scroll past elements that are
- * actually on screen.
- */
-async function isVisibleInViewport(
-  el: {
-    isDisplayed(): Promise<boolean>;
-    isExisting(): Promise<boolean>;
-    getLocation(): Promise<{ x: number; y: number }>;
-    getSize(): Promise<{ width: number; height: number }>;
-  },
-  sdk: string,
-): Promise<boolean> {
-  if (await el.isDisplayed().catch(() => false)) return true;
-  if (!isFlutterSDK) return false;
-  if (!(await el.isExisting().catch(() => false))) return false;
+async function isVisibleInViewport(el: {
+  isDisplayed(): Promise<boolean>;
+  getLocation(): Promise<{ x: number; y: number }>;
+  getSize(): Promise<{ width: number; height: number }>;
+}): Promise<boolean> {
+  if ((await el.isDisplayed().catch(() => false)) && !isFlutterSDK && !isUnitySDK) return true;
+  // Some SDKs report offscreen accessibility nodes as displayed.
   try {
     const [loc, size] = await Promise.all([el.getLocation(), el.getSize()]);
     if (size.width <= 0 || size.height <= 0) return false;
@@ -271,14 +127,7 @@ async function scrollExtraIfNeeded<T extends { getLocation(): Promise<{ y: numbe
   el: T,
   refetch: () => Promise<T>,
 ): Promise<T> {
-  // Coordinate units differ by platform: iOS XCUITest reports points, Android
-  // UiAutomator2 reports physical pixels. A fixed pixel threshold (e.g. 100)
-  // is enough on iOS but only ~33dp on a density-3 Android phone — well inside
-  // a Material Snackbar (48–68dp + 16dp margin, plus a 24dp gesture-bar inset
-  // on edge-to-edge devices). 12% of the viewport gives a unit-agnostic safe
-  // margin (~96dp on density-3 Android, ~102pt on iPhone) that clears
-  // two-line snackbars, gesture bars, and keyboard insets on every device we
-  // run on.
+  // Nudge edge-visible elements away from snackbars and system gestures.
   try {
     const { y } = await el.getLocation();
     const { height } = await driver.getWindowSize();
@@ -292,23 +141,12 @@ async function scrollExtraIfNeeded<T extends { getLocation(): Promise<{ y: numbe
       return await refetch();
     }
   } catch {
-    /* best-effort: if location read fails, return original ref */
+    /* best-effort */
   }
   return el;
 }
 
-/**
- * On Android the runtime permission dialog is rendered by a separate process
- * (the permission controller). Polling candidate selectors when no dialog
- * exists produces noisy `WebDriverError: selector "undefined"` warnings for
- * several seconds per `allowNotifications`/`allowLocation` call.
- *
- * Instead, poll the foreground package and only probe the UI tree once the
- * permission controller is actually up. The loop returns as soon as any of
- * the provided selectors resolves to a displayed element, and bails cleanly
- * after the timeout if no dialog ever appears — which covers the "already
- * granted" case that would otherwise spam warnings.
- */
+/** Android permission dialogs live in a separate foreground package. */
 const ANDROID_PERMISSION_PACKAGES = new Set([
   'com.android.permissioncontroller',
   'com.google.android.permissioncontroller',
@@ -333,17 +171,14 @@ async function clickAndroidPermissionButton(
         }
       }
     } catch {
-      /* ignore transient errors and retry until the deadline */
+      /* retry until deadline */
     }
     await driver.pause(200);
   }
   return false;
 }
 
-/**
- * System permission dialogs live under SpringBoard on iOS, so treat them like
- * regular UI and click the expected button if it is visible.
- */
+/** Click an iOS SpringBoard permission button if present. */
 async function clickIosPermissionButton(buttonLabel: string, timeoutMs = 10_000) {
   await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
   try {
@@ -362,13 +197,7 @@ async function clickIosPermissionButton(buttonLabel: string, timeoutMs = 10_000)
   }
 }
 
-/**
- * Tap the system "Allow" button on the notification permission dialog.
- *
- * Must be called while the driver is in NATIVE_APP context (system dialogs
- * are not part of any WebView). `waitForAppReady` calls this before switching
- * to the WebView, so the launch path is already correct.
- */
+/** Tap the notification permission allow button if present. */
 export async function allowNotifications() {
   if (driver.isIOS) return clickIosPermissionButton('Allow');
 
@@ -379,30 +208,7 @@ export async function allowNotifications() {
   ]);
 }
 
-/**
- * Dismiss the Android soft keyboard if shown, to avoid stale-element
- * warnings caused by the IME's late layout reflow during the next click.
- * Android-only (iOS XCUITest dismisses cleanly on its own). Skipped for
- * WebView SDKs (Capacitor/Cordova) where UiAutomator2's hideKeyboard can't
- * dismiss WebView-hosted inputs and retries for ~10s before throwing.
- */
-export async function dismissKeyboard() {
-  if (getPlatform() !== 'android') return;
-  if (isWebViewSDK) return;
-  if (!(await driver.isKeyboardShown())) return;
-  try {
-    await driver.execute('mobile: hideKeyboard');
-  } catch (error) {
-    console.error('Error dismissing keyboard', error);
-  }
-}
-
-/**
- * Tap the system "Allow While Using App" button on the location permission
- * dialog. Same NATIVE_APP requirement as `allowNotifications`. For
- * capacitor/cordova specs, switch back with `ensureMainWebViewContext()`
- * afterwards.
- */
+/** Tap the location permission allow button if present. */
 export async function allowLocation() {
   if (driver.isIOS) return clickIosPermissionButton('Allow While Using App');
 
@@ -415,12 +221,7 @@ export async function allowLocation() {
   ]);
 }
 
-/**
- * Capacitor and Cordova demos render their entire UI inside a WebView, so
- * `data-testid` queries (CSS selectors) only resolve when the driver is in the
- * `WEBVIEW_*` context. Switch to it once after launch and after any system
- * dialog/IAM that forced us back to NATIVE_APP. No-op for native SDKs.
- */
+/** Switch hybrid SDKs back to their main WebView context. */
 export async function ensureMainWebViewContext() {
   if (!isWebViewSDK) return;
 
@@ -467,34 +268,21 @@ async function switchToMainWebViewWindow(): Promise<boolean> {
       const main = $('[data-testid="main_scroll_view"]');
       if (await main.isExisting().catch(() => false)) return true;
     } catch {
-      /* ignore closed/stale IAM windows */
+      /* ignore stale IAM windows */
     }
   }
   return false;
 }
 
-/**
- * Switch to NATIVE_APP context. Used by callers that need to interact with
- * system dialogs/native gestures while a WebView SDK has us parked in
- * `WEBVIEW_*`. Pair with `ensureMainWebViewContext()` once the native step
- * is done. No-op for native SDKs.
- */
+/** Switch to NATIVE_APP for system UI. Usually a no-op outside WebView SDKs. */
 export async function switchToNativeContext() {
-  if (!isWebViewSDK) return;
-
   const current = contextName(await driver.getContext());
   if (current !== 'NATIVE_APP') {
     await driver.switchContext('NATIVE_APP');
   }
 }
 
-/**
- * Wait for the app to fully launch and the home screen to be visible.
- *
- * Accepts the notification permission dialog if present. Safe to call multiple
- * times: on iOS the prompt only appears on first launch after install, and
- * `allowNotifications` no-ops when the permission button isn't visible.
- */
+/** Wait for launch, permissions, and home-screen readiness. */
 export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
   const { skipLogin = false } = opts;
 
@@ -506,17 +294,12 @@ export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
   await ensureMainWebViewContext();
 
   const mainScroll = await byTestId('main_scroll_view');
-  // Generous timeout to accommodate slow cold-starts (notably .NET MAUI on
-  // Android, where session creation returns before the app is on screen).
+  // .NET Android can return a session before the app is ready.
   await mainScroll.waitForDisplayed({ timeout: 30_000 });
 
   if (skipLogin) return;
 
-  // Want to login the user so we can clean up/delete its data on the next rerun.
-  // `loggedIn` is module-local (worker-scoped) on purpose: each WDIO worker
-  // runs in its own Node process and drives one device, so the cache reflects
-  // that device's state.
-  // Browserstack runs each test in a new session, so we need to set the loggedIn flag to false.
+  // Keep cleanup addressable by logging into the test user once per worker.
   const loggedIn = await getValue('loggedIn');
   if (!loggedIn) {
     const testUserId = getTestExternalId();
@@ -529,42 +312,21 @@ export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
   }
 }
 
-/**
- * Tap the login button, enter an external user ID, and confirm.
- */
+/** Login through the app UI. */
 export async function loginUser(externalUserId: string) {
   const userIdInput = await openModal('login_user_button', 'login_user_id_input');
   await userIdInput.setValue(externalUserId);
   await confirmModal('singleinput_confirm_button');
 }
 
-/**
- * Tap the logout button.
- */
+/** Logout through the app UI. */
 export async function logoutUser() {
   const logoutButton = await byTestId('logout_user_button');
   await logoutButton.click();
 }
 
-/**
- * Toggle the push-enabled switch.
- */
-export async function togglePushEnabled() {
-  const toggle = await byTestId('push_enabled_toggle');
-  await toggle.click();
-}
-
-/**
- * Tap a modal's confirm button and wait for the modal to dismiss.
- *
- * On Android, RN `Modal` opens in a separate window; querying the underlying
- * activity (e.g. via `scrollToEl`) returns NoSuchElement until the modal's
- * close animation finishes. Using the confirm button as a sentinel — wait
- * until it is no longer displayed — gives a deterministic close signal and
- * removes the timing flake from "click confirm, then immediately interact
- * with what's behind the modal".
- */
-export async function confirmModal(buttonTestId: string, timeoutMs = 5_000) {
+/** Tap a modal confirm button. */
+export async function confirmModal(buttonTestId: string) {
   const btn = await byTestId(buttonTestId);
   await btn.click();
 }
@@ -582,18 +344,10 @@ export async function waitForDisappear(testId: string, timeoutMs = 5_000) {
   );
 }
 
-/**
- * Tap a button expected to open a modal/dialog and wait for one of its
- * elements (`expectedTestId`) to appear. Unity UI Toolkit can still be
- * settling layout/a11y state after scrolls or prior modal teardown, so Unity
- * waits for the trigger position to stabilize and retries the tap once if
- * the modal sentinel does not appear. Other SDKs keep the single-tap path.
- */
+/** Open a modal and wait for its sentinel element. */
 export async function openModal(triggerTestId: string, expectedTestId: string, timeoutMs = 5_000) {
   const open = async () => {
     const trigger = await scrollToEl(triggerTestId);
-    if (isUnitySDK) await waitForStablePosition(trigger);
-
     await trigger.click();
 
     const expected = await byTestId(expectedTestId);
@@ -601,8 +355,7 @@ export async function openModal(triggerTestId: string, expectedTestId: string, t
     return expected;
   };
 
-  if (!isUnitySDK) return open();
-  return retryOnce(open);
+  return open();
 }
 
 async function retryOnce<T>(fn: () => Promise<T>, delayMs = 250): Promise<T> {
@@ -614,49 +367,7 @@ async function retryOnce<T>(fn: () => Promise<T>, delayMs = 250): Promise<T> {
   }
 }
 
-async function waitForStablePosition(
-  el: { getLocation(): Promise<{ x: number; y: number }> },
-  timeoutMs = 1_000,
-  pollMs = 100,
-) {
-  let prev: number | null = null;
-  let stableHits = 0;
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const loc = await el.getLocation().catch(() => null);
-    if (loc && prev !== null && Math.abs(loc.y - prev) < 1) {
-      if (++stableHits >= 2) return;
-    } else {
-      stableHits = 0;
-    }
-    prev = loc ? loc.y : null;
-    await driver.pause(pollMs);
-  }
-}
-
-/**
- * Add a single tag via the UI.
- */
-export async function addTag(key: string, value: string) {
-  const addButton = await byTestId('add_tag_button');
-  await addButton.click();
-
-  const keyInput = await byTestId('tag_key_input');
-  await keyInput.waitForDisplayed({ timeout: 5_000 });
-  await keyInput.setValue(key);
-
-  const valueInput = await byTestId('tag_value_input');
-  await valueInput.setValue(value);
-
-  await confirmModal('tag_confirm_button');
-}
-
-/**
- * Assert that a key-value pair is displayed in the UI.
- * Uses `${sectionId}_pair_key_${key}` / `${sectionId}_pair_value_${key}` semantics on PairItem.
- *
- * Keys must be unique within the section (no duplicate keys in one list).
- */
+/** Assert a unique key-value pair appears in a section. */
 export async function expectPairInSection(sectionId: string, key: string, value: string) {
   await scrollToEl(`${sectionId}_section`, { direction: 'up' });
 
@@ -670,14 +381,9 @@ export async function expectPairInSection(sectionId: string, key: string, value:
   expect(valueText).toContain(value);
 }
 
-/**
- * Lock the iOS screen and wake it to reveal the lock screen (with notifications).
- */
+/** Lock and wake iOS to reveal lock-screen notifications. */
 export async function lockScreen() {
-  // SpringBoard interaction requires NATIVE_APP context. Hybrid SDKs
-  // (Cordova/Capacitor) park the driver in WEBVIEW_*, where -ios predicate
-  // queries used by callers (e.g. live-activity probes on the lock screen)
-  // would fail. Pair with returnToApp() to restore the WebView context.
+  // SpringBoard queries require native context.
   await switchToNativeContext();
   await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
   await driver.lock();
@@ -685,43 +391,23 @@ export async function lockScreen() {
   await driver.execute('mobile: pressButton', { name: 'home' });
 }
 
-/**
- * Return to the app from SpringBoard / lock screen.
- */
+/** Return to the app from system UI. */
 export async function returnToApp() {
-  const caps = driver.capabilities as Record<string, unknown>;
   const platform = getPlatform();
 
   if (platform === 'android') {
     await driver.pressKeyCode(4);
-    const appId = (caps['appPackage'] ?? caps['appium:appPackage']) as string;
-    if (appId) {
-      await driver.execute('mobile: activateApp', { appId });
-    }
+    await driver.execute('mobile: activateApp', { appId: PACKAGE_ID });
   } else {
-    const bundleId = (caps['bundleId'] ?? caps['appium:bundleId']) as string;
-    await driver.updateSettings({ defaultActiveApplication: bundleId });
-    await driver.execute('mobile: activateApp', { bundleId });
+    await driver.updateSettings({ defaultActiveApplication: PACKAGE_ID });
+    await driver.execute('mobile: activateApp', { bundleId: PACKAGE_ID });
   }
 
   await ensureMainWebViewContext();
-
-  // Bridge invalidates WDA / UiAutomator2 caches in OnApplicationFocus(true);
-  // this poll covers the gap before Unity's player loop dispatches it.
-  if (isUnitySDK) {
-    const root = await byTestId('main_scroll_view');
-    await root.waitForDisplayed({ timeout: 3_000 });
-  }
+  if (isUnitySDK) await driver.pause(1_000);
 }
 
-/**
- * Expand a collapsed notification row in the Android shade.
- *
- * AOSP auto-expands a single shade entry; Samsung One UI does not. We try
- * the public framework chevron id first, then a content-desc match, and
- * finally a pinch-open gesture anchored on the title for OEM templates that
- * rename or hide the chevron.
- */
+/** Expand an Android notification row when OEMs keep it collapsed. */
 async function expandNotificationRow(title: string): Promise<void> {
   const byId = await $('//*[@resource-id="android:id/expand_button"]');
   if (await byId.isDisplayed().catch(() => false)) {
@@ -729,19 +415,14 @@ async function expandNotificationRow(title: string): Promise<void> {
     return;
   }
 
-  // Chevron content-desc varies by locale ("Expand", "Expand button", etc.)
-  // but consistently contains "xpand" in English builds; matching on the
-  // substring keeps us off brittle exact-string selectors.
+  // Match "Expand" variants without relying on exact text.
   const byDesc = await $('//*[contains(@content-desc, "xpand")]');
   if (await byDesc.isDisplayed().catch(() => false)) {
     await byDesc.click();
     return;
   }
 
-  // Last resort: pinch-open anchored on the notification row to trigger the
-  // framework's expand gesture. Works on any OEM template since it doesn't
-  // rely on a specific view id. We anchor on the title's nearest sizeable
-  // ancestor so the gesture has enough surface to register.
+  // Last resort: pinch-open the row near its title.
   const row = await $(`//*[@text="${title}"]/ancestor::android.widget.FrameLayout[1]`);
   const target = (await row.isDisplayed().catch(() => false))
     ? row
@@ -755,18 +436,7 @@ async function expandNotificationRow(title: string): Promise<void> {
     .catch(() => {});
 }
 
-/**
- * Wait for a notification to be received.
- *
- * Android: opens the notification shade, verifies the title (and optionally
- * body) are visible, then closes the shade.
- *
- * iOS: asserts against the foreground notification banner that SpringBoard
- * overlays on the app while it's in foreground. No home press, no
- * Notification Center swipe, no lock-screen path. Requires the SDK demo's
- * `notificationWillDisplay` handler to allow display (the OneSignal demos
- * default to this).
- */
+/** Wait for a notification in Android shade or iOS foreground banner. */
 export async function waitForNotification(opts: {
   title: string;
   body?: string;
@@ -777,10 +447,7 @@ export async function waitForNotification(opts: {
   const platform = getPlatform();
 
   if (platform === 'android') {
-    // Notification shade queries run against SystemUI, which requires the
-    // NATIVE_APP context. WebView SDKs (Capacitor/Cordova) are parked in a
-    // `WEBVIEW_*` context by `waitForAppReady`, so swap to native for the
-    // shade work and restore the WebView at the end.
+    // SystemUI queries require native context.
     await switchToNativeContext();
     try {
       await driver.openNotifications();
@@ -794,14 +461,10 @@ export async function waitForNotification(opts: {
       }
 
       if (expectImage) {
-        // Target the BigPictureStyle attachment specifically. The shade is
-        // full of ImageViews (small icon, expand chevron, status bar), so
-        // matching by resource-id avoids false positives.
+        // Target the BigPictureStyle image, not any shade ImageView.
         const image = await $('//*[@resource-id="android:id/big_picture"]');
 
-        // Samsung's One UI keeps shade entries collapsed by default, while
-        // AOSP auto-expands a single entry. If the big picture isn't already
-        // inflated, expand the row before asserting.
+        // Some OEMs keep rows collapsed.
         if (!(await image.isDisplayed().catch(() => false))) {
           await expandNotificationRow(title);
         }
@@ -816,13 +479,7 @@ export async function waitForNotification(opts: {
     return;
   }
 
-  // iOS: query the foreground banner SpringBoard renders over the app.
-  // Native predicate selectors (`-ios predicate string:...`) only resolve in
-  // NATIVE_APP, and the banner lives in SpringBoard's UI tree, so we point
-  // `defaultActiveApplication` at SpringBoard for the query and restore the
-  // app on the way out.
-  const caps = driver.capabilities as Record<string, unknown>;
-  const bundleId = (caps['bundleId'] ?? caps['appium:bundleId']) as string;
+  // iOS banners live under SpringBoard.
   await switchToNativeContext();
   try {
     await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
@@ -834,8 +491,7 @@ export async function waitForNotification(opts: {
     await banner.waitForDisplayed({ timeout: timeoutMs });
 
     if (expectImage) {
-      // Long-press to expand the banner; the attachment renders as a new
-      // XCUIElementTypeImage on top of the existing app icon.
+      // Attachment appears as an extra image after expanding.
       const before = await driver.findElements('-ios class chain', '**/XCUIElementTypeImage');
       await driver.execute('mobile: touchAndHold', {
         elementId: banner.elementId,
@@ -850,14 +506,22 @@ export async function waitForNotification(opts: {
       );
     }
 
-    // dismiss the banner
+    // Dismiss the banner.
     await banner.click();
   } finally {
-    if (bundleId) {
-      await driver.updateSettings({ defaultActiveApplication: bundleId });
-    }
+    await driver.updateSettings({ defaultActiveApplication: PACKAGE_ID });
     await ensureMainWebViewContext();
   }
+}
+
+/** Wait for the push ID to be populated. */
+export async function waitForPushId(timeoutMs = 30_000): Promise<string> {
+  const pushIdEl = await scrollToEl('push_id_value', { direction: 'up' });
+  await driver.waitUntil(async () => {
+    const pushId = (await pushIdEl.getText().catch(() => '')).trim();
+    return pushId !== '' && pushId !== '—';
+  }, { timeout: timeoutMs, timeoutMsg: 'Push ID not populated' });
+  return (await pushIdEl.getText()).trim();
 }
 
 export async function checkNotification(opts: {
@@ -866,10 +530,11 @@ export async function checkNotification(opts: {
   body?: string;
   expectImage?: boolean;
 }) {
-  const button = await scrollToEl(opts.buttonId);
+  await waitForPushId();
 
-  // webview goes through flows really quick so need to pause a bit
-  if (isWebViewSDK) await driver.pause(3_000);
+  const button = await scrollToEl(opts.buttonId);
+  await driver.pause(2_000); // small wait to hopefully get image notif early
+
   await button.click();
   await waitForNotification({
     title: opts.title,
@@ -903,33 +568,19 @@ async function findIamWebView(expectedTitle?: string): Promise<boolean> {
     }
   };
 
-  try {
-    const contexts = (await driver.getContexts()).map(contextName).filter(isDefined);
-    const webviewContexts = contexts.filter(isIamCandidateContext);
+  const contexts = await getIamCandidateContexts();
+  for (const context of contexts) {
+    if (!(await switchToContext(context))) continue;
 
-    for (const context of webviewContexts) {
-      try {
-        await driver.switchContext(context);
-        const handles = await driver.getWindowHandles().catch(() => []);
-        const candidates =
-          handles.length > 0
-            ? [...handles].reverse().filter((handle) => !closedIamWindowHandles.has(handle))
-            : [undefined];
+    const handles = await driver.getWindowHandles().catch(() => []);
+    const candidates = handles.length
+      ? [...handles].reverse().filter((handle) => !closedIamWindowHandles.has(handle))
+      : [undefined];
 
-        for (const handle of candidates) {
-          try {
-            if (handle) await driver.switchToWindow(handle);
-            if (await hasVisibleIamContent(expectedTitle)) return true;
-          } catch {
-            /* ignore closed/stale IAM windows */
-          }
-        }
-      } catch {
-        /* try the next WebView context */
-      }
+    for (const handle of candidates) {
+      if (handle && !(await switchToWindow(handle))) continue;
+      if (await hasVisibleIamContent(expectedTitle).catch(() => false)) return true;
     }
-  } catch {
-    /* fall through to restore below */
   }
 
   await restore();
@@ -941,15 +592,34 @@ const closedIamWindowHandles = new Set<string>();
 function isIamCandidateContext(context: string): boolean {
   if (context === 'NATIVE_APP') return false;
   if (getPlatform() !== 'android' || isWebViewSDK) return true;
-  return context.includes(appPackageName());
+  return context.includes(PACKAGE_ID);
 }
 
-function appPackageName(): string {
-  for (const key of ['appPackage', 'appium:appPackage']) {
-    const value = Reflect.get(driver.capabilities, key);
-    if (typeof value === 'string' && value) return value;
+async function getIamCandidateContexts(): Promise<string[]> {
+  try {
+    const contexts = await driver.getContexts();
+    return contexts.map(contextName).filter(isDefined).filter(isIamCandidateContext);
+  } catch {
+    return [];
   }
-  return process.env.BUNDLE_ID || 'com.onesignal.example';
+}
+
+async function switchToContext(context: string): Promise<boolean> {
+  try {
+    await driver.switchContext(context);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function switchToWindow(handle: string): Promise<boolean> {
+  try {
+    await driver.switchToWindow(handle);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function hasVisibleIamContent(expectedTitle?: string): Promise<boolean> {
@@ -959,56 +629,27 @@ async function hasVisibleIamContent(expectedTitle?: string): Promise<boolean> {
   return (await title.getText().catch(() => '')) === expectedTitle;
 }
 
-/**
- * The first tap is intermittently swallowed on iOS (all SDKs) and on
- * Flutter Android by a leftover IAM container window. If no WebView
- * appears in 2.5s, re-tap. Native Android (non-Flutter) doesn't need this.
- */
-async function tapIamTrigger(buttonId: string) {
-  if (isWebViewSDK) {
-    await scrollToEl(buttonId);
-    await clickWebViewTestId(buttonId);
-  } else {
-    await (await scrollToEl(buttonId)).click();
-  }
-  if (getPlatform() === 'android' && !isFlutterSDK && !isWebViewSDK) return;
-  try {
-    await driver.waitUntil(() => isWebViewVisible(), { timeout: 2_500 });
-  } catch {
-    if (isWebViewSDK) {
-      await clickWebViewTestId(buttonId);
-    } else {
-      await (await byTestId(buttonId)).click();
-    }
-  }
-}
-
-async function clickWebViewTestId(testId: string) {
-  await browser.execute((id: string) => {
-    const button = document.querySelector<HTMLElement>(`[data-testid="${id}"]`);
-    button?.click();
-  }, testId);
-}
-
 export async function checkInAppMessage(opts: {
   buttonId: string;
   expectedTitle: string;
-  timeoutMs?: number;
   skipClick?: boolean;
 }) {
-  const { buttonId, expectedTitle, timeoutMs = 15_000 } = opts;
+  const timeout = 20_000;
+  const { buttonId, expectedTitle } = opts;
 
-  if (!opts.skipClick) await tapIamTrigger(buttonId);
-
+  // Tap the IAM trigger
+  if (!opts.skipClick) {
+    const el = await scrollToEl(buttonId);
+    await el.click();
+  }
   await driver.waitUntil(() => isWebViewVisible(), {
-    timeout: timeoutMs,
+    timeout,
     timeoutMsg: `IAM webview not shown after clicking "${buttonId}"`,
   });
-
-  await switchToIAMWebView(expectedTitle, timeoutMs);
+  await switchToIAMWebView(expectedTitle, timeout);
 
   const title = await $('h1');
-  await title.waitForExist({ timeout: timeoutMs });
+  await title.waitForExist({ timeout });
   expect(await title.getText()).toBe(expectedTitle);
 
   const iamWindowHandle = await driver.getWindowHandle().catch(() => undefined);
@@ -1017,53 +658,18 @@ export async function checkInAppMessage(opts: {
     closedIamWindowHandles.add(iamWindowHandle);
   }
   await driver.switchContext('NATIVE_APP');
-
-  if (getPlatform() === 'ios') {
-    // iOS can hold the dismissed IAM's WKWebView for several seconds
-    // before GC, so use a generous wait independent of `timeoutMs`.
-    await driver.waitUntil(async () => !(await isWebViewVisible()), {
-      timeout: 15_000,
-      timeoutMsg: 'IAM webview still visible after closing',
-    });
-    // The IAM container UIView hosting the WKWebView can outlive the WebView
-    // itself by a few hundred ms (dismiss animation), intercepting both
-    // accessibility hit-tests and pointer events. Wait for the home-screen
-    // scroll view to become hit-testable again before returning, so the next
-    // step's swipes/queries don't race the teardown.
-    if (!isWebViewSDK) {
-      const main = await byTestId('main_scroll_view');
-      await main.waitForDisplayed({ timeout: timeoutMs }).catch(() => {
-        /* best-effort; caller will surface real failure */
-      });
-    }
-  }
   await ensureMainWebViewContext();
 }
 
-/**
- * Asserts a transient snackbar/toast appears with the expected text
- *
- * Cordova/Capacitor render Ionic `<ion-toast>` elements whose visible text is
- * inside a shadow root, so we compare the host element's message property.
- */
+/** Assert a snackbar/toast appears with the expected text. */
 export async function expectSnackbar(text: string, timeoutMs = 5_000) {
-  if (sdkType === 'cordova' || sdkType === 'capacitor') {
-    await browser.waitUntil(
-      async () => {
-        const toasts = await $$('ion-toast');
-        for (const toast of toasts) {
-          const message = (await toast.getProperty('message')) as string | null;
-          if (message === text && (await toast.isDisplayed())) return true;
-        }
-        return false;
-      },
-      { timeout: timeoutMs, timeoutMsg: `toast "${text}" not displayed within ${timeoutMs}ms` },
-    );
-    return;
+  await switchToNativeContext();
+  try {
+    const el = await byText(text);
+    await el.waitForDisplayed({ timeout: timeoutMs });
+  } finally {
+    await ensureMainWebViewContext();
   }
-
-  const el = await byText(text);
-  await el.waitForDisplayed({ timeout: timeoutMs });
 }
 
 export async function checkTooltip(buttonId: string, key: string) {
@@ -1079,19 +685,4 @@ export async function checkTooltip(buttonId: string, key: string) {
   const okButton = await byTestId('tooltip_ok_button');
   await okButton.click();
   await waitForDisappear('tooltip_ok_button');
-}
-
-export async function withRetryDelay(ctx: Mocha.Context, delayMs: number, fn: () => Promise<void>) {
-  try {
-    await fn();
-  } catch (err) {
-    const testTitle = ctx.test?.fullTitle() ?? 'unknown test';
-    console.warn(`Retrying for "${testTitle}"...`);
-    const currentRetry: unknown = ctx.test ? Reflect.get(ctx.test, '_currentRetry') : 0;
-    const retries: unknown = ctx.test ? Reflect.get(ctx.test, '_retries') : 0;
-    if (typeof currentRetry === 'number' && typeof retries === 'number' && currentRetry < retries) {
-      await browser.pause(delayMs);
-    }
-    throw err;
-  }
 }

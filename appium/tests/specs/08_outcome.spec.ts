@@ -1,6 +1,5 @@
 import {
   checkTooltip,
-  dismissKeyboard,
   expectSnackbar,
   openModal,
   scrollToEl,
@@ -21,7 +20,6 @@ describe('Outcomes', () => {
   it('can send a normal outcome', async () => {
     const nameInput = await openModal('send_outcome_button', 'outcome_name_input');
     await nameInput.setValue('test_normal');
-    await dismissKeyboard();
 
     const normalRadio = await byTestId('outcome_type_normal_radio');
     await normalRadio.click();
@@ -35,7 +33,6 @@ describe('Outcomes', () => {
   it('can send a unique outcome', async () => {
     const nameInput = await openModal('send_outcome_button', 'outcome_name_input');
     await nameInput.setValue('test_unique');
-    await dismissKeyboard();
 
     const uniqueRadio = await byTestId('outcome_type_unique_radio');
     await uniqueRadio.click();
@@ -57,7 +54,6 @@ describe('Outcomes', () => {
     const valueInput = await byTestId('outcome_value_input');
     await valueInput.waitForDisplayed({ timeout: 5_000 });
     await valueInput.setValue('3.14');
-    await dismissKeyboard();
 
     const sendBtn = await byTestId('outcome_send_button');
     await sendBtn.click();

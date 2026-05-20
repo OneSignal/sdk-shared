@@ -19,7 +19,7 @@ describe('User', () => {
 
     const externalIdEl = await scrollToEl('user_external_id_value');
     const externalId = await externalIdEl.getText();
-    expect(externalId).toBe('–');
+    expect(externalId).toBe('—');
   });
 
   it('can login and logout', async () => {

@@ -18,7 +18,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-info()  { echo -e "${GREEN}[INFO]${NC} $*"; }
+info()  { [[ "${QUIET:-false}" == true ]] || echo -e "${GREEN}[INFO]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
@@ -30,6 +30,7 @@ SKIP_BUILD=false
 SKIP_DEVICE=false
 SKIP_RESET=false
 SPEC=""
+QUIET=false
 ANDROID_CHANNEL_ID=7ec2ece9-c538-4656-9516-1316f48a005c
 IOS_REAL_DEVICE=false
 UDID="${UDID:-}"
@@ -50,6 +51,7 @@ for arg in "$@"; do
     --skip-device)    SKIP_DEVICE=true ;;
     --skip-reset)     SKIP_RESET=true ;;
     --spec=*)         SPEC="${arg#--spec=}" ;;
+    --quiet|-q)       QUIET=true ;;
     --help|-h)
       cat <<USAGE
 Usage: $0 [OPTIONS]
@@ -62,7 +64,9 @@ via flags or env vars.
 
 Options:
   --platform=P        ios | android
-  --sdk=S             flutter | react-native | cordova | capacitor | dotnet | expo | unity
+  --sdk=S             flutter | react-native | cordova | capacitor | dotnet | expo | unity | android
+                      android = native Android (OneSignal-Android-SDK/examples/demo);
+                      skips with exit 0 when --platform=ios.
   --device=NAME       Device/simulator/AVD name (default: iPhone 17 / Samsung Galaxy S26)
   --appium-port=N     Appium server port (default: 4723). Use unique values when
                       running multiple sessions in parallel on the same host.
@@ -79,6 +83,7 @@ Options:
   --udid=ID           Physical device UDID (xcrun devicectl list devices).
                       Required by --device-real; also accepted via UDID env.
   --spec=GLOB         Spec glob (default: all specs grouped into one session)
+  -q, --quiet         Hide [INFO] log lines
   -h, --help          Show this help
 
 Env vars (set in .env or export):
@@ -98,6 +103,9 @@ Env vars (set in .env or export):
   UNITY_PATH         Path to Unity Editor binary
                      (default: /Applications/Unity/Hub/Editor/6000.4.6f1/Unity.app/Contents/MacOS/Unity)
   UNITY_IOS_SIM_ARCH Unity iOS simulator arch (default: host arch)
+  ANDROID_DIR        Native Android SDK repo root (default: ../../OneSignal-Android-SDK)
+  ANDROID_FLAVOR     Native Android product flavor (default: gms; also: huawei)
+  ANDROID_BUILD_TYPE Native Android build type (default: debug; also: release)
   OS_VERSION         Platform version (default: 26.2 / 16)
   IOS_SIMULATOR      iOS simulator name (default: iPhone 17)
   IOS_RUNTIME        simctl runtime id (default: iOS-26-2)
@@ -152,8 +160,15 @@ prompt_choice() {
   done
 }
 
+# --sdk=android implies --platform=android (the native demo only targets
+# Android), so resolve PLATFORM first to skip the platform prompt when the
+# user only passed --sdk=android.
+if [[ "${SDK_TYPE:-}" == "android" && -z "${PLATFORM:-}" ]]; then
+  PLATFORM="android"
+fi
+
 prompt_choice PLATFORM "Select platform:" ios android
-prompt_choice SDK_TYPE "Select SDK type:" flutter react-native cordova capacitor dotnet expo unity
+prompt_choice SDK_TYPE "Select SDK type:" flutter react-native cordova capacitor dotnet expo unity android
 
 case "$PLATFORM" in
   ios|android) ;;
@@ -161,9 +176,14 @@ case "$PLATFORM" in
 esac
 
 case "$SDK_TYPE" in
-  flutter|react-native|cordova|capacitor|dotnet|expo|unity) ;;
-  *) error "SDK_TYPE must be 'flutter', 'react-native', 'cordova', 'capacitor', 'dotnet', 'expo', or 'unity', got '$SDK_TYPE'" ;;
+  flutter|react-native|cordova|capacitor|dotnet|expo|unity|android) ;;
+  *) error "SDK_TYPE must be 'flutter', 'react-native', 'cordova', 'capacitor', 'dotnet', 'expo', 'unity', or 'android', got '$SDK_TYPE'" ;;
 esac
+
+if [[ "$SDK_TYPE" == "android" && "$PLATFORM" != "android" ]]; then
+  warn "--sdk=android only runs on --platform=android; skipping --platform=$PLATFORM"
+  exit 0
+fi
 
 # ── Real-device validation + signing setup ────────────────────────────────────
 # When --device-real is set, we need a physical-device build and codesigning
@@ -174,6 +194,7 @@ if [[ "$IOS_REAL_DEVICE" == true ]]; then
   [[ "$PLATFORM" == "ios" ]] || error "--device-real only supports --platform=ios"
   case "$SDK_TYPE" in
     cordova|capacitor|react-native|expo) ;;
+    android) error "--device-real not applicable to --sdk=android (native Android)" ;;
     flutter|dotnet) error "--device-real not yet supported for $SDK_TYPE — patch run-local.sh's build_${SDK_TYPE//-/_}_ios to invoke the device build" ;;
   esac
   [[ -n "$UDID" ]] || error "--device-real requires --udid=<id> (or UDID env). Find via: xcrun devicectl list devices"
@@ -293,6 +314,22 @@ elif [[ "$SDK_TYPE" == "unity" ]]; then
   else
     APP_PATH="${APP_PATH:-$DEMO_DIR/Build/Android/onesignal-demo.apk}"
   fi
+elif [[ "$SDK_TYPE" == "android" ]]; then
+  ANDROID_DIR="${ANDROID_DIR:-$SDK_ROOT/OneSignal-Android-SDK}"
+  [[ -d "$ANDROID_DIR" ]] || error "Native Android SDK not found at $ANDROID_DIR — set ANDROID_DIR in .env"
+  DEMO_DIR="$ANDROID_DIR/examples/demo"
+  ANDROID_FLAVOR="${ANDROID_FLAVOR:-gms}"
+  ANDROID_BUILD_TYPE="${ANDROID_BUILD_TYPE:-debug}"
+  case "$ANDROID_FLAVOR" in
+    gms|huawei) ;;
+    *) error "ANDROID_FLAVOR must be 'gms' or 'huawei', got '$ANDROID_FLAVOR'" ;;
+  esac
+  case "$ANDROID_BUILD_TYPE" in
+    debug|release) ;;
+    *) error "ANDROID_BUILD_TYPE must be 'debug' or 'release', got '$ANDROID_BUILD_TYPE'" ;;
+  esac
+  # Gradle emits per-flavor/type APKs under app/build/outputs/apk/<flavor>/<buildType>/.
+  APP_PATH="${APP_PATH:-$DEMO_DIR/app/build/outputs/apk/${ANDROID_FLAVOR}/${ANDROID_BUILD_TYPE}/app-${ANDROID_FLAVOR}-${ANDROID_BUILD_TYPE}.apk}"
 fi
 
 # ── Platform defaults ────────────────────────────────────────────────────────
@@ -1373,6 +1410,48 @@ build_unity_android() {
   info "App built: $APP_PATH"
 }
 
+build_android_native() {
+  # Building from OneSignalSDK/ (not examples/demo/) so the demo's :app
+  # transitively pulls in local SDK source via settings.gradle dependency
+  # substitution. This is the whole point of --sdk=android for SDK dev:
+  # changes under OneSignal-Android-SDK/OneSignalSDK/onesignal/ get exercised.
+  # See OneSignalSDK/settings.gradle for the substitution rules.
+  local sdk_dir="$ANDROID_DIR/OneSignalSDK"
+  [[ -x "$sdk_dir/gradlew" ]] || error "gradlew not found or not executable at $sdk_dir/gradlew"
+
+  # SDK_VERSION is required by settings.gradle; pull it from gradle.properties
+  # (defaults to whatever the local repo is on, e.g. 5.9.2) so callers don't
+  # have to keep it in sync.
+  local sdk_version
+  sdk_version=$(grep -E "^SDK_VERSION=" "$sdk_dir/gradle.properties" 2>/dev/null | head -1 | cut -d= -f2 | tr -d '[:space:]')
+  [[ -n "$sdk_version" ]] || error "Could not read SDK_VERSION from $sdk_dir/gradle.properties"
+
+  # Capitalize flavor + buildType to assemble the Gradle task name
+  # (assemble<Flavor><BuildType>, e.g. assembleGmsDebug).
+  local flavor_cap="$(tr '[:lower:]' '[:upper:]' <<< "${ANDROID_FLAVOR:0:1}")${ANDROID_FLAVOR:1}"
+  local type_cap="$(tr '[:lower:]' '[:upper:]' <<< "${ANDROID_BUILD_TYPE:0:1}")${ANDROID_BUILD_TYPE:1}"
+  local task="assemble${flavor_cap}${type_cap}"
+
+  # Demo reads ONESIGNAL_APP_ID / ONESIGNAL_ANDROID_CHANNEL_ID / E2E_MODE from
+  # `BuildConfig.*` (see examples/demo/app/build.gradle.kts:demoOverride). Pass
+  # them as Gradle -P props so the CLI value wins over examples/demo/local.properties.
+  local -a gradle_args=("-PSDK_VERSION=$sdk_version" "-PE2E_MODE=true")
+  if [[ -n "${ONESIGNAL_APP_ID:-}" ]]; then
+    gradle_args+=("-PONESIGNAL_APP_ID=$ONESIGNAL_APP_ID")
+  else
+    warn "ONESIGNAL_APP_ID not set — demo will fall back to its built-in default"
+  fi
+  if [[ -n "${ANDROID_CHANNEL_ID:-}" ]]; then
+    gradle_args+=("-PONESIGNAL_ANDROID_CHANNEL_ID=$ANDROID_CHANNEL_ID")
+  fi
+
+  info "Building :app:$task with local SDK source (SDK_VERSION=$sdk_version)..."
+  (cd "$sdk_dir" && ./gradlew ":app:$task" "${gradle_args[@]}")
+
+  [[ -f "$APP_PATH" ]] || error ".apk not found after build at $APP_PATH"
+  info "App built: $APP_PATH"
+}
+
 build_app() {
   if [[ "$SKIP_BUILD" == true ]]; then
     if [[ "$PLATFORM" == "ios" && ! -d "$APP_PATH" ]] || [[ "$PLATFORM" == "android" && ! -f "$APP_PATH" ]]; then
@@ -1424,6 +1503,8 @@ build_app() {
     else
       build_unity_android
     fi
+  elif [[ "$SDK_TYPE" == "android" ]]; then
+    build_android_native
   fi
 }
 
@@ -1583,6 +1664,16 @@ start_appium() {
   info "Appium ready (pid $pid)"
 }
 
+# Clear stale UiAutomator2 state between Android combos without rebooting the emulator.
+cleanup_android_automation() {
+  [[ "$PLATFORM" == "android" ]] || return 0
+  adb shell cmd statusbar collapse >/dev/null 2>&1 || true
+  adb shell input keyevent KEYCODE_BACK >/dev/null 2>&1 || true
+  adb shell input keyevent KEYCODE_HOME >/dev/null 2>&1 || true
+  adb shell am force-stop io.appium.uiautomator2.server >/dev/null 2>&1 || true
+  adb shell am force-stop io.appium.uiautomator2.server.test >/dev/null 2>&1 || true
+}
+
 # ── 3. Reset app ─────────────────────────────────────────────────────────────
 reset_app() {
   if [[ "$SKIP_RESET" == true ]]; then
@@ -1674,6 +1765,7 @@ main() {
   build_app
   start_device
   start_appium
+  cleanup_android_automation
   reset_app
   run_tests
 
