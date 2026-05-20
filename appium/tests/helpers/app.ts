@@ -573,7 +573,9 @@ async function findIamWebView(expectedTitle?: string): Promise<boolean> {
     if (!(await switchToContext(context))) continue;
 
     const handles = await driver.getWindowHandles().catch(() => []);
-    const candidates = handles.length ? [...handles].reverse() : [undefined];
+    const candidates = handles.length
+      ? [...handles].reverse().filter((handle) => !closedIamWindowHandles.has(handle))
+      : [undefined];
 
     for (const handle of candidates) {
       if (handle && !(await switchToWindow(handle))) continue;
@@ -584,6 +586,8 @@ async function findIamWebView(expectedTitle?: string): Promise<boolean> {
   await restore();
   return false;
 }
+
+const closedIamWindowHandles = new Set<string>();
 
 function isIamCandidateContext(context: string): boolean {
   if (context === 'NATIVE_APP') return false;
@@ -620,7 +624,7 @@ async function switchToWindow(handle: string): Promise<boolean> {
 
 async function hasVisibleIamContent(expectedTitle?: string): Promise<boolean> {
   const title = $('h1');
-  if (!(await title.isExisting().catch(() => false))) return false;
+  if (!(await title.isDisplayed().catch(() => false))) return false;
   if (!expectedTitle) return true;
   return (await title.getText().catch(() => '')) === expectedTitle;
 }
@@ -630,7 +634,7 @@ export async function checkInAppMessage(opts: {
   expectedTitle: string;
   skipClick?: boolean;
 }) {
-  const timeout = 8_000;
+  const timeout = 20_000;
   const { buttonId, expectedTitle } = opts;
 
   // Tap the IAM trigger
@@ -638,13 +642,13 @@ export async function checkInAppMessage(opts: {
     const el = await scrollToEl(buttonId);
     await el.click();
   }
-  await switchToNativeContext();
-
-  const title = await byText(expectedTitle);
-  await title.waitForDisplayed({ timeout });
 
   await switchToIAMWebView(expectedTitle, timeout);
+  const iamWindowHandle = await driver.getWindowHandle().catch(() => undefined);
   await (await $('.close-button')).click();
+  if (iamWindowHandle) {
+    closedIamWindowHandles.add(iamWindowHandle);
+  }
   await driver.switchContext('NATIVE_APP');
   await ensureMainWebViewContext();
 }

@@ -1705,12 +1705,22 @@ reset_app() {
       info "No BUNDLE_ID set — skipping reset"
       return
     fi
+    adb shell bmgr wipe "$package" >/dev/null 2>&1 || true
     if adb shell pm list packages 2>/dev/null | grep -q "$package"; then
-      info "Uninstalling $package..."
+      info "Clearing and uninstalling $package..."
+      adb shell pm clear "$package" >/dev/null 2>&1 || true
       adb uninstall "$package" 2>/dev/null || true
     else
       info "App not installed — nothing to reset"
     fi
+  fi
+}
+
+validate_existing_app() {
+  [[ "$SKIP_BUILD" == true && "$PLATFORM" == "android" && -f "$APP_PATH" ]] || return 0
+
+  if unzip -p "$APP_PATH" assets/capacitor.config.json 2>/dev/null | grep -q '"server"[[:space:]]*:'; then
+    error "Existing APK uses Capacitor live reload (server.url). Re-run without --skip-build to build a bundled APK."
   fi
 }
 
@@ -1763,6 +1773,7 @@ main() {
   echo ""
 
   build_app
+  validate_existing_app
   start_device
   start_appium
   cleanup_android_automation
