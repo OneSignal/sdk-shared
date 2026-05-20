@@ -349,8 +349,6 @@ export async function waitForDisappear(testId: string, timeoutMs = 5_000) {
 export async function openModal(triggerTestId: string, expectedTestId: string, timeoutMs = 5_000) {
   const open = async () => {
     const trigger = await scrollToEl(triggerTestId);
-    if (isUnitySDK) await waitForStablePosition(trigger);
-
     await trigger.click();
 
     const expected = await byTestId(expectedTestId);
@@ -358,8 +356,7 @@ export async function openModal(triggerTestId: string, expectedTestId: string, t
     return expected;
   };
 
-  if (!isUnitySDK) return open();
-  return retryOnce(open);
+  return open();
 }
 
 async function retryOnce<T>(fn: () => Promise<T>, delayMs = 250): Promise<T> {
@@ -368,26 +365,6 @@ async function retryOnce<T>(fn: () => Promise<T>, delayMs = 250): Promise<T> {
   } catch {
     await driver.pause(delayMs);
     return fn();
-  }
-}
-
-async function waitForStablePosition(
-  el: { getLocation(): Promise<{ x: number; y: number }> },
-  timeoutMs = 1_000,
-  pollMs = 100,
-) {
-  let prev: number | null = null;
-  let stableHits = 0;
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const loc = await el.getLocation().catch(() => null);
-    if (loc && prev !== null && Math.abs(loc.y - prev) < 1) {
-      if (++stableHits >= 2) return;
-    } else {
-      stableHits = 0;
-    }
-    prev = loc ? loc.y : null;
-    await driver.pause(pollMs);
   }
 }
 
