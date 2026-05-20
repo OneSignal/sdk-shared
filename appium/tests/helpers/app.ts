@@ -6,6 +6,8 @@ import { getValue, setValue } from '@wdio/shared-store-service';
 
 import { byTestId, byText, getPlatform, getSdkType, getTestExternalId } from './selectors.js';
 
+const PACKAGE_ID = 'com.onesignal.example';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const tooltipContent = JSON.parse(
   readFileSync(resolve(__dirname, '../../../demo/tooltip_content.json'), 'utf-8'),
@@ -392,19 +394,14 @@ export async function lockScreen() {
 
 /** Return to the app from system UI. */
 export async function returnToApp() {
-  const caps = driver.capabilities as Record<string, unknown>;
   const platform = getPlatform();
 
   if (platform === 'android') {
     await driver.pressKeyCode(4);
-    const appId = (caps['appPackage'] ?? caps['appium:appPackage']) as string;
-    if (appId) {
-      await driver.execute('mobile: activateApp', { appId });
-    }
+    await driver.execute('mobile: activateApp', { appId: PACKAGE_ID });
   } else {
-    const bundleId = (caps['bundleId'] ?? caps['appium:bundleId']) as string;
-    await driver.updateSettings({ defaultActiveApplication: bundleId });
-    await driver.execute('mobile: activateApp', { bundleId });
+    await driver.updateSettings({ defaultActiveApplication: PACKAGE_ID });
+    await driver.execute('mobile: activateApp', { bundleId: PACKAGE_ID });
   }
 
   await ensureMainWebViewContext();
@@ -489,8 +486,6 @@ export async function waitForNotification(opts: {
   }
 
   // iOS banners live under SpringBoard.
-  const caps = driver.capabilities as Record<string, unknown>;
-  const bundleId = (caps['bundleId'] ?? caps['appium:bundleId']) as string;
   await switchToNativeContext();
   try {
     await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
@@ -520,9 +515,7 @@ export async function waitForNotification(opts: {
     // Dismiss the banner.
     await banner.click();
   } finally {
-    if (bundleId) {
-      await driver.updateSettings({ defaultActiveApplication: bundleId });
-    }
+    await driver.updateSettings({ defaultActiveApplication: PACKAGE_ID });
     await ensureMainWebViewContext();
   }
 }
@@ -608,15 +601,7 @@ const closedIamWindowHandles = new Set<string>();
 function isIamCandidateContext(context: string): boolean {
   if (context === 'NATIVE_APP') return false;
   if (getPlatform() !== 'android' || isWebViewSDK) return true;
-  return context.includes(appPackageName());
-}
-
-function appPackageName(): string {
-  for (const key of ['bundleId', 'appium:bundleId', 'appPackage', 'appium:appPackage']) {
-    const value = Reflect.get(driver.capabilities, key);
-    if (typeof value === 'string' && value) return value;
-  }
-  return process.env.BUNDLE_ID || 'com.onesignal.example';
+  return context.includes(PACKAGE_ID);
 }
 
 async function hasVisibleIamContent(expectedTitle?: string): Promise<boolean> {
