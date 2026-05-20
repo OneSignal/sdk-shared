@@ -662,23 +662,13 @@ export async function checkInAppMessage(opts: {
 
 /** Assert a snackbar/toast appears with the expected text. */
 export async function expectSnackbar(text: string, timeoutMs = 5_000) {
-  if (sdkType === 'cordova' || sdkType === 'capacitor') {
-    await browser.waitUntil(
-      async () => {
-        const toasts = await $$('ion-toast');
-        for (const toast of toasts) {
-          const message = (await toast.getProperty('message')) as string | null;
-          if (message === text && (await toast.isDisplayed())) return true;
-        }
-        return false;
-      },
-      { timeout: timeoutMs, timeoutMsg: `toast "${text}" not displayed within ${timeoutMs}ms` },
-    );
-    return;
+  await switchToNativeContext();
+  try {
+    const el = await byText(text);
+    await el.waitForDisplayed({ timeout: timeoutMs });
+  } finally {
+    await ensureMainWebViewContext();
   }
-
-  const el = await byText(text);
-  await el.waitForDisplayed({ timeout: timeoutMs });
 }
 
 export async function checkTooltip(buttonId: string, key: string) {
