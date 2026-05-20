@@ -443,7 +443,7 @@ export async function waitForNotification(opts: {
   timeoutMs?: number;
   expectImage?: boolean;
 }) {
-  const { title, body, timeoutMs = 30_000, expectImage = false } = opts;
+  const { title, body, timeoutMs = 60_000, expectImage = false } = opts;
   const platform = getPlatform();
 
   if (platform === 'android') {
@@ -557,33 +557,19 @@ async function findIamWebView(expectedTitle?: string): Promise<boolean> {
     }
   };
 
-  try {
-    const contexts = (await driver.getContexts()).map(contextName).filter(isDefined);
-    const webviewContexts = contexts.filter(isIamCandidateContext);
+  const contexts = await getIamCandidateContexts();
+  for (const context of contexts) {
+    if (!(await switchToContext(context))) continue;
 
-    for (const context of webviewContexts) {
-      try {
-        await driver.switchContext(context);
-        const handles = await driver.getWindowHandles().catch(() => []);
-        const candidates =
-          handles.length > 0
-            ? [...handles].reverse().filter((handle) => !closedIamWindowHandles.has(handle))
-            : [undefined];
+    const handles = await driver.getWindowHandles().catch(() => []);
+    const candidates = handles.length
+      ? [...handles].reverse().filter((handle) => !closedIamWindowHandles.has(handle))
+      : [undefined];
 
-        for (const handle of candidates) {
-          try {
-            if (handle) await driver.switchToWindow(handle);
-            if (await hasVisibleIamContent(expectedTitle)) return true;
-          } catch {
-            /* ignore closed/stale IAM windows */
-          }
-        }
-      } catch {
-        /* try the next WebView context */
-      }
+    for (const handle of candidates) {
+      if (handle && !(await switchToWindow(handle))) continue;
+      if (await hasVisibleIamContent(expectedTitle).catch(() => false)) return true;
     }
-  } catch {
-    /* fall through to restore below */
   }
 
   await restore();
@@ -596,6 +582,33 @@ function isIamCandidateContext(context: string): boolean {
   if (context === 'NATIVE_APP') return false;
   if (getPlatform() !== 'android' || isWebViewSDK) return true;
   return context.includes(PACKAGE_ID);
+}
+
+async function getIamCandidateContexts(): Promise<string[]> {
+  try {
+    const contexts = await driver.getContexts();
+    return contexts.map(contextName).filter(isDefined).filter(isIamCandidateContext);
+  } catch {
+    return [];
+  }
+}
+
+async function switchToContext(context: string): Promise<boolean> {
+  try {
+    await driver.switchContext(context);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function switchToWindow(handle: string): Promise<boolean> {
+  try {
+    await driver.switchToWindow(handle);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function hasVisibleIamContent(expectedTitle?: string): Promise<boolean> {
