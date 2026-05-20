@@ -443,7 +443,7 @@ export async function waitForNotification(opts: {
   timeoutMs?: number;
   expectImage?: boolean;
 }) {
-  const { title, body, timeoutMs = 60_000, expectImage = false } = opts;
+  const { title, body, timeoutMs = 30_000, expectImage = false } = opts;
   const platform = getPlatform();
 
   if (platform === 'android') {
@@ -514,16 +514,27 @@ export async function waitForNotification(opts: {
   }
 }
 
+/** Wait for the push ID to be populated. */
+export async function waitForPushId(timeoutMs = 30_000): Promise<string> {
+  const pushIdEl = await scrollToEl('push_id_value', { direction: 'up' });
+  await driver.waitUntil(async () => {
+    const pushId = (await pushIdEl.getText().catch(() => '')).trim();
+    return pushId !== '' && pushId !== '—';
+  }, { timeout: timeoutMs, timeoutMsg: 'Push ID not populated' });
+  return (await pushIdEl.getText()).trim();
+}
+
 export async function checkNotification(opts: {
   buttonId: string;
   title: string;
   body?: string;
   expectImage?: boolean;
 }) {
-  const button = await scrollToEl(opts.buttonId);
+  await waitForPushId();
 
-  // Let hybrid SDKs settle before the notification flow.
-  if (isWebViewSDK) await driver.pause(3_000);
+  const button = await scrollToEl(opts.buttonId);
+  await driver.pause(2_000); // small wait to hopefully get image notif early
+
   await button.click();
   await waitForNotification({
     title: opts.title,

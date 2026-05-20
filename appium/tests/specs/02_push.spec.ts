@@ -5,6 +5,7 @@ import {
   scrollToEl,
   isBrowserStackIos,
   withRetryDelay,
+  waitForPushId,
 } from '../helpers/app.js';
 import { byTestId, expectToggleState } from '../helpers/selectors.js';
 
@@ -23,10 +24,8 @@ describe('Push Subscription', () => {
   it('should have push ID and be enabled initially', async function () {
     if (isBrowserStackIos()) this.skip();
 
-    const pushIdEl = await scrollToEl('push_id_value');
-    const pushId = await pushIdEl.getText();
-    expect(pushId).not.toBe('N/A');
-    expect(pushId.length).toBeGreaterThan(0);
+    const pushId = await waitForPushId();
+    expect(pushId).not.toBe('—');
 
     await scrollToEl('push_enabled_toggle');
     const toggleEl = await byTestId('push_enabled_toggle');
@@ -35,8 +34,8 @@ describe('Push Subscription', () => {
 
   it('can send an image notification', async function () {
     if (isBrowserStackIos()) this.skip();
-    this.retries(2);
-    await withRetryDelay(this, 5_000, () =>
+    this.retries(1);
+    await withRetryDelay(this, 1_000, () =>
       checkNotification({
         buttonId: 'send_image_button',
         title: 'Image Notification',
