@@ -192,9 +192,6 @@ type ElementWithInteractionMethods = {
 // Centralized SDK-specific element shims.
 function withElementInteractionFixes<T extends ElementWithInteractionMethods>(el: T): T {
   const isFlutterAndroid = getPlatform() === 'android' && getSdkType() === 'flutter';
-  if (!isFlutterAndroid) {
-    return el;
-  }
 
   return new Proxy(el, {
     get(target, prop, receiver) {
@@ -217,9 +214,10 @@ function withElementInteractionFixes<T extends ElementWithInteractionMethods>(el
         };
       }
 
-      if (prop === 'setValue' && isFlutterAndroid) {
+      if (prop === 'setValue') {
         return async (value: string) => {
-          await target.click();
+          if (isFlutterAndroid) await target.click();
+          await target.waitForDisplayed({ timeout: 5_000 });
           await target.setValue(value);
         };
       }
@@ -239,7 +237,10 @@ export async function byTestId(id: string) {
   const sdkType = getSdkType();
   const platform = getPlatform();
 
-  if (sdkType === 'capacitor' || sdkType === 'cordova') return $(`[data-testid="${id}"]`);
+  if (sdkType === 'capacitor' || sdkType === 'cordova') {
+    const el = await $(`[data-testid="${id}"]`);
+    return withElementInteractionFixes(el);
+  }
   // Resolve before proxying.
   if (platform === 'android') {
     const el = await $(`id=${id}`);

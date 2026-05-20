@@ -573,9 +573,7 @@ async function findIamWebView(expectedTitle?: string): Promise<boolean> {
     if (!(await switchToContext(context))) continue;
 
     const handles = await driver.getWindowHandles().catch(() => []);
-    const candidates = handles.length
-      ? [...handles].reverse().filter((handle) => !closedIamWindowHandles.has(handle))
-      : [undefined];
+    const candidates = handles.length ? [...handles].reverse() : [undefined];
 
     for (const handle of candidates) {
       if (handle && !(await switchToWindow(handle))) continue;
@@ -586,8 +584,6 @@ async function findIamWebView(expectedTitle?: string): Promise<boolean> {
   await restore();
   return false;
 }
-
-const closedIamWindowHandles = new Set<string>();
 
 function isIamCandidateContext(context: string): boolean {
   if (context === 'NATIVE_APP') return false;
@@ -634,7 +630,7 @@ export async function checkInAppMessage(opts: {
   expectedTitle: string;
   skipClick?: boolean;
 }) {
-  const timeout = 20_000;
+  const timeout = 8_000;
   const { buttonId, expectedTitle } = opts;
 
   // Tap the IAM trigger
@@ -642,21 +638,13 @@ export async function checkInAppMessage(opts: {
     const el = await scrollToEl(buttonId);
     await el.click();
   }
-  await driver.waitUntil(() => isWebViewVisible(), {
-    timeout,
-    timeoutMsg: `IAM webview not shown after clicking "${buttonId}"`,
-  });
+  await switchToNativeContext();
+
+  const title = await byText(expectedTitle);
+  await title.waitForDisplayed({ timeout });
+
   await switchToIAMWebView(expectedTitle, timeout);
-
-  const title = await $('h1');
-  await title.waitForExist({ timeout });
-  expect(await title.getText()).toBe(expectedTitle);
-
-  const iamWindowHandle = await driver.getWindowHandle().catch(() => undefined);
   await (await $('.close-button')).click();
-  if (iamWindowHandle) {
-    closedIamWindowHandles.add(iamWindowHandle);
-  }
   await driver.switchContext('NATIVE_APP');
   await ensureMainWebViewContext();
 }
