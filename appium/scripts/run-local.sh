@@ -1630,26 +1630,33 @@ start_device() {
 }
 
 # ── 2. Start Appium ──────────────────────────────────────────────────────────
-# Free port 8100 when a previous run left WDA bound to it. Scoped to the
-# actual port-holder (not a broad pkill -f) so unrelated WDA sessions or
-# other Xcode UI tests on the same host aren't collateral damage. Prevents
-# the cascading "Address already in use" → `xcodebuild exited with code 65`
-# → wdio "Unable to start WebDriverAgent session" failure mode.
-cleanup_stale_wda() {
+# Clear stale iOS automation state from prior runs.
+cleanup_ios_automation() {
   [[ "$PLATFORM" == "ios" ]] || return 0
-  local port="${WDA_LOCAL_PORT:-8100}"
   local pids
-  pids=$(lsof -ti tcp:"$port" 2>/dev/null || true)
-  [[ -n "$pids" ]] && kill -9 $pids 2>/dev/null || true
+  for port in "$APPIUM_PORT" "${WDA_LOCAL_PORT:-8100}"; do
+    pids=$(lsof -ti tcp:"$port" 2>/dev/null || true)
+    [[ -n "$pids" ]] && kill -9 $pids 2>/dev/null || true
+  done
+  pkill -f 'appium-webdriveragent/WebDriverAgent.xcodeproj' 2>/dev/null || true
+  pkill -f 'WebDriverAgentRunner-Runner.app/WebDriverAgentRunner-Runner' 2>/dev/null || true
+
+  killall cfprefsd >/dev/null 2>&1 || true
+  defaults write com.apple.Accessibility AccessibilityEnabled -bool true >/dev/null 2>&1 || {
+    killall cfprefsd >/dev/null 2>&1 || true
+    sleep 1
+    defaults write com.apple.Accessibility AccessibilityEnabled -bool true >/dev/null 2>&1 \
+      || warn "Could not pre-enable macOS Accessibility; Appium may fail to create an iOS session"
+  }
 }
 
 start_appium() {
+  cleanup_ios_automation
+
   if curl -s "http://localhost:$APPIUM_PORT/status" | grep -q '"ready":true' 2>/dev/null; then
     info "Appium already running on port $APPIUM_PORT"
     return
   fi
-
-  cleanup_stale_wda
 
   info "Starting Appium on port $APPIUM_PORT..."
   appium --port "$APPIUM_PORT" --log-level error &

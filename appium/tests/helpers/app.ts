@@ -573,11 +573,10 @@ async function findIamWebView(expectedTitle?: string): Promise<boolean> {
     if (!(await switchToContext(context))) continue;
 
     const handles = await driver.getWindowHandles().catch(() => []);
-    const candidates = handles.length
-      ? [...handles].reverse().filter((handle) => !closedIamWindowHandles.has(handle))
-      : [undefined];
+    const candidates = handles.length ? [...handles].reverse() : [undefined];
 
     for (const handle of candidates) {
+      if (handle && !expectedTitle && closedIamWindowHandles.has(handle)) continue;
       if (handle && !(await switchToWindow(handle))) continue;
       if (await hasVisibleIamContent(expectedTitle).catch(() => false)) return true;
     }
@@ -623,10 +622,11 @@ async function switchToWindow(handle: string): Promise<boolean> {
 }
 
 async function hasVisibleIamContent(expectedTitle?: string): Promise<boolean> {
-  const title = $('h1');
-  if (!(await title.isDisplayed().catch(() => false))) return false;
-  if (!expectedTitle) return true;
-  return (await title.getText().catch(() => '')) === expectedTitle;
+  return browser.execute((titleText?: string) => {
+    const title = document.querySelector('h1');
+    const isVisible = Boolean(title?.getClientRects().length);
+    return isVisible && (!titleText || title.textContent === titleText);
+  }, expectedTitle).catch(() => false);
 }
 
 export async function checkInAppMessage(opts: {
@@ -634,16 +634,14 @@ export async function checkInAppMessage(opts: {
   expectedTitle: string;
   skipClick?: boolean;
 }) {
-  const timeout = 20_000;
   const { buttonId, expectedTitle } = opts;
 
-  // Tap the IAM trigger
   if (!opts.skipClick) {
     const el = await scrollToEl(buttonId);
     await el.click();
   }
 
-  await switchToIAMWebView(expectedTitle, timeout);
+  await switchToIAMWebView(expectedTitle, 20_000);
   const iamWindowHandle = await driver.getWindowHandle().catch(() => undefined);
   await (await $('.close-button')).click();
   if (iamWindowHandle) {
