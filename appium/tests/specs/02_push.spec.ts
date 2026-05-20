@@ -4,7 +4,6 @@ import {
   checkTooltip,
   scrollToEl,
   isBrowserStackIos,
-  withRetryDelay,
   waitForPushId,
 } from '../helpers/app.js';
 import { byTestId, expectToggleState } from '../helpers/selectors.js';
@@ -34,14 +33,11 @@ describe('Push Subscription', () => {
 
   it('can send an image notification', async function () {
     if (isBrowserStackIos()) this.skip();
-    this.retries(1);
-    await withRetryDelay(this, 1_000, () =>
-      checkNotification({
-        buttonId: 'send_image_button',
-        title: 'Image Notification',
-        body: 'This notification includes an image',
-        expectImage: true,
-      }),
-    );
+    await checkNotification({
+      buttonId: 'send_image_button',
+      title: 'Image Notification',
+      body: 'This notification includes an image',
+      expectImage: true,
+    });
   });
 });

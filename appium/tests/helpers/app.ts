@@ -686,19 +686,3 @@ export async function checkTooltip(buttonId: string, key: string) {
   await okButton.click();
   await waitForDisappear('tooltip_ok_button');
 }
-
-export async function withRetryDelay(ctx: Mocha.Context, delayMs: number, fn: () => Promise<void>) {
-  try {
-    await fn();
-  } catch (err) {
-    const testTitle = ctx.test?.fullTitle() ?? 'unknown test';
-    console.warn(`Retrying for "${testTitle}"...`);
-    const currentRetry: unknown = ctx.test ? Reflect.get(ctx.test, '_currentRetry') : 0;
-    const retries: unknown = ctx.test ? Reflect.get(ctx.test, '_retries') : 0;
-    if (typeof currentRetry === 'number' && typeof retries === 'number' && currentRetry < retries) {
-      await returnToApp().catch(() => {});
-      await browser.pause(delayMs);
-    }
-    throw err;
-  }
-}
