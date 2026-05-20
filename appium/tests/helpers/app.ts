@@ -18,7 +18,6 @@ export const isWebViewSDK = sdkType === 'capacitor' || sdkType === 'cordova';
 export const isBrowserStack = Boolean(process.env.BROWSERSTACK_USERNAME);
 export const isUnitySDK = sdkType === 'unity';
 const isFlutterSDK = sdkType === 'flutter';
-const isNativeAndroidSDK = sdkType === 'android';
 
 export function isBrowserStackIos(): boolean {
   return isBrowserStack && getPlatform() === 'ios';
@@ -105,8 +104,8 @@ async function isVisibleInViewport(el: {
   getLocation(): Promise<{ x: number; y: number }>;
   getSize(): Promise<{ width: number; height: number }>;
 }): Promise<boolean> {
-  if (await el.isDisplayed().catch(() => false)) return true;
-  // Fallback for SDKs whose `isDisplayed` lies (e.g. Flutter on iOS).
+  if ((await el.isDisplayed().catch(() => false)) && !isFlutterSDK && !isUnitySDK) return true;
+  // Some SDKs report offscreen accessibility nodes as displayed.
   try {
     const [loc, size] = await Promise.all([el.getLocation(), el.getSize()]);
     if (size.width <= 0 || size.height <= 0) return false;
@@ -405,12 +404,7 @@ export async function returnToApp() {
   }
 
   await ensureMainWebViewContext();
-
-  // Wait for Unity's focus bridge to refresh driver caches.
-  if (isUnitySDK) {
-    const root = await byTestId('main_scroll_view');
-    await root.waitForDisplayed({ timeout: 3_000 });
-  }
+  if (isUnitySDK) await driver.pause(1_000);
 }
 
 /** Expand an Android notification row when OEMs keep it collapsed. */
