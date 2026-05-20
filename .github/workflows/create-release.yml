@@ -241,12 +241,18 @@ jobs:
               }
             };
 
-            // Determine release type from version
+            // Determine which channels this release populates in the
+            // `sdk-releases` static app (`scripts/fetch-releases.js`).
+            // Stable releases fill both `stable` and `current` slots —
+            // the app walks releases newest-first and first-come-wins
+            // per slot, so this keeps both slots tracking the latest
+            // stable release without any per-repo branching logic.
+            // Pre-release suffixes still route to their own channel.
             const version = '${{ steps.release_version.outputs.version_to }}';
-            const releaseType = version.includes('-alpha') ? 'Alpha' :
-                               version.includes('-beta') ? 'Beta' : 'Current';
+            const channels = version.includes('-alpha') ? 'alpha' :
+                             version.includes('-beta') ? 'beta' : 'stable, current';
 
-            let releaseNotes = `Channels: ${releaseType}\n\n`;
+            let releaseNotes = `Channels: ${channels}\n\n`;
             releaseNotes += buildSection('⚠️ Breaking Changes', breaking);
             releaseNotes += buildSection('🚀 New Features', features);
             releaseNotes += buildSection('🐛 Bug Fixes', fixes);
