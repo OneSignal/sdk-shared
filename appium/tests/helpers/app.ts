@@ -38,9 +38,7 @@ async function swipeMainContent(direction: 'up' | 'down', distance: 'small' | 'n
   // Slow Flutter drags to avoid fling momentum.
   const moveDurationMs = 300;
 
-  // Bound pointer actions; stale WebView handles can otherwise hang.
-  const SWIPE_TIMEOUT_MS = 5_000;
-  const action = browser
+  await driver
     .action('pointer', { parameters: { pointerType: 'touch' } })
     .move({ x: swipeX, y: startY })
     .down()
@@ -48,33 +46,12 @@ async function swipeMainContent(direction: 'up' | 'down', distance: 'small' | 'n
     .move({ duration: moveDurationMs, x: swipeX, y: endY })
     .up()
     .perform();
-  let timer: NodeJS.Timeout | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(
-      () =>
-        reject(
-          new Error(
-            `swipeMainContent perform() exceeded ${SWIPE_TIMEOUT_MS}ms (likely a stale WebView window handle blocking pointer dispatch)`,
-          ),
-        ),
-      SWIPE_TIMEOUT_MS,
-    );
-  });
-  try {
-    await Promise.race([action, timeout]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-  if (isFlutterSDK) await driver.pause(1000);
 }
 
 /** Scroll to a test id using the fastest reliable SDK-specific path. */
 export async function scrollToEl(
   identifier: string,
-  opts: {
-    direction?: 'up' | 'down';
-    maxScrolls?: number;
-  } = {},
+  opts: { direction?: 'up' | 'down'; maxScrolls?: number } = {},
 ) {
   // Swipe loop is the fallback and handles upward searches.
   const { direction = 'down', maxScrolls = 30 } = opts;
@@ -82,7 +59,7 @@ export async function scrollToEl(
   if (isWebViewSDK) {
     const el = await byTestId(identifier);
     await el.waitForExist({ timeout: 10_000 });
-    await browser.execute(
+    await driver.execute(
       (e: HTMLElement) => e.scrollIntoView({ block: 'center', behavior: 'instant' }),
       el,
     );
@@ -91,57 +68,46 @@ export async function scrollToEl(
 
   for (let i = 0; i < maxScrolls; i++) {
     const el = await byTestId(identifier);
-    if (await isVisibleInViewport(el)) {
-      return await scrollExtraIfNeeded(el, () => byTestId(identifier));
-    }
+    if (await isVisibleInViewport(el)) return await nudgeFromEdge(el, identifier);
     await swipeMainContent(direction);
   }
   throw new Error(`Element "${identifier}" not found after ${maxScrolls} scrolls`);
 }
 
-async function isVisibleInViewport(el: {
-  isDisplayed(): Promise<boolean>;
-  getLocation(): Promise<{ x: number; y: number }>;
-  getSize(): Promise<{ width: number; height: number }>;
-}): Promise<boolean> {
+type Element = Awaited<ReturnType<typeof byTestId>>;
+
+async function isVisibleInViewport(el: Element): Promise<boolean> {
   if ((await el.isDisplayed().catch(() => false)) && !isFlutterSDK && !isUnitySDK) return true;
   // Some SDKs report offscreen accessibility nodes as displayed.
-  try {
-    const [loc, size] = await Promise.all([el.getLocation(), el.getSize()]);
-    if (size.width <= 0 || size.height <= 0) return false;
-    const { width: winW, height: winH } = await driver.getWindowSize();
-    const topMargin = Math.round(winH * 0.07);
-    const bottomMargin = Math.round(winH * 0.1);
-    return (
-      loc.y >= topMargin &&
-      loc.y + size.height <= winH - bottomMargin &&
-      loc.x >= 0 &&
-      loc.x + size.width <= winW
-    );
-  } catch {
-    return false;
-  }
+  const [loc, size] = await Promise.all([
+    el.getLocation().catch(() => null),
+    el.getSize().catch(() => null),
+  ]);
+  if (!loc || !size || size.width <= 0 || size.height <= 0) return false;
+  const { width: winW, height: winH } = await driver.getWindowSize();
+  const topMargin = Math.round(winH * 0.07);
+  const bottomMargin = Math.round(winH * 0.1);
+  return (
+    loc.y >= topMargin &&
+    loc.y + size.height <= winH - bottomMargin &&
+    loc.x >= 0 &&
+    loc.x + size.width <= winW
+  );
 }
 
-async function scrollExtraIfNeeded<T extends { getLocation(): Promise<{ y: number }> }>(
-  el: T,
-  refetch: () => Promise<T>,
-): Promise<T> {
+async function nudgeFromEdge(el: Element, identifier: string): Promise<Element> {
   // Nudge edge-visible elements away from snackbars and system gestures.
-  try {
-    const { y } = await el.getLocation();
-    const { height } = await driver.getWindowSize();
-    const threshold = Math.round(height * 0.12);
-    if (y < threshold) {
-      await swipeMainContent('up', 'small');
-      return await refetch();
-    }
-    if (y > height - threshold) {
-      await swipeMainContent('down', 'small');
-      return await refetch();
-    }
-  } catch {
-    /* best-effort */
+  const loc = await el.getLocation().catch(() => null);
+  if (!loc) return el;
+  const { height } = await driver.getWindowSize();
+  const threshold = Math.round(height * 0.12);
+  if (loc.y < threshold) {
+    await swipeMainContent('up', 'small');
+    return await byTestId(identifier);
+  }
+  if (loc.y > height - threshold) {
+    await swipeMainContent('down', 'small');
+    return await byTestId(identifier);
   }
   return el;
 }
@@ -178,20 +144,16 @@ async function clickAndroidPermissionButton(
   return false;
 }
 
-/** Click an iOS SpringBoard permission button if present. */
+/** Tap an iOS system alert button by label, regardless of which process owns the alert. */
 async function clickIosPermissionButton(buttonLabel: string, timeoutMs = 10_000) {
   await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
   try {
-    const button = await $(
-      `-ios class chain:**/XCUIElementTypeButton[\`label == "${buttonLabel}"\`]`,
-    );
-    try {
-      await button.waitForDisplayed({ timeout: timeoutMs });
-      await button.click();
-      return true;
-    } catch {
-      return false;
-    }
+    const btn = await $(`~${buttonLabel}`);
+    await btn.waitForExist({
+      timeout: timeoutMs,
+      timeoutMsg: `iOS alert "${buttonLabel}" never appeared`,
+    });
+    await btn.click();
   } finally {
     await driver.updateSettings({ defaultActiveApplication: 'auto' });
   }
@@ -332,7 +294,7 @@ export async function confirmModal(buttonTestId: string) {
 }
 
 export async function waitForDisappear(testId: string, timeoutMs = 5_000) {
-  await browser.waitUntil(
+  await driver.waitUntil(
     async () => {
       const el = await byTestId(testId);
       return !(await el.isDisplayed().catch(() => false));
@@ -356,15 +318,6 @@ export async function openModal(triggerTestId: string, expectedTestId: string, t
   };
 
   return open();
-}
-
-async function retryOnce<T>(fn: () => Promise<T>, delayMs = 250): Promise<T> {
-  try {
-    return await fn();
-  } catch {
-    await driver.pause(delayMs);
-    return fn();
-  }
 }
 
 /** Assert a unique key-value pair appears in a section. */
@@ -404,7 +357,7 @@ export async function returnToApp() {
   }
 
   await ensureMainWebViewContext();
-  if (isUnitySDK) await driver.pause(1_000);
+  await driver.pause(1_000);
 }
 
 /** Expand an Android notification row when OEMs keep it collapsed. */
@@ -515,12 +468,15 @@ export async function waitForNotification(opts: {
 }
 
 /** Wait for the push ID to be populated. */
-export async function waitForPushId(timeoutMs = 30_000): Promise<string> {
+export async function waitForInitId(timeoutMs = 30_000): Promise<string> {
   const pushIdEl = await scrollToEl('push_id_value', { direction: 'up' });
-  await driver.waitUntil(async () => {
-    const pushId = (await pushIdEl.getText().catch(() => '')).trim();
-    return pushId !== '' && pushId !== '—';
-  }, { timeout: timeoutMs, timeoutMsg: 'Push ID not populated' });
+  await driver.waitUntil(
+    async () => {
+      const pushId = (await pushIdEl.getText().catch(() => '')).trim();
+      return pushId !== '' && pushId !== '—';
+    },
+    { timeout: timeoutMs, timeoutMsg: 'Notifications not ready.' },
+  );
   return (await pushIdEl.getText()).trim();
 }
 
@@ -530,7 +486,7 @@ export async function checkNotification(opts: {
   body?: string;
   expectImage?: boolean;
 }) {
-  await waitForPushId();
+  await waitForInitId();
 
   const button = await scrollToEl(opts.buttonId);
   await driver.pause(2_000); // small wait to hopefully get image notif early
@@ -552,40 +508,6 @@ export async function isWebViewVisible() {
   return findIamWebView().then(Boolean);
 }
 
-async function switchToIAMWebView(expectedTitle: string, timeoutMs: number) {
-  await driver.waitUntil(() => findIamWebView(expectedTitle).then(Boolean), {
-    timeout: timeoutMs,
-    timeoutMsg: `Could not find IAM with title "${expectedTitle}"`,
-  });
-}
-
-async function findIamWebView(expectedTitle?: string): Promise<boolean> {
-  const restore = async () => {
-    if (isWebViewSDK) {
-      await ensureMainWebViewContext().catch(() => {});
-    } else {
-      await driver.switchContext('NATIVE_APP').catch(() => {});
-    }
-  };
-
-  const contexts = await getIamCandidateContexts();
-  for (const context of contexts) {
-    if (!(await switchToContext(context))) continue;
-
-    const handles = await driver.getWindowHandles().catch(() => []);
-    const candidates = handles.length ? [...handles].reverse() : [undefined];
-
-    for (const handle of candidates) {
-      if (handle && !expectedTitle && closedIamWindowHandles.has(handle)) continue;
-      if (handle && !(await switchToWindow(handle))) continue;
-      if (await hasVisibleIamContent(expectedTitle).catch(() => false)) return true;
-    }
-  }
-
-  await restore();
-  return false;
-}
-
 const closedIamWindowHandles = new Set<string>();
 
 function isIamCandidateContext(context: string): boolean {
@@ -594,39 +516,53 @@ function isIamCandidateContext(context: string): boolean {
   return context.includes(PACKAGE_ID);
 }
 
-async function getIamCandidateContexts(): Promise<string[]> {
+/** Race a driver call against a deadline; iOS WebKit can hang forever on a stale handle. */
+async function bounded(fn: () => Promise<unknown>, ms = 5_000): Promise<boolean> {
   try {
-    const contexts = await driver.getContexts();
-    return contexts.map(contextName).filter(isDefined).filter(isIamCandidateContext);
-  } catch {
-    return [];
-  }
-}
-
-async function switchToContext(context: string): Promise<boolean> {
-  try {
-    await driver.switchContext(context);
+    await Promise.race([
+      fn(),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+    ]);
     return true;
   } catch {
     return false;
   }
 }
 
-async function switchToWindow(handle: string): Promise<boolean> {
-  try {
-    await driver.switchToWindow(handle);
-    return true;
-  } catch {
-    return false;
+/** Locate the IAM by walking newest-first across contexts and window handles. */
+async function findIamWebView(expectedTitle?: string): Promise<boolean> {
+  const contexts = (await driver.getContexts().catch(() => []))
+    .map(contextName)
+    .filter(isDefined)
+    .filter(isIamCandidateContext)
+    .reverse();
+
+  for (const context of contexts) {
+    if (!(await bounded(() => driver.switchContext(context)))) continue;
+    const handles = (await driver.getWindowHandles().catch(() => [])).reverse();
+    for (const handle of handles.length ? handles : [null]) {
+      if (handle && !expectedTitle && closedIamWindowHandles.has(handle)) continue;
+      if (handle && !(await bounded(() => driver.switchToWindow(handle)))) continue;
+      if (await hasVisibleIamContent(expectedTitle)) return true;
+    }
   }
+
+  if (isWebViewSDK) {
+    await ensureMainWebViewContext().catch(() => {});
+  } else {
+    await driver.switchContext('NATIVE_APP').catch(() => {});
+  }
+  return false;
 }
 
 async function hasVisibleIamContent(expectedTitle?: string): Promise<boolean> {
-  return browser.execute((titleText?: string) => {
-    const title = document.querySelector('h1');
-    const isVisible = Boolean(title?.getClientRects().length);
-    return isVisible && (!titleText || title.textContent === titleText);
-  }, expectedTitle).catch(() => false);
+  return driver
+    .execute((titleText?: string) => {
+      const title = document.querySelector('h1');
+      const isVisible = Boolean(title?.getClientRects().length);
+      return isVisible && (!titleText || title.textContent === titleText);
+    }, expectedTitle)
+    .catch(() => false);
 }
 
 export async function checkInAppMessage(opts: {
@@ -634,21 +570,36 @@ export async function checkInAppMessage(opts: {
   expectedTitle: string;
   skipClick?: boolean;
 }) {
-  const { buttonId, expectedTitle } = opts;
-
   if (!opts.skipClick) {
-    const el = await scrollToEl(buttonId);
+    const el = await scrollToEl(opts.buttonId);
     await el.click();
   }
-
-  await switchToIAMWebView(expectedTitle, 20_000);
+  await driver.waitUntil(() => findIamWebView(opts.expectedTitle), {
+    timeout: 20_000,
+    timeoutMsg: `Could not find IAM with title "${opts.expectedTitle}"`,
+  });
   const iamWindowHandle = await driver.getWindowHandle().catch(() => undefined);
   await (await $('.close-button')).click();
-  if (iamWindowHandle) {
-    closedIamWindowHandles.add(iamWindowHandle);
-  }
+  if (iamWindowHandle) closedIamWindowHandles.add(iamWindowHandle);
   await driver.switchContext('NATIVE_APP');
+  await waitForIamDismissed();
   await ensureMainWebViewContext();
+}
+
+/**
+ * Block until the IAM WebView is gone from the native view hierarchy.
+ * Without this, the SDK can still be in its "displaying message" state when
+ * the next trigger fires, causing the SDK to silently drop the trigger.
+ */
+async function waitForIamDismissed(timeoutMs = 8_000) {
+  if (getPlatform() !== 'android' || isWebViewSDK) return;
+  await driver.waitUntil(
+    async () => {
+      const src = await driver.getPageSource().catch(() => '');
+      return !/<android\.webkit\.WebView/.test(src);
+    },
+    { timeout: timeoutMs, interval: 250, timeoutMsg: 'IAM dismiss did not complete' },
+  );
 }
 
 /** Assert a snackbar/toast appears with the expected text. */

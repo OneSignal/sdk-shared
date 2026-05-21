@@ -91,14 +91,25 @@ jobs:
         run: |
           set +e
           MAX_ATTEMPTS=10
+          WDIO_TIMEOUT="25m"
+          if [ "$PLATFORM" = "ios" ]; then
+            WDIO_TIMEOUT="60m"
+          fi
           for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
             echo "::group::Appium attempt $attempt of $MAX_ATTEMPTS"
             LOG_FILE="$RUNNER_TEMP/wdio-attempt-$attempt.log"
-            vpx wdio run "wdio.${PLATFORM}.conf.ts" 2>&1 | tee "$LOG_FILE"
+            timeout --signal=TERM --kill-after=30s "$WDIO_TIMEOUT" \
+              vpx wdio run "wdio.${PLATFORM}.conf.ts" 2>&1 | tee "$LOG_FILE"
             STATUS=${PIPESTATUS[0]}
             echo "::endgroup::"
             if [ "$STATUS" -eq 0 ]; then
               exit 0
+            fi
+            if [ "$STATUS" -eq 124 ]; then
+              SLEEP=$((30 * attempt))
+              echo "WDIO did not complete within ${WDIO_TIMEOUT}; retrying in ${SLEEP}s..."
+              sleep "$SLEEP"
+              continue
             fi
             if grep -qE 'Failed to create a session|aborted due to timeout when running .*\/session|PARALLEL_TEST_LIMIT_REACHED|All parallel tests are currently in use' "$LOG_FILE"; then
               SLEEP=$((30 * attempt))

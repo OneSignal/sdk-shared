@@ -351,7 +351,6 @@ build_flutter_ios() {
     cat > "$DEMO_DIR/.env" <<EOF
 ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
-E2E_MODE=true
 EOF
   else
     warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — skipping demo .env"
@@ -376,7 +375,6 @@ build_flutter_android() {
     cat > "$DEMO_DIR/.env" <<EOF
 ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
-E2E_MODE=true
 EOF
   else
     warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — skipping demo .env"
@@ -399,7 +397,6 @@ write_rn_demo_env() {
 ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
 ONESIGNAL_ANDROID_CHANNEL_ID=$ANDROID_CHANNEL_ID
-E2E_MODE=true
 EOF
   else
     warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — skipping demo .env"
@@ -495,7 +492,6 @@ write_cordova_demo_env() {
 VITE_ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 VITE_ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
 VITE_ONESIGNAL_ANDROID_CHANNEL_ID=$ANDROID_CHANNEL_ID
-VITE_E2E_MODE=true
 EOF
   else
     warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — skipping demo .env"
@@ -653,7 +649,6 @@ write_capacitor_demo_env() {
 VITE_ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 VITE_ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
 VITE_ONESIGNAL_ANDROID_CHANNEL_ID=$ANDROID_CHANNEL_ID
-VITE_E2E_MODE=true
 EOF
   else
     warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — skipping demo .env"
@@ -662,7 +657,7 @@ EOF
 
 setup_capacitor_sdk() {
   local stamp="$CAPACITOR_DIR/.capacitor-sdk-source.stamp"
-  local installed_dir="$DEMO_DIR/node_modules/onesignal-capacitor-plugin"
+  local installed_dir="$DEMO_DIR/node_modules/@onesignal/capacitor-plugin"
   local tarball="$CAPACITOR_DIR/onesignal-capacitor-plugin.tgz"
 
   # Exported (no `local`) so build_capacitor_* can fold it into the cap-sync
@@ -783,7 +778,6 @@ write_expo_demo_env() {
     cat > "$DEMO_DIR/.env" <<EOF
 EXPO_PUBLIC_ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 EXPO_PUBLIC_ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
-EXPO_PUBLIC_E2E_MODE=true
 EXPO_PUBLIC_ONESIGNAL_ANDROID_CHANNEL_ID=$ANDROID_CHANNEL_ID
 EOF
   else
@@ -950,7 +944,6 @@ write_dotnet_demo_env() {
     cat > "$DEMO_DIR/.env" <<EOF
 ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
-E2E_MODE=true
 EOF
   else
     warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — skipping demo .env"
@@ -1432,10 +1425,10 @@ build_android_native() {
   local type_cap="$(tr '[:lower:]' '[:upper:]' <<< "${ANDROID_BUILD_TYPE:0:1}")${ANDROID_BUILD_TYPE:1}"
   local task="assemble${flavor_cap}${type_cap}"
 
-  # Demo reads ONESIGNAL_APP_ID / ONESIGNAL_ANDROID_CHANNEL_ID / E2E_MODE from
+  # Demo reads ONESIGNAL_APP_ID / ONESIGNAL_ANDROID_CHANNEL_ID from
   # `BuildConfig.*` (see examples/demo/app/build.gradle.kts:demoOverride). Pass
   # them as Gradle -P props so the CLI value wins over examples/demo/local.properties.
-  local -a gradle_args=("-PSDK_VERSION=$sdk_version" "-PE2E_MODE=true")
+  local -a gradle_args=("-PSDK_VERSION=$sdk_version")
   if [[ -n "${ONESIGNAL_APP_ID:-}" ]]; then
     gradle_args+=("-PONESIGNAL_APP_ID=$ONESIGNAL_APP_ID")
   else
@@ -1561,57 +1554,41 @@ for runtime, devices in data['devices'].items():
 }
 
 start_android_emulator() {
-  if adb devices 2>/dev/null | grep -q "emulator-"; then
+  if adb devices 2>/dev/null | grep -q "emulator-.*device$"; then
     info "Emulator already running"
     return
   fi
 
+  # If a previous run left a wedged offline emulator, kill it so we can relaunch
+  # cleanly. Reconnecting an offline emulator almost never recovers it.
+  if adb devices 2>/dev/null | grep -q "emulator-.*offline"; then
+    warn "Killing stale offline emulator..."
+    adb -s emulator-5554 emu kill >/dev/null 2>&1 || true
+    pkill -9 -f "qemu-system-.*-avd ${AVD_NAME}" 2>/dev/null || true
+    sleep 2
+  fi
+
   local emulator_log="/tmp/emulator-${AVD_NAME}.log"
   info "Starting emulator '$AVD_NAME' (logs: $emulator_log)..."
-  # Enable job control (`set -m`) so bash places the backgrounded emulator in
-  # its own process group. Without this, non-interactive bash leaves it in the
-  # script's pgrp and a Ctrl-C on the script also SIGINTs the emulator. We
-  # want the emulator to survive early exits so subsequent `--skip-device`
-  # runs reuse the booted AVD. Stdin is redirected from /dev/null so the
-  # detached emulator never tries to read from the terminal.
+  # Detach (`set -m` + `disown`) so Ctrl-C on the script doesn't SIGINT the
+  # emulator, and so subsequent `--skip-device` runs can reuse the booted AVD.
   set -m
   emulator -avd "$AVD_NAME" -no-audio -no-boot-anim \
     </dev/null >"$emulator_log" 2>&1 &
-  local emulator_pid=$!
   disown %% 2>/dev/null || true
   set +m
 
-  # #region agent log: capture pgrp evidence to verify detachment
-  {
-    local script_pgid emulator_pgid
-    script_pgid=$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')
-    emulator_pgid=$(ps -o pgid= -p "$emulator_pid" 2>/dev/null | tr -d ' ')
-    printf '{"sessionId":"bee2e3","timestamp":%s,"location":"run-local.sh:start_android_emulator","hypothesisId":"H1","message":"emulator-launched","data":{"script_pid":%s,"script_pgid":"%s","emulator_pid":%s,"emulator_pgid":"%s"}}\n' \
-      "$(date +%s%3N)" "$$" "$script_pgid" "$emulator_pid" "$emulator_pgid" \
-      >> "/Users/fadigeorge/Documents/Code/SDK/sdk-shared/.cursor/debug-bee2e3.log"
-  } 2>/dev/null || true
-  # #endregion
-
   info "Waiting for emulator to boot..."
-  # Poll for the device instead of `adb wait-for-device` so we can recover from a
-  # wedged adb server (which silently drops the emulator and hangs forever).
-  local elapsed=0
-  local restarted=false
-  while ! adb devices 2>/dev/null | grep -q "emulator-.*device$"; do
+  local boot="" elapsed=0
+  while [[ "$boot" != "1" ]]; do
+    boot=$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
     sleep 2
     elapsed=$((elapsed + 2))
-    if [[ $elapsed -ge 30 && "$restarted" == false ]]; then
-      warn "adb didn't see emulator within 30s, restarting adb server..."
-      adb kill-server >/dev/null 2>&1 || true
-      adb start-server >/dev/null 2>&1 || true
-      restarted=true
+    if [[ $elapsed -ge 240 ]]; then
+      error "Emulator failed to boot after 240s. The default_boot snapshot may be corrupt; try:"
+      error "  rm -rf ~/.android/avd/${AVD_NAME}.avd/snapshots/default_boot"
+      return 1
     fi
-    [[ $elapsed -ge 180 ]] && error "Emulator failed to register with adb after 180s"
-  done
-  local boot=""
-  while [[ "$boot" != "1" ]]; do
-    boot=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
-    sleep 2
   done
   info "Emulator booted"
 }

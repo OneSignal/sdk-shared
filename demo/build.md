@@ -156,7 +156,7 @@ Clean up listeners on teardown if the platform requires it.
 
 ### Prompt 2.1a - App Section
 
-1. App ID display (readonly text). When `E2E_MODE=true`, mask the value with bullet characters for deterministic screenshots.
+1. App ID display (readonly text).
 2. Sticky guidance banner:
    - "Add your own App ID, then rebuild to fully test all functionality."
    - Link: "Get your keys at onesignal.com" (opens browser)
@@ -182,7 +182,7 @@ Separate SectionCard titled "User":
 ### Prompt 2.2 - Push Section
 
 - Title: "Push" with info icon
-- Push Subscription ID (readonly). When `E2E_MODE=true`, mask the value with bullet characters.
+- Push Subscription ID (readonly).
 - Enabled toggle (optIn/optOut), disabled when permission NOT granted
 - Auto-request permission when home screen loads
 - PROMPT PUSH button: only visible when permission NOT granted, hidden once granted
@@ -612,7 +612,6 @@ Logging:
 | ----------------------------- | ------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
 | `ONESIGNAL_APP_ID`            | No                        | `77e32082-ea27-42e3-a898-c72e141824ef`           | OneSignal App ID. Loaded at startup from `.env`, NOT from local preferences. Falls back to default when empty or missing. |
 | `ONESIGNAL_API_KEY`           | Live Activities only      | —                                                | REST API key. Required for Live Activity update/end. `hasApiKey()` returns true when set and not the placeholder; UPDATE / END buttons disable when false. |
-| `E2E_MODE`                    | No                        | `false`                                          | Masks sensitive IDs in the UI (App ID, Push ID) for deterministic Appium screenshots.                  |
 | `ONESIGNAL_ANDROID_CHANNEL_ID`| No (Send-Sound only)      | `b3b015d9-c050-4042-8548-dcc34aa44aa4`           | Notification channel for the WITH SOUND payload.                                                       |
 
 - Provide `.env.example` with placeholder values and a comment noting the default app ID.

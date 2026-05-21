@@ -47,6 +47,10 @@ export const config: WebdriverIO.Config = {
       'appium:autoGrantPermissions': false,
       'appium:noReset': true,
       'appium:disableWindowAnimation': true,
+      // Android 16's cached app freezer can stall uiautomator2 commands; default 60s
+      // newCommandTimeout fires and tears down the session mid-test. Extend it so a
+      // brief freeze does not kill the run.
+      'appium:newCommandTimeout': 300,
 
       ...androidCaps,
       ...parallelPortCaps,

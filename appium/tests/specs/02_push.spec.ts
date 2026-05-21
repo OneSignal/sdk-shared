@@ -4,7 +4,7 @@ import {
   checkTooltip,
   scrollToEl,
   isBrowserStackIos,
-  waitForPushId,
+  waitForInitId,
 } from '../helpers/app.js';
 import { byTestId, expectToggleState } from '../helpers/selectors.js';
 
@@ -23,7 +23,7 @@ describe('Push Subscription', () => {
   it('should have push ID and be enabled initially', async function () {
     if (isBrowserStackIos()) this.skip();
 
-    const pushId = await waitForPushId();
+    const pushId = await waitForInitId();
     expect(pushId).not.toBe('—');
 
     await scrollToEl('push_enabled_toggle');

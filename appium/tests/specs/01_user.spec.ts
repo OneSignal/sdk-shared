@@ -7,11 +7,6 @@ describe('User', () => {
     await scrollToEl('user_section');
   });
 
-  after(async () => {
-    // login user back so we can clean up the user data for the next run
-    await waitForAppReady();
-  });
-
   it('should start as anonymous', async () => {
     const statusEl = await scrollToEl('user_status_value');
     const status = await statusEl.getText();
