@@ -51,10 +51,10 @@ async function swipeMainContent(direction: 'up' | 'down', distance: 'small' | 'n
 /** Scroll to a test id using the fastest reliable SDK-specific path. */
 export async function scrollToEl(
   identifier: string,
-  opts: { direction?: 'up' | 'down'; maxScrolls?: number } = {},
+  opts: { direction?: 'up' | 'down'; maxScrolls?: number; timeoutMs?: number } = {},
 ) {
   // Swipe loop is the fallback and handles upward searches.
-  const { direction = 'down', maxScrolls = 30 } = opts;
+  const { direction = 'down', maxScrolls = 30, timeoutMs = 30_000 } = opts;
 
   if (isWebViewSDK) {
     const el = await byTestId(identifier);
@@ -66,12 +66,20 @@ export async function scrollToEl(
     return byTestId(identifier);
   }
 
-  for (let i = 0; i < maxScrolls; i++) {
+  // Wall-clock deadline keeps a slow Flutter/Unity swipe loop from running past
+  // Mocha's per-test timeout (default 120s), which otherwise surfaces as a bare
+  // `Error: Timeout` while the swipe loop keeps churning in the background.
+  const deadline = Date.now() + timeoutMs;
+  let scrolls = 0;
+  while (scrolls < maxScrolls && Date.now() < deadline) {
     const el = await byTestId(identifier);
     if (await isVisibleInViewport(el)) return await nudgeFromEdge(el, identifier);
     await swipeMainContent(direction);
+    scrolls++;
   }
-  throw new Error(`Element "${identifier}" not found after ${maxScrolls} scrolls`);
+  throw new Error(
+    `Element "${identifier}" not found after ${scrolls} scrolls (${Date.now() >= deadline ? `${timeoutMs}ms deadline` : `maxScrolls=${maxScrolls}`})`,
+  );
 }
 
 type Element = Awaited<ReturnType<typeof byTestId>>;
