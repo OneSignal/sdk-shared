@@ -16,108 +16,64 @@ const tooltipContent = JSON.parse(
 const sdkType = getSdkType();
 export const isWebViewSDK = sdkType === 'capacitor' || sdkType === 'cordova';
 export const isBrowserStack = Boolean(process.env.BROWSERSTACK_USERNAME);
-export const isUnitySDK = sdkType === 'unity';
-const isFlutterSDK = sdkType === 'flutter';
 
 export function isBrowserStackIos(): boolean {
   return isBrowserStack && getPlatform() === 'ios';
 }
 
-/** Swipe the main content, not the log panel. */
-async function swipeMainContent(direction: 'up' | 'down', distance: 'small' | 'normal' = 'normal') {
-  const distances = { small: 0.2, normal: 0.33 };
-
-  const { width, height } = await driver.getWindowSize();
-  const swipeArea = height * 0.8;
-  const swipeDistance = swipeArea * distances[distance];
-  // Round coords for WebViews. Unity swipes in the left gutter to avoid taps.
-  const swipeX = isUnitySDK ? 10 : Math.round(width / 2);
-  const startY = Math.round(direction === 'down' ? height * 0.85 : height * 0.15);
-  const endY = Math.round(direction === 'down' ? startY - swipeDistance : startY + swipeDistance);
-
-  // Slow Flutter drags to avoid fling momentum.
-  const moveDurationMs = 300;
-
-  await driver
-    .action('pointer', { parameters: { pointerType: 'touch' } })
-    .move({ x: swipeX, y: startY })
-    .down()
-    .pause(50)
-    .move({ duration: moveDurationMs, x: swipeX, y: endY })
-    .up()
-    .perform();
-}
+const SCROLL_DURATION = 750;
+const getScrollContainer = () => byTestId('main_scroll_view');
 
 /** Scroll to a test id using the fastest reliable SDK-specific path. */
 export async function scrollToEl(
   identifier: string,
-  opts: { direction?: 'up' | 'down'; maxScrolls?: number; timeoutMs?: number } = {},
+  opts: { direction?: 'up' | 'down'; maxScrolls?: number } = {},
 ) {
-  // Swipe loop is the fallback and handles upward searches.
-  const { direction = 'down', maxScrolls = 30, timeoutMs = 30_000 } = opts;
+  const { direction = 'down', maxScrolls = 20 } = opts;
 
   if (isWebViewSDK) {
     const el = await byTestId(identifier);
     await el.waitForExist({ timeout: 10_000 });
-    await driver.execute(
-      (e: HTMLElement) => e.scrollIntoView({ block: 'center', behavior: 'instant' }),
-      el,
-    );
-    return byTestId(identifier);
+    await el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+    return el;
   }
 
-  // Wall-clock deadline keeps a slow Flutter/Unity swipe loop from running past
-  // Mocha's per-test timeout (default 120s), which otherwise surfaces as a bare
-  // `Error: Timeout` while the swipe loop keeps churning in the background.
-  const deadline = Date.now() + timeoutMs;
-  let scrolls = 0;
-  while (scrolls < maxScrolls && Date.now() < deadline) {
-    const el = await byTestId(identifier);
-    if (await isVisibleInViewport(el)) return await nudgeFromEdge(el, identifier);
-    await swipeMainContent(direction);
-    scrolls++;
-  }
-  throw new Error(
-    `Element "${identifier}" not found after ${scrolls} scrolls (${Date.now() >= deadline ? `${timeoutMs}ms deadline` : `maxScrolls=${maxScrolls}`})`,
-  );
+  const el = await byTestId(identifier);
+  const swipeDirection = direction === 'down' ? 'up' : 'down';
+
+  await el.scrollIntoView({
+    direction: swipeDirection,
+    duration: SCROLL_DURATION,
+    maxScrolls,
+    percent: 0.25,
+    scrollableElement: await getScrollContainer(), // needed for android
+  });
+  return nudgeAboveBottomOverlay(identifier, el);
 }
 
 type Element = Awaited<ReturnType<typeof byTestId>>;
 
-async function isVisibleInViewport(el: Element): Promise<boolean> {
-  if ((await el.isDisplayed().catch(() => false)) && !isFlutterSDK && !isUnitySDK) return true;
-  // Some SDKs report offscreen accessibility nodes as displayed.
-  const [loc, size] = await Promise.all([
+async function nudgeAboveBottomOverlay(identifier: string, el: Element): Promise<Element> {
+  const getEl = async () => {
+    await driver.pause(250);
+    return byTestId(identifier);
+  };
+  const [loc, size, { height }] = await Promise.all([
     el.getLocation().catch(() => null),
     el.getSize().catch(() => null),
+    driver.getWindowSize(),
   ]);
-  if (!loc || !size || size.width <= 0 || size.height <= 0) return false;
-  const { width: winW, height: winH } = await driver.getWindowSize();
-  const topMargin = Math.round(winH * 0.07);
-  const bottomMargin = Math.round(winH * 0.1);
-  return (
-    loc.y >= topMargin &&
-    loc.y + size.height <= winH - bottomMargin &&
-    loc.x >= 0 &&
-    loc.x + size.width <= winW
-  );
-}
 
-async function nudgeFromEdge(el: Element, identifier: string): Promise<Element> {
-  // Nudge edge-visible elements away from snackbars and system gestures.
-  const loc = await el.getLocation().catch(() => null);
-  if (!loc) return el;
-  const { height } = await driver.getWindowSize();
-  const threshold = Math.round(height * 0.12);
-  if (loc.y < threshold) {
-    await swipeMainContent('up', 'small');
-    return await byTestId(identifier);
-  }
-  if (loc.y > height - threshold) {
-    await swipeMainContent('down', 'small');
-    return await byTestId(identifier);
-  }
-  return el;
+  const bottomOverlayStart = Math.round(height * 0.82);
+  if (!loc || !size || size.height <= 0 || loc.y + size.height < bottomOverlayStart) return getEl();
+
+  await driver.swipe({
+    direction: 'up',
+    duration: SCROLL_DURATION,
+    percent: 0.12,
+    scrollableElement: await getScrollContainer(), // needed for android
+  });
+  return getEl();
 }
 
 /** Android permission dialogs live in a separate foreground package. */
