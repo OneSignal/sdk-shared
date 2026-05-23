@@ -24,6 +24,7 @@ export const config: WebdriverIO.Config = {
       'appium:autoAcceptAlerts': false,
       'appium:noReset': true,
       'appium:webviewAtomWaitTimeout': 1_000,
+      ...(process.env.SDK_TYPE === 'react-native' && isLocal ? { 'appium:maxTypingFrequency': 20 } : {}),
       ...(isLocal ? {} : { 'bstack:options': bstackOptions }),
     },
   ],

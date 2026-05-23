@@ -232,21 +232,18 @@ function withElementInteractionFixes<T extends ElementWithInteractionMethods>(el
   });
 }
 
-/** Select by shared test id: WebView CSS, Android id, iOS accessibility id. */
-export async function byTestId(id: string) {
+/** Raw selector string for a shared test id; use with `$()` when you want WDIO to re-resolve on each retry. */
+export function byTestIdSelector(id: string): string {
   const sdkType = getSdkType();
   const platform = getPlatform();
+  if (sdkType === 'capacitor' || sdkType === 'cordova') return `[data-testid="${id}"]`;
+  if (platform === 'android') return `id=${id}`;
+  return `~${id}`;
+}
 
-  if (sdkType === 'capacitor' || sdkType === 'cordova') {
-    const el = await $(`[data-testid="${id}"]`);
-    return withElementInteractionFixes(el);
-  }
-  // Resolve before proxying.
-  if (platform === 'android') {
-    const el = await $(`id=${id}`);
-    return withElementInteractionFixes(el);
-  }
-  const el = await $(`~${id}`);
+/** Select by shared test id: WebView CSS, Android id, iOS accessibility id. */
+export async function byTestId(id: string) {
+  const el = await $(byTestIdSelector(id));
   return withElementInteractionFixes(el);
 }
 

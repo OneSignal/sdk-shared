@@ -4,7 +4,14 @@ import { fileURLToPath } from 'node:url';
 
 import { getValue, setValue } from '@wdio/shared-store-service';
 
-import { byTestId, byText, getPlatform, getSdkType, getTestExternalId } from './selectors.js';
+import {
+  byTestId,
+  byTestIdSelector,
+  byText,
+  getPlatform,
+  getSdkType,
+  getTestExternalId,
+} from './selectors.js';
 
 const PACKAGE_ID = 'com.onesignal.example';
 
@@ -38,70 +45,63 @@ export async function scrollToEl(
     return el;
   }
 
-  const el = await byTestId(identifier);
   const swipeDirection = direction === 'down' ? 'up' : 'down';
+  const scrollable = await getScrollContainer();
 
-  await el.scrollIntoView({
+  // Chainable selector — lets WDIO re-resolve on each scroll step instead of validating a stale snapshot.
+  await $(byTestIdSelector(identifier)).scrollIntoView({
     direction: swipeDirection,
     duration: SCROLL_DURATION,
     maxScrolls,
     percent: 0.25,
-    scrollableElement: await getScrollContainer(), // needed for android
+    scrollableElement: scrollable, // needed for android
   });
+
+  const el = await byTestId(identifier);
   return nudgeAboveBottomOverlay(identifier, el);
 }
 
 type Element = Awaited<ReturnType<typeof byTestId>>;
 
 async function nudgeAboveBottomOverlay(identifier: string, el: Element): Promise<Element> {
-  const getEl = async () => {
-    await driver.pause(250);
-    return byTestId(identifier);
-  };
+  // Skip the rect probe when the snapshot has no id (RN re-rendered after scroll); WDIO would throw past our .catch.
+  if (!el.elementId) return el;
+
   const [loc, size, { height }] = await Promise.all([
     el.getLocation().catch(() => null),
     el.getSize().catch(() => null),
     driver.getWindowSize(),
   ]);
-
   const bottomOverlayStart = Math.round(height * 0.82);
-  if (!loc || !size || size.height <= 0 || loc.y + size.height < bottomOverlayStart) return getEl();
-
+  if (!loc || !size || size.height <= 0 || loc.y + size.height < bottomOverlayStart) {
+    return el;
+  }
   await driver.swipe({
     direction: 'up',
     duration: SCROLL_DURATION,
     percent: 0.12,
-    scrollableElement: await getScrollContainer(), // needed for android
+    scrollableElement: await getScrollContainer(),
   });
-  return getEl();
+  await driver.pause(250);
+  return byTestId(identifier);
 }
-
-/** Android permission dialogs live in a separate foreground package. */
-const ANDROID_PERMISSION_PACKAGES = new Set([
-  'com.android.permissioncontroller',
-  'com.google.android.permissioncontroller',
-  'com.android.packageinstaller',
-]);
 
 async function clickAndroidPermissionButton(
   selectors: string[],
-  timeoutMs = 10_000,
+  timeoutMs = 30_000,
 ): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    try {
-      const pkg = await driver.getCurrentPackage();
-      if (ANDROID_PERMISSION_PACKAGES.has(pkg)) {
-        for (const selector of selectors) {
-          const el = await $(selector);
-          if (await el.isDisplayed().catch(() => false)) {
-            await el.click();
-            return true;
-          }
+    for (const selector of selectors) {
+      try {
+        const el = await $(selector);
+        if (await el.isDisplayed().catch(() => false)) {
+          await el.click();
+          return true;
         }
+      } catch {
+        /* try next selector */
       }
-    } catch {
-      /* retry until deadline */
     }
     await driver.pause(200);
   }
@@ -257,24 +257,22 @@ export async function confirmModal(buttonTestId: string) {
   await btn.click();
 }
 
+/** Wait for an element to leave the view hierarchy via chainable lookup, avoiding staleElementReference. */
 export async function waitForDisappear(testId: string, timeoutMs = 5_000) {
-  await driver.waitUntil(
-    async () => {
-      const el = await byTestId(testId);
-      return !(await el.isDisplayed().catch(() => false));
-    },
-    {
-      timeout: timeoutMs,
-      timeoutMsg: `Element "${testId}" still displayed after ${timeoutMs}ms`,
-    },
-  );
+  await $(byTestIdSelector(testId)).waitForExist({
+    timeout: timeoutMs,
+    reverse: true,
+    timeoutMsg: `Element "${testId}" still displayed after ${timeoutMs}ms`,
+  });
 }
 
 /** Open a modal and wait for its sentinel element. */
 export async function openModal(triggerTestId: string, expectedTestId: string, timeoutMs = 5_000) {
   const open = async () => {
     const trigger = await scrollToEl(triggerTestId);
-    await trigger.click();
+
+    // iOS WDA can 500 on a click that actually landed; sentinel below confirms.
+    await trigger.click().catch(() => undefined);
 
     const expected = await byTestId(expectedTestId);
     await expected.waitForDisplayed({ timeout: timeoutMs });
