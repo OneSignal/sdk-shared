@@ -1627,6 +1627,18 @@ cleanup_ios_automation() {
   }
 }
 
+# Pre-download a Chromedriver binary that matches the device's WebView so
+# Appium's in-test autodownload doesn't stall the IAM tests. No-op on iOS,
+# and no-op when a matching binary is already cached.
+install_chromedriver_if_needed() {
+  [[ "$PLATFORM" == "android" ]] || return 0
+  local script="$SCRIPT_DIR/install-chromedriver.sh"
+  [[ -f "$script" ]] || return 0
+  if ! bash "$script"; then
+    warn "Chromedriver pre-install failed; Appium will fall back to in-test autodownload (may be slow)."
+  fi
+}
+
 start_appium() {
   cleanup_ios_automation
 
@@ -1734,21 +1746,24 @@ run_tests() {
     info "Running tests (conf: $conf, spec: <conf default>)..."
   fi
 
-  SDK_TYPE="$SDK_TYPE" \
-  PLATFORM="$PLATFORM" \
-  APP_PATH="$APP_PATH" \
-  DEVICE="$DEVICE" \
-  OS_VERSION="$OS_VERSION" \
-  BUNDLE_ID="${BUNDLE_ID:-}" \
-  ONESIGNAL_APP_ID="${ONESIGNAL_APP_ID:-}" \
-  ONESIGNAL_API_KEY="${ONESIGNAL_API_KEY:-}" \
-  APPIUM_PORT="$APPIUM_PORT" \
-  WDA_LOCAL_PORT="${WDA_LOCAL_PORT:-}" \
-  SYSTEM_PORT="${SYSTEM_PORT:-}" \
-  UDID="${UDID:-}" \
-  XCODE_TEAM_ID="${XCODE_TEAM_ID:-}" \
-  XCODE_SIGNING_ID="${XCODE_SIGNING_ID:-}" \
-  vpx wdio run "${wdio_args[@]}"
+  # Force local mode even if BROWSERSTACK_* is exported globally (e.g. in ~/.zshrc).
+  # wdio.shared.conf.ts switches to the BrowserStack hub when BROWSERSTACK_USERNAME is set.
+  env -u BROWSERSTACK_USERNAME -u BROWSERSTACK_ACCESS_KEY \
+    SDK_TYPE="$SDK_TYPE" \
+    PLATFORM="$PLATFORM" \
+    APP_PATH="$APP_PATH" \
+    DEVICE="$DEVICE" \
+    OS_VERSION="$OS_VERSION" \
+    BUNDLE_ID="${BUNDLE_ID:-}" \
+    ONESIGNAL_APP_ID="${ONESIGNAL_APP_ID:-}" \
+    ONESIGNAL_API_KEY="${ONESIGNAL_API_KEY:-}" \
+    APPIUM_PORT="$APPIUM_PORT" \
+    WDA_LOCAL_PORT="${WDA_LOCAL_PORT:-}" \
+    SYSTEM_PORT="${SYSTEM_PORT:-}" \
+    UDID="${UDID:-}" \
+    XCODE_TEAM_ID="${XCODE_TEAM_ID:-}" \
+    XCODE_SIGNING_ID="${XCODE_SIGNING_ID:-}" \
+    vpx wdio run "${wdio_args[@]}"
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -1759,6 +1774,7 @@ main() {
   build_app
   validate_existing_app
   start_device
+  install_chromedriver_if_needed
   start_appium
   cleanup_android_automation
   reset_app

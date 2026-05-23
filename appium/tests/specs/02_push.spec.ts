@@ -8,6 +8,8 @@ import {
 } from '../helpers/app.js';
 import { byTestId, expectToggleState } from '../helpers/selectors.js';
 
+const itSkipBsIos = isBrowserStackIos() ? it.skip : it;
+
 describe('Push Subscription', () => {
   before(async () => {
     await waitForAppReady();
@@ -20,9 +22,7 @@ describe('Push Subscription', () => {
     await scrollToEl('push_section', { direction: 'up' });
   });
 
-  it('should have push ID and be enabled initially', async function () {
-    if (isBrowserStackIos()) this.skip();
-
+  itSkipBsIos('should have push ID and be enabled initially', async () => {
     const pushId = await waitForInitId();
     expect(pushId).not.toBe('—');
 
@@ -31,8 +31,7 @@ describe('Push Subscription', () => {
     await expectToggleState(toggleEl, true);
   });
 
-  it('can send an image notification', async function () {
-    if (isBrowserStackIos()) this.skip();
+  itSkipBsIos('can send an image notification', async () => {
     await checkNotification({
       buttonId: 'send_image_button',
       title: 'Image Notification',

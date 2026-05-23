@@ -138,19 +138,6 @@ export const sharedConfig: WebdriverIO.Config = {
     const externalId = sdkType === platform ? `appium-${sdkType}` : `appium-${sdkType}-${platform}`;
     await deleteUser(externalId);
   },
-
-  // Flip BrowserStack's session status pill to passed/failed (replaces what @wdio/browserstack-service did).
-  after: async (result) => {
-    if (isLocal) return;
-    const status = result === 0 ? 'passed' : 'failed';
-    const reason = status === 'failed' ? `${result} failed test(s)` : '';
-    await driver.execute(
-      `browserstack_executor: ${JSON.stringify({
-        action: 'setSessionStatus',
-        arguments: { status, reason },
-      })}`,
-    );
-  },
 };
 
 export { bstackOptions };
