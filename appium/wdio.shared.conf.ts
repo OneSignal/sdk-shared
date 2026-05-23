@@ -74,12 +74,14 @@ const SHARED_CONF_DIR = import.meta.dirname ?? process.cwd();
 
 const isLocal = !process.env.BROWSERSTACK_USERNAME;
 
-// Don't register @wdio/browserstack-service: its mocha CLI bootstrap can stall 25m+ with no log and can't be disabled.
 const browserstackConnection = {
   user: process.env.BROWSERSTACK_USERNAME,
   key: process.env.BROWSERSTACK_ACCESS_KEY,
   hostname: 'hub.browserstack.com',
-  services: ['shared-store'] satisfies WebdriverIO.Config['services'],
+  services: [
+    'shared-store',
+    ['browserstack', { accessibility: false }],
+  ] satisfies WebdriverIO.Config['services'],
 };
 
 const localConnection = {
