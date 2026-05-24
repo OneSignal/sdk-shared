@@ -174,7 +174,7 @@ Separate SectionCard titled "User":
 
 1. Status card (always visible, ABOVE buttons):
    - Two rows separated by a divider: "Status" and "External ID"
-   - Logged out: Status = "Anonymous", External ID = "–"
+   - Logged out: Status = "Anonymous", External ID = "—"
    - Logged in: Status = "Logged In" (success/green), External ID = actual value
 2. LOGIN USER button ("SWITCH USER" when logged in) -> dialog with empty "External User Id" field
 3. LOGOUT USER button (only when logged in, outlined style)

@@ -64,9 +64,11 @@ via flags or env vars.
 
 Options:
   --platform=P        ios | android
-  --sdk=S             flutter | react-native | cordova | capacitor | dotnet | expo | unity | android
+  --sdk=S             flutter | react-native | cordova | capacitor | dotnet | expo | unity | android | ios
                       android = native Android (OneSignal-Android-SDK/examples/demo);
                       skips with exit 0 when --platform=ios.
+                      ios = native iOS (OneSignal-iOS-SDK/examples/demo);
+                      skips with exit 0 when --platform=android.
   --device=NAME       Device/simulator/AVD name (default: iPhone 17 / Samsung Galaxy S26)
   --appium-port=N     Appium server port (default: 4723). Use unique values when
                       running multiple sessions in parallel on the same host.
@@ -106,6 +108,11 @@ Env vars (set in .env or export):
   ANDROID_DIR        Native Android SDK repo root (default: ../../OneSignal-Android-SDK)
   ANDROID_FLAVOR     Native Android product flavor (default: gms; also: huawei)
   ANDROID_BUILD_TYPE Native Android build type (default: debug; also: release)
+  IOS_DIR            Native iOS SDK repo root (default: ../../OneSignal-iOS-SDK)
+  IOS_NATIVE_PROJECT Xcode project filename under examples/demo for the native
+                     iOS demo (default: OneSignalSwiftUIExample.xcodeproj)
+  IOS_NATIVE_SCHEME  Xcode scheme to build for the native iOS demo
+                     (default: OneSignalSwiftUIExample)
   OS_VERSION         Platform version (default: 26.2 / 16)
   IOS_SIMULATOR      iOS simulator name (default: iPhone 17)
   IOS_RUNTIME        simctl runtime id (default: iOS-26-2)
@@ -160,15 +167,18 @@ prompt_choice() {
   done
 }
 
-# --sdk=android implies --platform=android (the native demo only targets
-# Android), so resolve PLATFORM first to skip the platform prompt when the
-# user only passed --sdk=android.
+# Native --sdk=<platform> implies --platform=<platform> (the native demos only
+# target their own OS), so resolve PLATFORM first to skip the platform prompt
+# when the user only passed --sdk=android or --sdk=ios.
 if [[ "${SDK_TYPE:-}" == "android" && -z "${PLATFORM:-}" ]]; then
   PLATFORM="android"
 fi
+if [[ "${SDK_TYPE:-}" == "ios" && -z "${PLATFORM:-}" ]]; then
+  PLATFORM="ios"
+fi
 
 prompt_choice PLATFORM "Select platform:" ios android
-prompt_choice SDK_TYPE "Select SDK type:" flutter react-native cordova capacitor dotnet expo unity android
+prompt_choice SDK_TYPE "Select SDK type:" flutter react-native cordova capacitor dotnet expo unity android ios
 
 case "$PLATFORM" in
   ios|android) ;;
@@ -176,12 +186,17 @@ case "$PLATFORM" in
 esac
 
 case "$SDK_TYPE" in
-  flutter|react-native|cordova|capacitor|dotnet|expo|unity|android) ;;
-  *) error "SDK_TYPE must be 'flutter', 'react-native', 'cordova', 'capacitor', 'dotnet', 'expo', 'unity', or 'android', got '$SDK_TYPE'" ;;
+  flutter|react-native|cordova|capacitor|dotnet|expo|unity|android|ios) ;;
+  *) error "SDK_TYPE must be 'flutter', 'react-native', 'cordova', 'capacitor', 'dotnet', 'expo', 'unity', 'android', or 'ios', got '$SDK_TYPE'" ;;
 esac
 
 if [[ "$SDK_TYPE" == "android" && "$PLATFORM" != "android" ]]; then
   warn "--sdk=android only runs on --platform=android; skipping --platform=$PLATFORM"
+  exit 0
+fi
+
+if [[ "$SDK_TYPE" == "ios" && "$PLATFORM" != "ios" ]]; then
+  warn "--sdk=ios only runs on --platform=ios; skipping --platform=$PLATFORM"
   exit 0
 fi
 
@@ -193,7 +208,7 @@ fi
 if [[ "$IOS_REAL_DEVICE" == true ]]; then
   [[ "$PLATFORM" == "ios" ]] || error "--device-real only supports --platform=ios"
   case "$SDK_TYPE" in
-    cordova|capacitor|react-native|expo) ;;
+    cordova|capacitor|react-native|expo|ios) ;;
     android) error "--device-real not applicable to --sdk=android (native Android)" ;;
     flutter|dotnet) error "--device-real not yet supported for $SDK_TYPE — patch run-local.sh's build_${SDK_TYPE//-/_}_ios to invoke the device build" ;;
   esac
@@ -330,6 +345,13 @@ elif [[ "$SDK_TYPE" == "android" ]]; then
   esac
   # Gradle emits per-flavor/type APKs under app/build/outputs/apk/<flavor>/<buildType>/.
   APP_PATH="${APP_PATH:-$DEMO_DIR/app/build/outputs/apk/${ANDROID_FLAVOR}/${ANDROID_BUILD_TYPE}/app-${ANDROID_FLAVOR}-${ANDROID_BUILD_TYPE}.apk}"
+elif [[ "$SDK_TYPE" == "ios" ]]; then
+  IOS_DIR="${IOS_DIR:-$SDK_ROOT/OneSignal-iOS-SDK}"
+  [[ -d "$IOS_DIR" ]] || error "Native iOS SDK not found at $IOS_DIR — set IOS_DIR in .env"
+  DEMO_DIR="$IOS_DIR/examples/demo"
+  IOS_NATIVE_PROJECT="${IOS_NATIVE_PROJECT:-OneSignalSwiftUIExample.xcodeproj}"
+  IOS_NATIVE_SCHEME="${IOS_NATIVE_SCHEME:-OneSignalSwiftUIExample}"
+  APP_PATH="${APP_PATH:-$DEMO_DIR/build/Build/Products/${IOS_BUILD_DIR}/${IOS_NATIVE_SCHEME}.app}"
 fi
 
 # ── Platform defaults ────────────────────────────────────────────────────────
@@ -1445,6 +1467,44 @@ build_android_native() {
   info "App built: $APP_PATH"
 }
 
+build_ios_native() {
+  # Builds the native iOS demo directly so local SDK source changes (under
+  # OneSignal-iOS-SDK/) get exercised end-to-end. The demo wires the SDK in
+  # via Package.swift / podspec at the repo root; xcodebuild resolves those
+  # against the local checkout, mirroring how build_android_native uses the
+  # local OneSignalSDK module instead of a published artifact.
+  local proj_path="$DEMO_DIR/$IOS_NATIVE_PROJECT"
+  [[ -d "$proj_path" ]] || error "Xcode project not found at $proj_path — set IOS_NATIVE_PROJECT or IOS_DIR"
+
+  if [[ -n "${ONESIGNAL_APP_ID:-}" ]]; then
+    info "Writing .env for demo app..."
+    cat > "$DEMO_DIR/.env" <<EOF
+ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
+ONESIGNAL_API_KEY=${ONESIGNAL_API_KEY:-}
+EOF
+  else
+    warn "ONESIGNAL_APP_ID not set — demo will fall back to its built-in default"
+  fi
+
+  info "Building scheme '$IOS_NATIVE_SCHEME' (Release) for ${IOS_SDK}..."
+  (cd "$DEMO_DIR" && xcodebuild \
+    -project "$IOS_NATIVE_PROJECT" \
+    -scheme "$IOS_NATIVE_SCHEME" \
+    -configuration Release \
+    -sdk "$IOS_SDK" \
+    ${IOS_DESTINATION:+-destination} ${IOS_DESTINATION:+"$IOS_DESTINATION"} $IOS_XCODE_EXTRA_ARGS \
+    -derivedDataPath build \
+    -quiet \
+    ONLY_ACTIVE_ARCH=YES \
+    ENABLE_USER_SCRIPT_SANDBOXING=NO \
+    COMPILER_INDEX_STORE_ENABLE=NO \
+    SWIFT_INDEX_STORE_ENABLE=NO \
+    $IOS_SIGNING_ARGS)
+
+  [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
+  info "App built: $APP_PATH"
+}
+
 build_app() {
   if [[ "$SKIP_BUILD" == true ]]; then
     if [[ "$PLATFORM" == "ios" && ! -d "$APP_PATH" ]] || [[ "$PLATFORM" == "android" && ! -f "$APP_PATH" ]]; then
@@ -1498,6 +1558,8 @@ build_app() {
     fi
   elif [[ "$SDK_TYPE" == "android" ]]; then
     build_android_native
+  elif [[ "$SDK_TYPE" == "ios" ]]; then
+    build_ios_native
   fi
 }
 
