@@ -1503,38 +1503,56 @@ build_ios_native() {
   # OneSignal.xcodeproj, so xcodebuild builds the local SDK frameworks
   # transitively — mirroring how build_android_native uses the local
   # OneSignalSDK module instead of a published artifact.
-  if [[ -f "$DEMO_DIR/project.yml" ]]; then
-    if command -v xcodegen >/dev/null 2>&1; then
-      info "Regenerating $IOS_NATIVE_PROJECT from project.yml (xcodegen)..."
-      (cd "$DEMO_DIR" && xcodegen generate --quiet)
-    else
-      warn "xcodegen not found; using existing $IOS_NATIVE_PROJECT (edits to project.yml will be ignored)"
-    fi
-  fi
-
-  local proj_path="$DEMO_DIR/$IOS_NATIVE_PROJECT"
-  [[ -d "$proj_path" ]] || error "Xcode project not found at $proj_path — set IOS_NATIVE_PROJECT or IOS_DIR"
-  local scheme="${IOS_NATIVE_PROJECT%.xcodeproj}"
 
   # The iOS demo reads credentials from a bundled Secrets.plist (the iOS
   # equivalent of .env — see App/Services/SecretsConfig.swift). The file is
-  # gitignored and lives next to App/Info.plist so Xcode auto-bundles it with
-  # the App target. Overwrite unconditionally when either var is set so stale
-  # CI values don't leak between runs; use `plutil` so API keys with XML-
-  # special chars (&, <, ", etc.) round-trip safely without manual escaping.
-  # Done BEFORE the hash check so changing ONESIGNAL_APP_ID / ONESIGNAL_API_KEY
-  # automatically busts the cache (plutil's output is deterministic).
+  # gitignored and lives next to App/Info.plist; project.yml's explicit
+  # `buildPhase: resources` entry for App/Secrets.plist gets it copied into
+  # the App bundle. Use `plutil` so API keys with XML-special chars
+  # (&, <, ", etc.) round-trip safely without manual escaping.
+  #
+  # ALWAYS write the file (empty dict when env vars are unset) so xcodebuild's
+  # Copy Bundle Resources phase doesn't fail on a missing optional resource —
+  # SecretsConfig falls back to defaultAppId for any keys not present.
+  #
+  # Done BEFORE xcodegen (so the file reference is generated against a real
+  # on-disk file) and BEFORE the hash check (so changing ONESIGNAL_APP_ID /
+  # ONESIGNAL_API_KEY automatically busts the cache — plutil's output is
+  # deterministic).
   local secrets="$DEMO_DIR/App/Secrets.plist"
   if [[ -n "${ONESIGNAL_APP_ID:-}" || -n "${ONESIGNAL_API_KEY:-}" ]]; then
     info "Writing Secrets.plist for demo app..."
-    plutil -create xml1 "$secrets"
-    [[ -n "${ONESIGNAL_APP_ID:-}" ]] && \
-      plutil -insert ONESIGNAL_APP_ID -string "$ONESIGNAL_APP_ID" "$secrets"
-    [[ -n "${ONESIGNAL_API_KEY:-}" ]] && \
-      plutil -insert ONESIGNAL_API_KEY -string "$ONESIGNAL_API_KEY" "$secrets"
   else
-    warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — demo will fall back to SecretsConfig.defaultAppId"
+    warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — writing empty Secrets.plist; demo will fall back to SecretsConfig.defaultAppId"
   fi
+  plutil -create xml1 "$secrets"
+  [[ -n "${ONESIGNAL_APP_ID:-}" ]] && \
+    plutil -insert ONESIGNAL_APP_ID -string "$ONESIGNAL_APP_ID" "$secrets"
+  [[ -n "${ONESIGNAL_API_KEY:-}" ]] && \
+    plutil -insert ONESIGNAL_API_KEY -string "$ONESIGNAL_API_KEY" "$secrets"
+
+  # Only regenerate the .pbxproj when project.yml is newer than the existing
+  # generated file. xcodegen 2.45.x is NOT deterministic across no-op runs
+  # (each `xcodegen generate` produces a slightly different .pbxproj even
+  # with identical inputs), so unconditional regen leaves spurious unstaged
+  # changes in the iOS SDK repo on every script invocation. The mtime gate
+  # mirrors how other build steps (Podfile.lock stamp, cap sync stamp) skip
+  # work when their inputs are unchanged.
+  local proj_path="$DEMO_DIR/$IOS_NATIVE_PROJECT"
+  local pbxproj="$proj_path/project.pbxproj"
+  if [[ -f "$DEMO_DIR/project.yml" ]]; then
+    if ! command -v xcodegen >/dev/null 2>&1; then
+      warn "xcodegen not found; using existing $IOS_NATIVE_PROJECT (edits to project.yml will be ignored)"
+    elif [[ ! -f "$pbxproj" ]] || [[ "$DEMO_DIR/project.yml" -nt "$pbxproj" ]]; then
+      info "Regenerating $IOS_NATIVE_PROJECT from project.yml (xcodegen)..."
+      (cd "$DEMO_DIR" && xcodegen generate --quiet)
+    else
+      info "$IOS_NATIVE_PROJECT up to date with project.yml, skipping xcodegen"
+    fi
+  fi
+
+  [[ -d "$proj_path" ]] || error "Xcode project not found at $proj_path — set IOS_NATIVE_PROJECT or IOS_DIR"
+  local scheme="${IOS_NATIVE_PROJECT%.xcodeproj}"
 
   # Top-level skip: even an incremental xcodebuild costs ~30-60s on a no-op in
   # resource copy, framework embed, codesign, and validation. Skip entirely
