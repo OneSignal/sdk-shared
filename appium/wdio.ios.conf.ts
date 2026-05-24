@@ -1,6 +1,7 @@
 import { sharedConfig, bstackOptions } from './wdio.shared.conf.js';
 
 const isLocal = !process.env.BROWSERSTACK_USERNAME;
+const needsSlowTyping = ['react-native', 'expo'].includes(process.env.SDK_TYPE ?? '');
 
 export const config: WebdriverIO.Config = {
   ...sharedConfig,
@@ -24,7 +25,7 @@ export const config: WebdriverIO.Config = {
       'appium:autoAcceptAlerts': false,
       'appium:noReset': true,
       'appium:webviewAtomWaitTimeout': 1_000,
-      ...(process.env.SDK_TYPE === 'react-native' && isLocal ? { 'appium:maxTypingFrequency': 20 } : {}),
+      ...(needsSlowTyping && isLocal ? { 'appium:maxTypingFrequency': 20 } : {}),
       ...(isLocal ? {} : { 'bstack:options': bstackOptions }),
     },
   ],
