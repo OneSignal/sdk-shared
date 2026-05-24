@@ -1467,6 +1467,35 @@ build_android_native() {
   info "App built: $APP_PATH"
 }
 
+# Hash every source/asset/config file that affects the compiled App.app for a
+# native iOS demo build: demo sources (App/, the two extensions, project.yml,
+# entitlements, the auto-written Secrets.plist), the regenerated .pbxproj, and
+# the SDK framework source pulled in via projectReferences. Folds the SDK
+# source into the demo hash so SDK edits cascade-invalidate the cached .app —
+# same convention as dotnet_demo_inputs_hash / unity_demo_inputs_hash. Excludes
+# test/mock targets (they only build under their own schemes, never "App") and
+# xcodebuild-managed dirs.
+ios_native_inputs_hash() {
+  find "$DEMO_DIR" "$IOS_DIR/iOS_SDK/OneSignalSDK" \
+       -type f \
+       ! -path "*/build/*" \
+       ! -path "*/DerivedData/*" \
+       ! -path "*/xcuserdata/*" \
+       ! -path "*/.git/*" \
+       ! -path "*Tests/*" \
+       ! -path "*Mocks/*" \
+       \( -name "*.swift" -o -name "*.h" -o -name "*.m" -o -name "*.mm" \
+          -o -name "*.c" -o -name "*.plist" -o -name "*.entitlements" \
+          -o -name "*.yml" -o -name "*.pbxproj" -o -name "*.modulemap" \
+          -o -name "*.json" -o -name "*.wav" -o -name "*.png" \
+          -o -name "*.xcprivacy" -o -name "*.storyboard" -o -name "*.strings" \) \
+       2>/dev/null \
+       | sort \
+       | xargs shasum 2>/dev/null \
+       | shasum \
+       | awk '{print $1}'
+}
+
 build_ios_native() {
   # Builds the native iOS demo directly so local SDK source changes (under
   # OneSignal-iOS-SDK/iOS_SDK/) get exercised end-to-end. The demo's
@@ -1493,6 +1522,8 @@ build_ios_native() {
   # the App target. Overwrite unconditionally when either var is set so stale
   # CI values don't leak between runs; use `plutil` so API keys with XML-
   # special chars (&, <, ", etc.) round-trip safely without manual escaping.
+  # Done BEFORE the hash check so changing ONESIGNAL_APP_ID / ONESIGNAL_API_KEY
+  # automatically busts the cache (plutil's output is deterministic).
   local secrets="$DEMO_DIR/App/Secrets.plist"
   if [[ -n "${ONESIGNAL_APP_ID:-}" || -n "${ONESIGNAL_API_KEY:-}" ]]; then
     info "Writing Secrets.plist for demo app..."
@@ -1503,6 +1534,19 @@ build_ios_native() {
       plutil -insert ONESIGNAL_API_KEY -string "$ONESIGNAL_API_KEY" "$secrets"
   else
     warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — demo will fall back to SecretsConfig.defaultAppId"
+  fi
+
+  # Top-level skip: even an incremental xcodebuild costs ~30-60s on a no-op in
+  # resource copy, framework embed, codesign, and validation. Skip entirely
+  # when demo + SDK source + Secrets.plist + regenerated pbxproj all match a
+  # previous build. Mirrors build_expo_ios's stamp-based skip.
+  local build_stamp="$DEMO_DIR/build/.ios-native-build.stamp"
+  local build_hash
+  build_hash=$(ios_native_inputs_hash)
+  if [[ -d "$APP_PATH" ]] && [[ -f "$build_stamp" ]] && [[ "$(cat "$build_stamp")" == "$build_hash" ]]; then
+    info "Demo + SDK source unchanged, skipping iOS native rebuild"
+    info "App: $APP_PATH"
+    return
   fi
 
   info "Building scheme '$scheme' (Release) for ${IOS_SDK}..."
@@ -1521,6 +1565,8 @@ build_ios_native() {
     $IOS_SIGNING_ARGS)
 
   [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
+  mkdir -p "$(dirname "$build_stamp")"
+  echo "$build_hash" > "$build_stamp"
   info "App built: $APP_PATH"
 }
 
