@@ -1487,14 +1487,22 @@ build_ios_native() {
   [[ -d "$proj_path" ]] || error "Xcode project not found at $proj_path — set IOS_NATIVE_PROJECT or IOS_DIR"
   local scheme="${IOS_NATIVE_PROJECT%.xcodeproj}"
 
-  if [[ -n "${ONESIGNAL_APP_ID:-}" ]]; then
-    info "Writing .env for demo app..."
-    cat > "$DEMO_DIR/.env" <<EOF
-ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
-ONESIGNAL_API_KEY=${ONESIGNAL_API_KEY:-}
-EOF
+  # The iOS demo reads credentials from a bundled Secrets.plist (the iOS
+  # equivalent of .env — see App/Services/SecretsConfig.swift). The file is
+  # gitignored and lives next to App/Info.plist so Xcode auto-bundles it with
+  # the App target. Overwrite unconditionally when either var is set so stale
+  # CI values don't leak between runs; use `plutil` so API keys with XML-
+  # special chars (&, <, ", etc.) round-trip safely without manual escaping.
+  local secrets="$DEMO_DIR/App/Secrets.plist"
+  if [[ -n "${ONESIGNAL_APP_ID:-}" || -n "${ONESIGNAL_API_KEY:-}" ]]; then
+    info "Writing Secrets.plist for demo app..."
+    plutil -create xml1 "$secrets"
+    [[ -n "${ONESIGNAL_APP_ID:-}" ]] && \
+      plutil -insert ONESIGNAL_APP_ID -string "$ONESIGNAL_APP_ID" "$secrets"
+    [[ -n "${ONESIGNAL_API_KEY:-}" ]] && \
+      plutil -insert ONESIGNAL_API_KEY -string "$ONESIGNAL_API_KEY" "$secrets"
   else
-    warn "ONESIGNAL_APP_ID not set — demo will fall back to its built-in default"
+    warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — demo will fall back to SecretsConfig.defaultAppId"
   fi
 
   info "Building scheme '$scheme' (Release) for ${IOS_SDK}..."
