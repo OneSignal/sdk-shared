@@ -110,9 +110,8 @@ Env vars (set in .env or export):
   ANDROID_BUILD_TYPE Native Android build type (default: debug; also: release)
   IOS_DIR            Native iOS SDK repo root (default: ../../OneSignal-iOS-SDK)
   IOS_NATIVE_PROJECT Xcode project filename under examples/demo for the native
-                     iOS demo (default: OneSignalSwiftUIExample.xcodeproj)
-  IOS_NATIVE_SCHEME  Xcode scheme to build for the native iOS demo
-                     (default: OneSignalSwiftUIExample)
+                     iOS demo (default: App.xcodeproj). The scheme is derived
+                     from the basename (XcodeGen convention).
   OS_VERSION         Platform version (default: 26.2 / 16)
   IOS_SIMULATOR      iOS simulator name (default: iPhone 17)
   IOS_RUNTIME        simctl runtime id (default: iOS-26-2)
@@ -349,9 +348,10 @@ elif [[ "$SDK_TYPE" == "ios" ]]; then
   IOS_DIR="${IOS_DIR:-$SDK_ROOT/OneSignal-iOS-SDK}"
   [[ -d "$IOS_DIR" ]] || error "Native iOS SDK not found at $IOS_DIR — set IOS_DIR in .env"
   DEMO_DIR="$IOS_DIR/examples/demo"
-  IOS_NATIVE_PROJECT="${IOS_NATIVE_PROJECT:-OneSignalSwiftUIExample.xcodeproj}"
-  IOS_NATIVE_SCHEME="${IOS_NATIVE_SCHEME:-OneSignalSwiftUIExample}"
-  APP_PATH="${APP_PATH:-$DEMO_DIR/build/Build/Products/${IOS_BUILD_DIR}/${IOS_NATIVE_SCHEME}.app}"
+  # XcodeGen names the scheme after the project, so we derive both the scheme
+  # and the .app artifact name from IOS_NATIVE_PROJECT's basename.
+  IOS_NATIVE_PROJECT="${IOS_NATIVE_PROJECT:-App.xcodeproj}"
+  APP_PATH="${APP_PATH:-$DEMO_DIR/build/Build/Products/${IOS_BUILD_DIR}/${IOS_NATIVE_PROJECT%.xcodeproj}.app}"
 fi
 
 # ── Platform defaults ────────────────────────────────────────────────────────
@@ -1469,12 +1469,23 @@ build_android_native() {
 
 build_ios_native() {
   # Builds the native iOS demo directly so local SDK source changes (under
-  # OneSignal-iOS-SDK/) get exercised end-to-end. The demo wires the SDK in
-  # via Package.swift / podspec at the repo root; xcodebuild resolves those
-  # against the local checkout, mirroring how build_android_native uses the
-  # local OneSignalSDK module instead of a published artifact.
+  # OneSignal-iOS-SDK/iOS_SDK/) get exercised end-to-end. The demo's
+  # App.xcodeproj has a projectReferences entry pointing at the SDK's own
+  # OneSignal.xcodeproj, so xcodebuild builds the local SDK frameworks
+  # transitively — mirroring how build_android_native uses the local
+  # OneSignalSDK module instead of a published artifact.
+  if [[ -f "$DEMO_DIR/project.yml" ]]; then
+    if command -v xcodegen >/dev/null 2>&1; then
+      info "Regenerating $IOS_NATIVE_PROJECT from project.yml (xcodegen)..."
+      (cd "$DEMO_DIR" && xcodegen generate --quiet)
+    else
+      warn "xcodegen not found; using existing $IOS_NATIVE_PROJECT (edits to project.yml will be ignored)"
+    fi
+  fi
+
   local proj_path="$DEMO_DIR/$IOS_NATIVE_PROJECT"
   [[ -d "$proj_path" ]] || error "Xcode project not found at $proj_path — set IOS_NATIVE_PROJECT or IOS_DIR"
+  local scheme="${IOS_NATIVE_PROJECT%.xcodeproj}"
 
   if [[ -n "${ONESIGNAL_APP_ID:-}" ]]; then
     info "Writing .env for demo app..."
@@ -1486,10 +1497,10 @@ EOF
     warn "ONESIGNAL_APP_ID not set — demo will fall back to its built-in default"
   fi
 
-  info "Building scheme '$IOS_NATIVE_SCHEME' (Release) for ${IOS_SDK}..."
+  info "Building scheme '$scheme' (Release) for ${IOS_SDK}..."
   (cd "$DEMO_DIR" && xcodebuild \
     -project "$IOS_NATIVE_PROJECT" \
-    -scheme "$IOS_NATIVE_SCHEME" \
+    -scheme "$scheme" \
     -configuration Release \
     -sdk "$IOS_SDK" \
     ${IOS_DESTINATION:+-destination} ${IOS_DESTINATION:+"$IOS_DESTINATION"} $IOS_XCODE_EXTRA_ARGS \
