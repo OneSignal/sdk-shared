@@ -18,11 +18,11 @@ describe('Outcomes', () => {
   });
 
   it('can send a normal outcome', async () => {
-    const nameInput = await openModal('send_outcome_button', 'outcome_name_input');
-    await nameInput.setValue('test_normal');
-
-    const normalRadio = await byTestId('outcome_type_normal_radio');
+    const normalRadio = await openModal('send_outcome_button', 'outcome_type_normal_radio');
     await normalRadio.click();
+    
+    const nameInput = await byTestId('outcome_name_input');
+    await nameInput.setValue('test_normal');
 
     const sendBtn = await byTestId('outcome_send_button');
     await sendBtn.click();
@@ -31,11 +31,11 @@ describe('Outcomes', () => {
   });
 
   it('can send a unique outcome', async () => {
-    const nameInput = await openModal('send_outcome_button', 'outcome_name_input');
-    await nameInput.setValue('test_unique');
-
-    const uniqueRadio = await byTestId('outcome_type_unique_radio');
+    const uniqueRadio = await openModal('send_outcome_button', 'outcome_type_unique_radio');
     await uniqueRadio.click();
+    
+    const nameInput = await byTestId('outcome_name_input');
+    await nameInput.setValue('test_unique');
 
     const sendBtn = await byTestId('outcome_send_button');
     await sendBtn.click();
@@ -44,11 +44,10 @@ describe('Outcomes', () => {
   });
 
   it('can send an outcome with value', async () => {
-    const nameInput = await openModal('send_outcome_button', 'outcome_name_input');
-
-    const withValueRadio = await byTestId('outcome_type_value_radio');
+    const withValueRadio = await openModal('send_outcome_button', 'outcome_type_value_radio');
     await withValueRadio.click();
 
+    const nameInput = await byTestId('outcome_name_input');
     await nameInput.setValue('test_valued');
 
     const valueInput = await byTestId('outcome_value_input');
