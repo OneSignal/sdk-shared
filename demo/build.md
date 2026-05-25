@@ -209,11 +209,11 @@ Separate SectionCard titled "User":
 
 - Title: "Send In-App Message" with info icon
 - Four FULL-WIDTH buttons (not a grid):
-  1. TOP BANNER - vertical-align-top icon, trigger: "iam_type" = "top_banner"
-  2. BOTTOM BANNER - vertical-align-bottom icon, trigger: "iam_type" = "bottom_banner"
-  3. CENTER MODAL - crop-square icon, trigger: "iam_type" = "center_modal"
-  4. FULL SCREEN - fullscreen icon, trigger: "iam_type" = "full_screen"
-- Styling: primary (red) background, white text, icon on LEFT, full width, left-aligned, UPPERCASE
+  1. TOP BANNER - trigger: "iam_type" = "top_banner"
+  2. BOTTOM BANNER - trigger: "iam_type" = "bottom_banner"
+  3. CENTER MODAL - trigger: "iam_type" = "center_modal"
+  4. FULL SCREEN - trigger: "iam_type" = "full_screen"
+- Styling: primary (red) background, white text, centered, no icons, full width, UPPERCASE (same as other primary buttons)
 - On tap: upserts `iam_type` in Triggers list. No snackbar (silent action — see Prompt 7.6)
 
 ### Prompt 2.6 - Aliases Section
@@ -591,12 +591,11 @@ Feedback messages are shown directly from the UI layer (not centralized in the s
 
 Only the following actions show snackbar feedback from the UI:
 
-- Login/Logout: "Logged in as {userId}" / "User logged out"
 - Outcomes: "Outcome sent: {name}" / "Unique outcome sent: {name}" / "Outcome sent: {name} = {value}"
 - Custom Events: "Event tracked: {name}"
 - Location check: "Location shared: {bool}"
 
-All other actions (add/remove items, notifications, IAM, live activities, etc.) use the platform's standard logging primitive only -- no snackbar. The state management layer should NOT hold snackbar state or expose snackbar messages.
+All other actions (login/logout, add/remove items, notifications, IAM, live activities, etc.) use the platform's standard logging primitive only -- no snackbar. The state management layer should NOT hold snackbar state or expose snackbar messages.
 
 Logging:
 

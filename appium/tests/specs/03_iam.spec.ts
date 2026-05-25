@@ -29,11 +29,11 @@ describe('In-App Messaging', () => {
     { buttonId: 'send_iam_full_screen_button', expectedTitle: 'Full Screen' },
   ];
 
-  for (const iam of iamTypes) {
-    it(`can show ${iam.expectedTitle}`, async () => {
+  it('can show iam messages', async () => {
+    for (const iam of iamTypes) {
       await checkInAppMessage(iam);
-    });
-  }
+    }
+  });
 
   it('can pause iam', async () => {
     await scrollToEl('pause_iam_toggle');
