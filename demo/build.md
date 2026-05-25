@@ -230,7 +230,7 @@ Separate SectionCard titled "User":
 
 - Title: "Emails" with info icon
 - List with X icon per item (remove action)
-- "No Emails Added" when empty
+- "No emails added" when empty
 - ADD EMAIL -> dialog with empty email field
 - Collapse when >5 items: show first 5, "X more" tappable to expand
 
@@ -238,7 +238,7 @@ Separate SectionCard titled "User":
 
 - Title: "SMS" with info icon
 - Same pattern as Emails but for phone numbers
-- "No SMS Added" when empty
+- "No SMS added" when empty
 - ADD SMS -> dialog with empty SMS field
 
 ### Prompt 2.9 - Tags Section
@@ -261,8 +261,9 @@ Separate SectionCard titled "User":
 ### Prompt 2.11 - Triggers Section (IN MEMORY ONLY)
 
 - Title: "Triggers" with info icon
-- Same list/button pattern as Tags (ADD TRIGGER, ADD MULTIPLE TRIGGERS, REMOVE TRIGGERS), plus:
+- Same list/button pattern as Tags (ADD TRIGGER, ADD MULTIPLE TRIGGERS, REMOVE TRIGGERS — hidden when the list is empty), plus:
   - CLEAR ALL TRIGGERS button (only when triggers exist)
+- "No triggers added" when empty
 - Triggers are IN MEMORY ONLY: not persisted, cleared on restart
 - Sending an IAM also upserts `iam_type` in this list
 - Transient test data for IAM testing
@@ -556,7 +557,7 @@ Single state container at app root. Holds all UI state with public getters. Expo
 - **SectionCard**: card with title, optional info icon, content slot, onInfoTap callback, optional `sectionKey` for accessibility identifiers (generates `{sectionKey}_section` on the container and `{sectionKey}_info_icon` on the info button)
 - **ToggleRow**: label, optional description, toggle control, optional `semanticsLabel` for accessibility identifier
 - **ActionButton**: PrimaryButton (filled) and DestructiveButton (outlined, for secondary/destructive actions), full-width, per styles.md. Both accept optional `semanticsLabel` for accessibility identifier.
-- **ListWidgets**: PairItem (key-value + optional delete), SingleItem (value + delete), EmptyState, LoadingState (inline spinner shown in the empty-state slot while a fetch is in flight, per styles.md), CollapsibleList (5 items then expandable; accepts an optional `loading` flag that swaps EmptyState for LoadingState when items is empty), PairList. All list widgets accept a required `sectionKey` for generating accessibility identifiers (e.g. `{sectionKey}_pair_key_{keyText}`, `{sectionKey}_remove_{keyText}`, `{sectionKey}_loading`).
+- **ListWidgets**: PairItem (key-value + optional delete), SingleItem (value + delete), EmptyState, LoadingState (inline spinner shown in the empty-state slot while a fetch is in flight, per styles.md), CollapsibleList (5 items then expandable; accepts an optional `loading` flag that swaps EmptyState for LoadingState when items is empty), PairList. All list widgets accept a required `sectionKey` for generating accessibility identifiers (e.g. `{sectionKey}_pair_key_{keyText}`, `{sectionKey}_remove_{keyText}`, `{sectionKey}_loading`). Empty list copy uses `"No <items> added"` with lowercase item names and lowercase `added` (exception: `"No SMS added"` keeps `SMS` uppercase).
 - **Dialogs**: all full-width with consistent padding. Dialogs accept optional semantics label parameters for key inputs and confirm buttons (e.g. `keySemanticsLabel`, `valueSemanticsLabel`, `confirmSemanticsLabel`).
   - SingleInputDialog, PairInputDialog (same row), MultiPairInputDialog (dynamic rows, dividers, X to delete, batch submit), MultiSelectRemoveDialog (checkboxes, batch remove)
   - LoginDialog, OutcomeDialog, TrackEventDialog, CustomNotificationDialog, TooltipDialog
@@ -575,6 +576,7 @@ Shared by Aliases, Tags, and Triggers ADD MULTIPLE buttons.
 
 Shared by Tags and Triggers REMOVE buttons.
 
+- The section button that opens this dialog (`remove_tags_button`, `remove_triggers_button`) is **hidden entirely** when the list is empty. Do not show it disabled.
 - Checkbox per item, label shows key only
 - "Remove (N)" button shows selected count, disabled when none
 - Returns selected keys list
