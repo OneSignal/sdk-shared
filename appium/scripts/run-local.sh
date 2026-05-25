@@ -1557,8 +1557,13 @@ build_ios_native() {
   # Top-level skip: even an incremental xcodebuild costs ~30-60s on a no-op in
   # resource copy, framework embed, codesign, and validation. Skip entirely
   # when demo + SDK source + Secrets.plist + regenerated pbxproj all match a
-  # previous build. Mirrors build_expo_ios's stamp-based skip.
-  local build_stamp="$DEMO_DIR/build/.ios-native-build.stamp"
+  # previous build. Mirrors build_expo_ios's stamp-based skip. Stamp is
+  # scoped by IOS_BUILD_DIR so sim and device builds don't share cache state
+  # (matches build_dotnet_ios / build_unity_ios; without this, a sim→edit
+  # SDK→device→sim sequence overwrites the stamp with the post-edit hash
+  # while the pre-edit sim .app is still on disk, and the skip would serve
+  # the stale binary).
+  local build_stamp="$DEMO_DIR/build/.ios-native-build-${IOS_BUILD_DIR}.stamp"
   local build_hash
   build_hash=$(ios_native_inputs_hash)
   if [[ -d "$APP_PATH" ]] && [[ -f "$build_stamp" ]] && [[ "$(cat "$build_stamp")" == "$build_hash" ]]; then

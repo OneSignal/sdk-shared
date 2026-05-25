@@ -589,7 +589,11 @@ Implement theme constants/tokens mapping style reference to the platform's themi
 
 ### Prompt 7.6 - Feedback Messages (SnackBar/Toast)
 
-Feedback messages are shown directly from the UI layer (not centralized in the state management layer). Use a `BuildContext` extension or helper that calls the platform's transient message API (SnackBar/Toast). The extension should hide the current message before showing a new one. Show snackbars from UI widget callbacks after awaiting the action, using a context-mounted check before displaying.
+Feedback messages are shown directly from the UI layer (not centralized in the state management layer). Wrap the platform's transient message API (SnackBar/Toast) in a single UI-layer helper -- a `BuildContext` extension, a hook returned by a provider, an injected controller, a static helper, etc. -- and call it from widget/section callbacks after the SDK action runs. See each SDK's `examples/build.md` for the concrete helper name, file location, and wiring.
+
+**Replace on show:** when a new snackbar/toast is triggered while one is already visible, dismiss the current message immediately and show the new one (do not queue). Reset the 3s timer from when the new message appears. The helper must perform the dismiss-then-show internally so callers can fire `showSnackbar(...)` repeatedly without coordinating timers themselves.
+
+**Duration:** show every snackbar/toast for **3000ms (3 seconds)**. Use an explicit named constant (e.g. `TOAST_DURATION_MS = 3000`) rather than platform defaults, so all demos behave the same in manual use and Appium runs.
 
 Only the following actions show snackbar feedback from the UI:
 
@@ -597,11 +601,32 @@ Only the following actions show snackbar feedback from the UI:
 - Custom Events: "Event tracked: {name}"
 - Location check: "Location shared: {bool}"
 
-All other actions (login/logout, add/remove items, notifications, IAM, live activities, etc.) use the platform's standard logging primitive only -- no snackbar. The state management layer should NOT hold snackbar state or expose snackbar messages.
+All other actions (login/logout, add/remove items, notifications, IAM, live activities, etc.) use the platform's standard logging primitive only -- no snackbar. The state management layer (ViewModel / Context / Store / etc.) MUST NOT hold snackbar state, expose snackbar messages (e.g. via `@Published`, `Flow`, `Channel`, observable events), or call the snackbar helper directly.
 
 Logging:
 
 - Use the platform's built-in logging primitive directly (`console.log`/`console.error` for JS/TS, `debugPrint` for Dart, `System.Diagnostics.Debug.WriteLine` for C#, `print`/`NSLog` for Swift, `Log.d`/`Log.e` for Kotlin/Java).
+
+### Prompt 7.7 - Dialog Placement
+
+Each section owns the dialogs for its actions (login, add/remove, outcomes, track event, custom push). The main screen/page owns tooltip dialogs only.
+
+**Main screen/page pattern:**
+
+- Layout + the tooltip dialog only. Hold a single piece of tooltip state (active key or open boolean) on the main screen.
+- Pass `onInfoTap` / `onInfoClick` callbacks keyed by section so the main screen can show the matching tooltip when a section's info icon is tapped.
+- Do not centralize action dialog visibility on the main screen.
+- Do not store action dialog visibility, dialog input drafts, or "is dialog open" flags on the ViewModel / state container.
+
+**Section pattern:**
+
+1. Section declares local UI state for each of its action dialogs (`*Open` booleans, `@State` properties, `remember { mutableStateOf(false) }`, code-behind handlers, or an imperative `showDialog(...)` call -- whichever is idiomatic).
+2. Button handler triggers the matching dialog.
+3. Dialog confirm handler calls the SDK action via the ViewModel / repository, closes the dialog, and emits a snackbar (per Prompt 7.6) when the action is in the allowed-snackbar list.
+
+**Shared dialog primitives** (single-input dialog, pair input, multi-pair, multi-select remove, login, outcome, track event, custom notification, tooltip) live in a platform-appropriate components folder; sections import and compose them locally rather than redeclaring per-section dialog markup.
+
+See each SDK's `examples/build.md` for the platform-specific helper APIs, the exact shared-dialog folder, and any platform-idiomatic wiring (UI-tree injection mechanism, dialog presentation API, code-behind vs. declarative state, etc.).
 
 ---
 

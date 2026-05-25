@@ -97,6 +97,7 @@ declare -a RESULTS
 FAILED=0
 BAILED=0
 SKIPPED=0
+BAIL_OUT=0
 
 for platform in "${PLATFORMS[@]}"; do
   for sdk in "${SDKS[@]}"; do
@@ -117,7 +118,11 @@ for platform in "${PLATFORMS[@]}"; do
       fi
       continue
     fi
-    label="${sdk} / ${platform}"
+    if [[ "$sdk" == "ios" || "$sdk" == "android" ]]; then
+      label="${sdk}"
+    else
+      label="${sdk} / ${platform}"
+    fi
     echo ""
     echo -e "${BOLD}━━━ Running: ${label} ━━━${NC}"
     # `${arr[@]+"${arr[@]}"}` expands the array only when it has elements;
@@ -129,11 +134,13 @@ for platform in "${PLATFORMS[@]}"; do
       FAILED=$((FAILED + 1))
       if (( BAIL )); then
         BAILED=1
+        BAIL_OUT=1
         warn "Bailing out after first failure (--bail)"
-        break 2
+        break
       fi
     fi
   done
+  (( BAIL_OUT )) && break
 done
 
 echo ""
