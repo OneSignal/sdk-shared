@@ -1496,6 +1496,29 @@ ios_native_inputs_hash() {
        | awk '{print $1}'
 }
 
+# Hash the inputs that affect xcodegen's pbxproj output: project.yml content
+# plus the sorted file listing of the source-globbed target dirs. File
+# listings (not contents) because pbxproj references files by path — only
+# adds/removes/renames change it. Reads target source dirs out of project.yml
+# itself rather than hardcoding (matches whatever xcodegen actually sees).
+ios_pbxproj_inputs_hash() {
+  local yml="$DEMO_DIR/project.yml"
+  [[ -f "$yml" ]] || return 0
+  {
+    shasum "$yml" 2>/dev/null
+    # Extract `- path: <dir>` entries under `sources:` blocks. Anything
+    # exotic (per-file sources, conditional paths) falls back gracefully:
+    # if the resolved path isn't a directory, find just emits nothing.
+    awk '/^[[:space:]]*sources:/{in_src=1; next}
+         in_src && /^[[:space:]]*- path:/{print $3; next}
+         in_src && /^[^[:space:]-]/{in_src=0}' "$yml" \
+      | while read -r src; do
+          [[ -d "$DEMO_DIR/$src" ]] && find "$DEMO_DIR/$src" -type f
+        done \
+      | sort
+  } | shasum | awk '{print $1}'
+}
+
 build_ios_native() {
   # Builds the native iOS demo directly so local SDK source changes (under
   # OneSignal-iOS-SDK/iOS_SDK/) get exercised end-to-end. The demo's
@@ -1531,23 +1554,34 @@ build_ios_native() {
   [[ -n "${ONESIGNAL_API_KEY:-}" ]] && \
     plutil -insert ONESIGNAL_API_KEY -string "$ONESIGNAL_API_KEY" "$secrets"
 
-  # Only regenerate the .pbxproj when project.yml is newer than the existing
-  # generated file. xcodegen 2.45.x is NOT deterministic across no-op runs
-  # (each `xcodegen generate` produces a slightly different .pbxproj even
-  # with identical inputs), so unconditional regen leaves spurious unstaged
-  # changes in the iOS SDK repo on every script invocation. The mtime gate
-  # mirrors how other build steps (Podfile.lock stamp, cap sync stamp) skip
-  # work when their inputs are unchanged.
+  # Only regenerate the .pbxproj when its inputs change. xcodegen 2.45.x is
+  # NOT deterministic across no-op runs (each `xcodegen generate` produces a
+  # slightly different .pbxproj even with identical inputs), so unconditional
+  # regen leaves spurious unstaged changes in the iOS SDK repo on every
+  # script invocation. Gate on a hash of (project.yml content + sorted file
+  # listing of the source-globbed dirs) rather than mtime — mtime misses new
+  # files added to glob-sourced dirs (`App/Foo.swift` without touching
+  # project.yml leaves pbxproj newer than yml, gate skips, new file is
+  # missing from the build). File listings rather than contents because
+  # pbxproj references files by path; only adds/removes/renames affect it.
   local proj_path="$DEMO_DIR/$IOS_NATIVE_PROJECT"
   local pbxproj="$proj_path/project.pbxproj"
+  local pbxproj_stamp="$DEMO_DIR/build/.ios-native-pbxproj.stamp"
   if [[ -f "$DEMO_DIR/project.yml" ]]; then
     if ! command -v xcodegen >/dev/null 2>&1; then
       warn "xcodegen not found; using existing $IOS_NATIVE_PROJECT (edits to project.yml will be ignored)"
-    elif [[ ! -f "$pbxproj" ]] || [[ "$DEMO_DIR/project.yml" -nt "$pbxproj" ]]; then
-      info "Regenerating $IOS_NATIVE_PROJECT from project.yml (xcodegen)..."
-      (cd "$DEMO_DIR" && xcodegen generate --quiet)
     else
-      info "$IOS_NATIVE_PROJECT up to date with project.yml, skipping xcodegen"
+      local pbxproj_hash
+      pbxproj_hash=$(ios_pbxproj_inputs_hash)
+      if [[ ! -f "$pbxproj" ]] || [[ ! -f "$pbxproj_stamp" ]] \
+         || [[ "$(cat "$pbxproj_stamp")" != "$pbxproj_hash" ]]; then
+        info "Regenerating $IOS_NATIVE_PROJECT from project.yml (xcodegen)..."
+        (cd "$DEMO_DIR" && xcodegen generate --quiet)
+        mkdir -p "$(dirname "$pbxproj_stamp")"
+        echo "$pbxproj_hash" > "$pbxproj_stamp"
+      else
+        info "$IOS_NATIVE_PROJECT up to date with project.yml + sources, skipping xcodegen"
+      fi
     fi
   fi
 
