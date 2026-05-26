@@ -1497,24 +1497,29 @@ ios_native_inputs_hash() {
 }
 
 # Hash the inputs that affect xcodegen's pbxproj output: project.yml content
-# plus the sorted file listing of the source-globbed target dirs. File
-# listings (not contents) because pbxproj references files by path — only
-# adds/removes/renames change it. Reads target source dirs out of project.yml
-# itself rather than hardcoding (matches whatever xcodegen actually sees).
+# plus the sorted file listing of everything in the demo dir that xcodegen
+# could plausibly glob. File listings (not contents) because pbxproj
+# references files by path — only adds/removes/renames change it. We scan
+# the whole demo dir rather than parsing project.yml's `sources:` entries
+# because XcodeGen accepts four equivalent forms (shorthand, inline list,
+# list of strings, list of dicts) — any path-extracting parser is a
+# future-edit footgun. Over-scanning is harmless: a stray edit (e.g. to a
+# README) just triggers one extra ~1s xcodegen run, no false skips. Excludes
+# build artifacts and the generated .xcodeproj itself (regenerating it
+# would self-bust the hash).
 ios_pbxproj_inputs_hash() {
   local yml="$DEMO_DIR/project.yml"
   [[ -f "$yml" ]] || return 0
   {
     shasum "$yml" 2>/dev/null
-    # Extract `- path: <dir>` entries under `sources:` blocks. Anything
-    # exotic (per-file sources, conditional paths) falls back gracefully:
-    # if the resolved path isn't a directory, find just emits nothing.
-    awk '/^[[:space:]]*sources:/{in_src=1; next}
-         in_src && /^[[:space:]]*- path:/{print $3; next}
-         in_src && /^[^[:space:]-]/{in_src=0}' "$yml" \
-      | while read -r src; do
-          [[ -d "$DEMO_DIR/$src" ]] && find "$DEMO_DIR/$src" -type f
-        done \
+    find "$DEMO_DIR" \
+         -type f \
+         ! -path "*/build/*" \
+         ! -path "*/DerivedData/*" \
+         ! -path "*/xcuserdata/*" \
+         ! -path "*/.git/*" \
+         ! -path "*/$IOS_NATIVE_PROJECT/*" \
+         2>/dev/null \
       | sort
   } | shasum | awk '{print $1}'
 }

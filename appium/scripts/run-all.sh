@@ -101,11 +101,18 @@ BAIL_OUT=0
 
 for platform in "${PLATFORMS[@]}"; do
   for sdk in "${SDKS[@]}"; do
-    # Native demos only target their own platform.
+    # Native demos only target their own platform, so the platform suffix
+    # is redundant — keep the summary table consistent by using the short
+    # label in all branches (SKIP, PASS, FAIL).
+    if [[ "$sdk" == "ios" || "$sdk" == "android" ]]; then
+      label="${sdk}"
+    else
+      label="${sdk} / ${platform}"
+    fi
     if [[ "$sdk" == "android" && "$platform" == "ios" ]]; then
       if [[ -n "$PLATFORM_FILTER" ]]; then
         warn "--sdk=android only runs on --platform=android; skipping --platform=ios"
-        RESULTS+=("SKIP  ${sdk} / ${platform}")
+        RESULTS+=("SKIP  ${label}")
         SKIPPED=$((SKIPPED + 1))
       fi
       continue
@@ -113,15 +120,10 @@ for platform in "${PLATFORMS[@]}"; do
     if [[ "$sdk" == "ios" && "$platform" == "android" ]]; then
       if [[ -n "$PLATFORM_FILTER" ]]; then
         warn "--sdk=ios only runs on --platform=ios; skipping --platform=android"
-        RESULTS+=("SKIP  ${sdk} / ${platform}")
+        RESULTS+=("SKIP  ${label}")
         SKIPPED=$((SKIPPED + 1))
       fi
       continue
-    fi
-    if [[ "$sdk" == "ios" || "$sdk" == "android" ]]; then
-      label="${sdk}"
-    else
-      label="${sdk} / ${platform}"
     fi
     echo ""
     echo -e "${BOLD}━━━ Running: ${label} ━━━${NC}"
