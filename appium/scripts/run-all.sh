@@ -15,7 +15,7 @@ warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; }
 
 # ── Args (forwarded as-is to run-local.sh) ────────────────────────────────────
-ALL_SDKS=(android cordova capacitor dotnet expo flutter react-native unity)
+ALL_SDKS=(android cordova capacitor dotnet expo flutter ios react-native unity)
 
 EXTRA_ARGS=()
 PLATFORM_FILTER=""
@@ -42,14 +42,16 @@ Usage: $0 [OPTIONS]
 
 Runs the Appium E2E suite across every SDK/platform combo by delegating
 to run-local.sh. Combos: cordova, capacitor, react-native, flutter, dotnet,
-expo, unity on ios + android, plus android (native) on android only.
+expo, unity on ios + android, plus android (native) on android only and
+ios (native) on ios only.
 
 Options:
   --platform=ios|android   Only run combos for the given platform (default: both)
   --sdks=LIST              Comma-separated SDKs to run (default: all)
                            Valid: cordova, capacitor, react-native, flutter,
-                                  dotnet, expo, unity, android
-                           Note: 'android' (native) skips --platform=ios.
+                                  dotnet, expo, unity, android, ios
+                           Note: 'android' (native) skips --platform=ios and
+                                 'ios' (native) skips --platform=android.
   --bail                   Stop after the first failing combo
 
 Options forwarded to run-local.sh:
@@ -95,19 +97,34 @@ declare -a RESULTS
 FAILED=0
 BAILED=0
 SKIPPED=0
+BAIL_OUT=0
 
 for platform in "${PLATFORMS[@]}"; do
   for sdk in "${SDKS[@]}"; do
-    # Native Android demo only exists for Android.
+    # Native demos only target their own platform, so the platform suffix
+    # is redundant — keep the summary table consistent by using the short
+    # label in all branches (SKIP, PASS, FAIL).
+    if [[ "$sdk" == "ios" || "$sdk" == "android" ]]; then
+      label="${sdk}"
+    else
+      label="${sdk} / ${platform}"
+    fi
     if [[ "$sdk" == "android" && "$platform" == "ios" ]]; then
       if [[ -n "$PLATFORM_FILTER" ]]; then
         warn "--sdk=android only runs on --platform=android; skipping --platform=ios"
-        RESULTS+=("SKIP  ${sdk} / ${platform}")
+        RESULTS+=("SKIP  ${label}")
         SKIPPED=$((SKIPPED + 1))
       fi
       continue
     fi
-    label="${sdk} / ${platform}"
+    if [[ "$sdk" == "ios" && "$platform" == "android" ]]; then
+      if [[ -n "$PLATFORM_FILTER" ]]; then
+        warn "--sdk=ios only runs on --platform=ios; skipping --platform=android"
+        RESULTS+=("SKIP  ${label}")
+        SKIPPED=$((SKIPPED + 1))
+      fi
+      continue
+    fi
     echo ""
     echo -e "${BOLD}━━━ Running: ${label} ━━━${NC}"
     # `${arr[@]+"${arr[@]}"}` expands the array only when it has elements;
@@ -119,11 +136,13 @@ for platform in "${PLATFORMS[@]}"; do
       FAILED=$((FAILED + 1))
       if (( BAIL )); then
         BAILED=1
+        BAIL_OUT=1
         warn "Bailing out after first failure (--bail)"
-        break 2
+        break
       fi
     fi
   done
+  (( BAIL_OUT )) && break
 done
 
 echo ""

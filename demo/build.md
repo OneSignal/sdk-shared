@@ -174,7 +174,7 @@ Separate SectionCard titled "User":
 
 1. Status card (always visible, ABOVE buttons):
    - Two rows separated by a divider: "Status" and "External ID"
-   - Logged out: Status = "Anonymous", External ID = "–"
+   - Logged out: Status = "Anonymous", External ID = "—"
    - Logged in: Status = "Logged In" (success/green), External ID = actual value
 2. LOGIN USER button ("SWITCH USER" when logged in) -> dialog with empty "External User Id" field
 3. LOGOUT USER button (only when logged in, outlined style)
@@ -209,11 +209,11 @@ Separate SectionCard titled "User":
 
 - Title: "Send In-App Message" with info icon
 - Four FULL-WIDTH buttons (not a grid):
-  1. TOP BANNER - vertical-align-top icon, trigger: "iam_type" = "top_banner"
-  2. BOTTOM BANNER - vertical-align-bottom icon, trigger: "iam_type" = "bottom_banner"
-  3. CENTER MODAL - crop-square icon, trigger: "iam_type" = "center_modal"
-  4. FULL SCREEN - fullscreen icon, trigger: "iam_type" = "full_screen"
-- Styling: primary (red) background, white text, icon on LEFT, full width, left-aligned, UPPERCASE
+  1. TOP BANNER - trigger: "iam_type" = "top_banner"
+  2. BOTTOM BANNER - trigger: "iam_type" = "bottom_banner"
+  3. CENTER MODAL - trigger: "iam_type" = "center_modal"
+  4. FULL SCREEN - trigger: "iam_type" = "full_screen"
+- Styling: primary (red) background, white text, centered, no icons, full width, UPPERCASE (same as other primary buttons)
 - On tap: upserts `iam_type` in Triggers list. No snackbar (silent action — see Prompt 7.6)
 
 ### Prompt 2.6 - Aliases Section
@@ -230,7 +230,7 @@ Separate SectionCard titled "User":
 
 - Title: "Emails" with info icon
 - List with X icon per item (remove action)
-- "No Emails Added" when empty
+- "No emails added" when empty
 - ADD EMAIL -> dialog with empty email field
 - Collapse when >5 items: show first 5, "X more" tappable to expand
 
@@ -238,7 +238,7 @@ Separate SectionCard titled "User":
 
 - Title: "SMS" with info icon
 - Same pattern as Emails but for phone numbers
-- "No SMS Added" when empty
+- "No SMS added" when empty
 - ADD SMS -> dialog with empty SMS field
 
 ### Prompt 2.9 - Tags Section
@@ -261,8 +261,9 @@ Separate SectionCard titled "User":
 ### Prompt 2.11 - Triggers Section (IN MEMORY ONLY)
 
 - Title: "Triggers" with info icon
-- Same list/button pattern as Tags (ADD TRIGGER, ADD MULTIPLE TRIGGERS, REMOVE TRIGGERS), plus:
+- Same list/button pattern as Tags (ADD TRIGGER, ADD MULTIPLE TRIGGERS, REMOVE TRIGGERS — hidden when the list is empty), plus:
   - CLEAR ALL TRIGGERS button (only when triggers exist)
+- "No triggers added" when empty
 - Triggers are IN MEMORY ONLY: not persisted, cleared on restart
 - Sending an IAM also upserts `iam_type` in this list
 - Transient test data for IAM testing
@@ -556,7 +557,7 @@ Single state container at app root. Holds all UI state with public getters. Expo
 - **SectionCard**: card with title, optional info icon, content slot, onInfoTap callback, optional `sectionKey` for accessibility identifiers (generates `{sectionKey}_section` on the container and `{sectionKey}_info_icon` on the info button)
 - **ToggleRow**: label, optional description, toggle control, optional `semanticsLabel` for accessibility identifier
 - **ActionButton**: PrimaryButton (filled) and DestructiveButton (outlined, for secondary/destructive actions), full-width, per styles.md. Both accept optional `semanticsLabel` for accessibility identifier.
-- **ListWidgets**: PairItem (key-value + optional delete), SingleItem (value + delete), EmptyState, LoadingState (inline spinner shown in the empty-state slot while a fetch is in flight, per styles.md), CollapsibleList (5 items then expandable; accepts an optional `loading` flag that swaps EmptyState for LoadingState when items is empty), PairList. All list widgets accept a required `sectionKey` for generating accessibility identifiers (e.g. `{sectionKey}_pair_key_{keyText}`, `{sectionKey}_remove_{keyText}`, `{sectionKey}_loading`).
+- **ListWidgets**: PairItem (key-value + optional delete), SingleItem (value + delete), EmptyState, LoadingState (inline spinner shown in the empty-state slot while a fetch is in flight, per styles.md), CollapsibleList (5 items then expandable; accepts an optional `loading` flag that swaps EmptyState for LoadingState when items is empty), PairList. All list widgets accept a required `sectionKey` for generating accessibility identifiers (e.g. `{sectionKey}_pair_key_{keyText}`, `{sectionKey}_remove_{keyText}`, `{sectionKey}_loading`). Empty list copy uses `"No <items> added"` with lowercase item names and lowercase `added` (exception: `"No SMS added"` keeps `SMS` uppercase).
 - **Dialogs**: all full-width with consistent padding. Dialogs accept optional semantics label parameters for key inputs and confirm buttons (e.g. `keySemanticsLabel`, `valueSemanticsLabel`, `confirmSemanticsLabel`).
   - SingleInputDialog, PairInputDialog (same row), MultiPairInputDialog (dynamic rows, dividers, X to delete, batch submit), MultiSelectRemoveDialog (checkboxes, batch remove)
   - LoginDialog, OutcomeDialog, TrackEventDialog, CustomNotificationDialog, TooltipDialog
@@ -575,6 +576,7 @@ Shared by Aliases, Tags, and Triggers ADD MULTIPLE buttons.
 
 Shared by Tags and Triggers REMOVE buttons.
 
+- The section button that opens this dialog (`remove_tags_button`, `remove_triggers_button`) is **hidden entirely** when the list is empty. Do not show it disabled.
 - Checkbox per item, label shows key only
 - "Remove (N)" button shows selected count, disabled when none
 - Returns selected keys list
@@ -587,20 +589,44 @@ Implement theme constants/tokens mapping style reference to the platform's themi
 
 ### Prompt 7.6 - Feedback Messages (SnackBar/Toast)
 
-Feedback messages are shown directly from the UI layer (not centralized in the state management layer). Use a `BuildContext` extension or helper that calls the platform's transient message API (SnackBar/Toast). The extension should hide the current message before showing a new one. Show snackbars from UI widget callbacks after awaiting the action, using a context-mounted check before displaying.
+Feedback messages are shown directly from the UI layer (not centralized in the state management layer). Wrap the platform's transient message API (SnackBar/Toast) in a single UI-layer helper -- a `BuildContext` extension, a hook returned by a provider, an injected controller, a static helper, etc. -- and call it from widget/section callbacks after the SDK action runs. See each SDK's `examples/build.md` for the concrete helper name, file location, and wiring.
+
+**Replace on show:** when a new snackbar/toast is triggered while one is already visible, dismiss the current message immediately and show the new one (do not queue). Reset the 3s timer from when the new message appears. The helper must perform the dismiss-then-show internally so callers can fire `showSnackbar(...)` repeatedly without coordinating timers themselves.
+
+**Duration:** show every snackbar/toast for **3000ms (3 seconds)**. Use an explicit named constant (e.g. `TOAST_DURATION_MS = 3000`) rather than platform defaults, so all demos behave the same in manual use and Appium runs.
 
 Only the following actions show snackbar feedback from the UI:
 
-- Login/Logout: "Logged in as {userId}" / "User logged out"
 - Outcomes: "Outcome sent: {name}" / "Unique outcome sent: {name}" / "Outcome sent: {name} = {value}"
 - Custom Events: "Event tracked: {name}"
 - Location check: "Location shared: {bool}"
 
-All other actions (add/remove items, notifications, IAM, live activities, etc.) use the platform's standard logging primitive only -- no snackbar. The state management layer should NOT hold snackbar state or expose snackbar messages.
+All other actions (login/logout, add/remove items, notifications, IAM, live activities, etc.) use the platform's standard logging primitive only -- no snackbar. The state management layer (ViewModel / Context / Store / etc.) MUST NOT hold snackbar state, expose snackbar messages (e.g. via `@Published`, `Flow`, `Channel`, observable events), or call the snackbar helper directly.
 
 Logging:
 
 - Use the platform's built-in logging primitive directly (`console.log`/`console.error` for JS/TS, `debugPrint` for Dart, `System.Diagnostics.Debug.WriteLine` for C#, `print`/`NSLog` for Swift, `Log.d`/`Log.e` for Kotlin/Java).
+
+### Prompt 7.7 - Dialog Placement
+
+Each section owns the dialogs for its actions (login, add/remove, outcomes, track event, custom push). The main screen/page owns tooltip dialogs only.
+
+**Main screen/page pattern:**
+
+- Layout + the tooltip dialog only. Hold a single piece of tooltip state (active key or open boolean) on the main screen.
+- Pass `onInfoTap` / `onInfoClick` callbacks keyed by section so the main screen can show the matching tooltip when a section's info icon is tapped.
+- Do not centralize action dialog visibility on the main screen.
+- Do not store action dialog visibility, dialog input drafts, or "is dialog open" flags on the ViewModel / state container.
+
+**Section pattern:**
+
+1. Section declares local UI state for each of its action dialogs (`*Open` booleans, `@State` properties, `remember { mutableStateOf(false) }`, code-behind handlers, or an imperative `showDialog(...)` call -- whichever is idiomatic).
+2. Button handler triggers the matching dialog.
+3. Dialog confirm handler calls the SDK action via the ViewModel / repository, closes the dialog, and emits a snackbar (per Prompt 7.6) when the action is in the allowed-snackbar list.
+
+**Shared dialog primitives** (single-input dialog, pair input, multi-pair, multi-select remove, login, outcome, track event, custom notification, tooltip) live in a platform-appropriate components folder; sections import and compose them locally rather than redeclaring per-section dialog markup.
+
+See each SDK's `examples/build.md` for the platform-specific helper APIs, the exact shared-dialog folder, and any platform-idiomatic wiring (UI-tree injection mechanism, dialog presentation API, code-behind vs. declarative state, etc.).
 
 ---
 

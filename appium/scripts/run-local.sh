@@ -64,9 +64,11 @@ via flags or env vars.
 
 Options:
   --platform=P        ios | android
-  --sdk=S             flutter | react-native | cordova | capacitor | dotnet | expo | unity | android
+  --sdk=S             flutter | react-native | cordova | capacitor | dotnet | expo | unity | android | ios
                       android = native Android (OneSignal-Android-SDK/examples/demo);
                       skips with exit 0 when --platform=ios.
+                      ios = native iOS (OneSignal-iOS-SDK/examples/demo);
+                      skips with exit 0 when --platform=android.
   --device=NAME       Device/simulator/AVD name (default: iPhone 17 / Samsung Galaxy S26)
   --appium-port=N     Appium server port (default: 4723). Use unique values when
                       running multiple sessions in parallel on the same host.
@@ -106,6 +108,10 @@ Env vars (set in .env or export):
   ANDROID_DIR        Native Android SDK repo root (default: ../../OneSignal-Android-SDK)
   ANDROID_FLAVOR     Native Android product flavor (default: gms; also: huawei)
   ANDROID_BUILD_TYPE Native Android build type (default: debug; also: release)
+  IOS_DIR            Native iOS SDK repo root (default: ../../OneSignal-iOS-SDK)
+  IOS_NATIVE_PROJECT Xcode project filename under examples/demo for the native
+                     iOS demo (default: App.xcodeproj). The scheme is derived
+                     from the basename (XcodeGen convention).
   OS_VERSION         Platform version (default: 26.2 / 16)
   IOS_SIMULATOR      iOS simulator name (default: iPhone 17)
   IOS_RUNTIME        simctl runtime id (default: iOS-26-2)
@@ -160,15 +166,18 @@ prompt_choice() {
   done
 }
 
-# --sdk=android implies --platform=android (the native demo only targets
-# Android), so resolve PLATFORM first to skip the platform prompt when the
-# user only passed --sdk=android.
+# Native --sdk=<platform> implies --platform=<platform> (the native demos only
+# target their own OS), so resolve PLATFORM first to skip the platform prompt
+# when the user only passed --sdk=android or --sdk=ios.
 if [[ "${SDK_TYPE:-}" == "android" && -z "${PLATFORM:-}" ]]; then
   PLATFORM="android"
 fi
+if [[ "${SDK_TYPE:-}" == "ios" && -z "${PLATFORM:-}" ]]; then
+  PLATFORM="ios"
+fi
 
 prompt_choice PLATFORM "Select platform:" ios android
-prompt_choice SDK_TYPE "Select SDK type:" flutter react-native cordova capacitor dotnet expo unity android
+prompt_choice SDK_TYPE "Select SDK type:" flutter react-native cordova capacitor dotnet expo unity android ios
 
 case "$PLATFORM" in
   ios|android) ;;
@@ -176,12 +185,17 @@ case "$PLATFORM" in
 esac
 
 case "$SDK_TYPE" in
-  flutter|react-native|cordova|capacitor|dotnet|expo|unity|android) ;;
-  *) error "SDK_TYPE must be 'flutter', 'react-native', 'cordova', 'capacitor', 'dotnet', 'expo', 'unity', or 'android', got '$SDK_TYPE'" ;;
+  flutter|react-native|cordova|capacitor|dotnet|expo|unity|android|ios) ;;
+  *) error "SDK_TYPE must be 'flutter', 'react-native', 'cordova', 'capacitor', 'dotnet', 'expo', 'unity', 'android', or 'ios', got '$SDK_TYPE'" ;;
 esac
 
 if [[ "$SDK_TYPE" == "android" && "$PLATFORM" != "android" ]]; then
   warn "--sdk=android only runs on --platform=android; skipping --platform=$PLATFORM"
+  exit 0
+fi
+
+if [[ "$SDK_TYPE" == "ios" && "$PLATFORM" != "ios" ]]; then
+  warn "--sdk=ios only runs on --platform=ios; skipping --platform=$PLATFORM"
   exit 0
 fi
 
@@ -193,7 +207,7 @@ fi
 if [[ "$IOS_REAL_DEVICE" == true ]]; then
   [[ "$PLATFORM" == "ios" ]] || error "--device-real only supports --platform=ios"
   case "$SDK_TYPE" in
-    cordova|capacitor|react-native|expo) ;;
+    cordova|capacitor|react-native|expo|ios) ;;
     android) error "--device-real not applicable to --sdk=android (native Android)" ;;
     flutter|dotnet) error "--device-real not yet supported for $SDK_TYPE — patch run-local.sh's build_${SDK_TYPE//-/_}_ios to invoke the device build" ;;
   esac
@@ -330,6 +344,14 @@ elif [[ "$SDK_TYPE" == "android" ]]; then
   esac
   # Gradle emits per-flavor/type APKs under app/build/outputs/apk/<flavor>/<buildType>/.
   APP_PATH="${APP_PATH:-$DEMO_DIR/app/build/outputs/apk/${ANDROID_FLAVOR}/${ANDROID_BUILD_TYPE}/app-${ANDROID_FLAVOR}-${ANDROID_BUILD_TYPE}.apk}"
+elif [[ "$SDK_TYPE" == "ios" ]]; then
+  IOS_DIR="${IOS_DIR:-$SDK_ROOT/OneSignal-iOS-SDK}"
+  [[ -d "$IOS_DIR" ]] || error "Native iOS SDK not found at $IOS_DIR — set IOS_DIR in .env"
+  DEMO_DIR="$IOS_DIR/examples/demo"
+  # XcodeGen names the scheme after the project, so we derive both the scheme
+  # and the .app artifact name from IOS_NATIVE_PROJECT's basename.
+  IOS_NATIVE_PROJECT="${IOS_NATIVE_PROJECT:-App.xcodeproj}"
+  APP_PATH="${APP_PATH:-$DEMO_DIR/build/Build/Products/${IOS_BUILD_DIR}/${IOS_NATIVE_PROJECT%.xcodeproj}.app}"
 fi
 
 # ── Platform defaults ────────────────────────────────────────────────────────
@@ -1445,6 +1467,171 @@ build_android_native() {
   info "App built: $APP_PATH"
 }
 
+# Hash every source/asset/config file that affects the compiled App.app for a
+# native iOS demo build: demo sources (App/, the two extensions, project.yml,
+# entitlements, the auto-written Secrets.plist), the regenerated .pbxproj, and
+# the SDK framework source pulled in via projectReferences. Folds the SDK
+# source into the demo hash so SDK edits cascade-invalidate the cached .app —
+# same convention as dotnet_demo_inputs_hash / unity_demo_inputs_hash. Excludes
+# test/mock targets (they only build under their own schemes, never "App") and
+# xcodebuild-managed dirs.
+ios_native_inputs_hash() {
+  find "$DEMO_DIR" "$IOS_DIR/iOS_SDK/OneSignalSDK" \
+       -type f \
+       ! -path "*/build/*" \
+       ! -path "*/DerivedData/*" \
+       ! -path "*/xcuserdata/*" \
+       ! -path "*/.git/*" \
+       ! -path "*Tests/*" \
+       ! -path "*Mocks/*" \
+       \( -name "*.swift" -o -name "*.h" -o -name "*.m" -o -name "*.mm" \
+          -o -name "*.c" -o -name "*.plist" -o -name "*.entitlements" \
+          -o -name "*.yml" -o -name "*.pbxproj" -o -name "*.modulemap" \
+          -o -name "*.json" -o -name "*.wav" -o -name "*.png" \
+          -o -name "*.xcprivacy" -o -name "*.storyboard" -o -name "*.strings" \) \
+       2>/dev/null \
+       | sort \
+       | xargs shasum 2>/dev/null \
+       | shasum \
+       | awk '{print $1}'
+}
+
+# Hash the inputs that affect xcodegen's pbxproj output: project.yml content
+# plus the sorted file listing of everything in the demo dir that xcodegen
+# could plausibly glob. File listings (not contents) because pbxproj
+# references files by path — only adds/removes/renames change it. We scan
+# the whole demo dir rather than parsing project.yml's `sources:` entries
+# because XcodeGen accepts four equivalent forms (shorthand, inline list,
+# list of strings, list of dicts) — any path-extracting parser is a
+# future-edit footgun. Over-scanning is harmless: a stray edit (e.g. to a
+# README) just triggers one extra ~1s xcodegen run, no false skips. Excludes
+# build artifacts and the generated .xcodeproj itself (regenerating it
+# would self-bust the hash).
+ios_pbxproj_inputs_hash() {
+  local yml="$DEMO_DIR/project.yml"
+  [[ -f "$yml" ]] || return 0
+  {
+    shasum "$yml" 2>/dev/null
+    find "$DEMO_DIR" \
+         -type f \
+         ! -path "*/build/*" \
+         ! -path "*/DerivedData/*" \
+         ! -path "*/xcuserdata/*" \
+         ! -path "*/.git/*" \
+         ! -path "*/$IOS_NATIVE_PROJECT/*" \
+         2>/dev/null \
+      | sort
+  } | shasum | awk '{print $1}'
+}
+
+build_ios_native() {
+  # Builds the native iOS demo directly so local SDK source changes (under
+  # OneSignal-iOS-SDK/iOS_SDK/) get exercised end-to-end. The demo's
+  # App.xcodeproj has a projectReferences entry pointing at the SDK's own
+  # OneSignal.xcodeproj, so xcodebuild builds the local SDK frameworks
+  # transitively — mirroring how build_android_native uses the local
+  # OneSignalSDK module instead of a published artifact.
+
+  # The iOS demo reads credentials from a bundled Secrets.plist (the iOS
+  # equivalent of .env — see App/Services/SecretsConfig.swift). The file is
+  # gitignored and lives next to App/Info.plist; project.yml's explicit
+  # `buildPhase: resources` entry for App/Secrets.plist gets it copied into
+  # the App bundle. Use `plutil` so API keys with XML-special chars
+  # (&, <, ", etc.) round-trip safely without manual escaping.
+  #
+  # ALWAYS write the file (empty dict when env vars are unset) so xcodebuild's
+  # Copy Bundle Resources phase doesn't fail on a missing optional resource —
+  # SecretsConfig falls back to defaultAppId for any keys not present.
+  #
+  # Done BEFORE xcodegen (so the file reference is generated against a real
+  # on-disk file) and BEFORE the hash check (so changing ONESIGNAL_APP_ID /
+  # ONESIGNAL_API_KEY automatically busts the cache — plutil's output is
+  # deterministic).
+  local secrets="$DEMO_DIR/App/Secrets.plist"
+  if [[ -n "${ONESIGNAL_APP_ID:-}" || -n "${ONESIGNAL_API_KEY:-}" ]]; then
+    info "Writing Secrets.plist for demo app..."
+  else
+    warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — writing empty Secrets.plist; demo will fall back to SecretsConfig.defaultAppId"
+  fi
+  plutil -create xml1 "$secrets"
+  [[ -n "${ONESIGNAL_APP_ID:-}" ]] && \
+    plutil -insert ONESIGNAL_APP_ID -string "$ONESIGNAL_APP_ID" "$secrets"
+  [[ -n "${ONESIGNAL_API_KEY:-}" ]] && \
+    plutil -insert ONESIGNAL_API_KEY -string "$ONESIGNAL_API_KEY" "$secrets"
+
+  # Only regenerate the .pbxproj when its inputs change. xcodegen 2.45.x is
+  # NOT deterministic across no-op runs (each `xcodegen generate` produces a
+  # slightly different .pbxproj even with identical inputs), so unconditional
+  # regen leaves spurious unstaged changes in the iOS SDK repo on every
+  # script invocation. Gate on a hash of (project.yml content + sorted file
+  # listing of the source-globbed dirs) rather than mtime — mtime misses new
+  # files added to glob-sourced dirs (`App/Foo.swift` without touching
+  # project.yml leaves pbxproj newer than yml, gate skips, new file is
+  # missing from the build). File listings rather than contents because
+  # pbxproj references files by path; only adds/removes/renames affect it.
+  local proj_path="$DEMO_DIR/$IOS_NATIVE_PROJECT"
+  local pbxproj="$proj_path/project.pbxproj"
+  local pbxproj_stamp="$DEMO_DIR/build/.ios-native-pbxproj.stamp"
+  if [[ -f "$DEMO_DIR/project.yml" ]]; then
+    if ! command -v xcodegen >/dev/null 2>&1; then
+      warn "xcodegen not found; using existing $IOS_NATIVE_PROJECT (edits to project.yml will be ignored)"
+    else
+      local pbxproj_hash
+      pbxproj_hash=$(ios_pbxproj_inputs_hash)
+      if [[ ! -f "$pbxproj" ]] || [[ ! -f "$pbxproj_stamp" ]] \
+         || [[ "$(cat "$pbxproj_stamp")" != "$pbxproj_hash" ]]; then
+        info "Regenerating $IOS_NATIVE_PROJECT from project.yml (xcodegen)..."
+        (cd "$DEMO_DIR" && xcodegen generate --quiet)
+        mkdir -p "$(dirname "$pbxproj_stamp")"
+        echo "$pbxproj_hash" > "$pbxproj_stamp"
+      else
+        info "$IOS_NATIVE_PROJECT up to date with project.yml + sources, skipping xcodegen"
+      fi
+    fi
+  fi
+
+  [[ -d "$proj_path" ]] || error "Xcode project not found at $proj_path — set IOS_NATIVE_PROJECT or IOS_DIR"
+  local scheme="${IOS_NATIVE_PROJECT%.xcodeproj}"
+
+  # Top-level skip: even an incremental xcodebuild costs ~30-60s on a no-op in
+  # resource copy, framework embed, codesign, and validation. Skip entirely
+  # when demo + SDK source + Secrets.plist + regenerated pbxproj all match a
+  # previous build. Mirrors build_expo_ios's stamp-based skip. Stamp is
+  # scoped by IOS_BUILD_DIR so sim and device builds don't share cache state
+  # (matches build_dotnet_ios / build_unity_ios; without this, a sim→edit
+  # SDK→device→sim sequence overwrites the stamp with the post-edit hash
+  # while the pre-edit sim .app is still on disk, and the skip would serve
+  # the stale binary).
+  local build_stamp="$DEMO_DIR/build/.ios-native-build-${IOS_BUILD_DIR}.stamp"
+  local build_hash
+  build_hash=$(ios_native_inputs_hash)
+  if [[ -d "$APP_PATH" ]] && [[ -f "$build_stamp" ]] && [[ "$(cat "$build_stamp")" == "$build_hash" ]]; then
+    info "Demo + SDK source unchanged, skipping iOS native rebuild"
+    info "App: $APP_PATH"
+    return
+  fi
+
+  info "Building scheme '$scheme' (Release) for ${IOS_SDK}..."
+  (cd "$DEMO_DIR" && xcodebuild \
+    -project "$IOS_NATIVE_PROJECT" \
+    -scheme "$scheme" \
+    -configuration Release \
+    -sdk "$IOS_SDK" \
+    ${IOS_DESTINATION:+-destination} ${IOS_DESTINATION:+"$IOS_DESTINATION"} $IOS_XCODE_EXTRA_ARGS \
+    -derivedDataPath build \
+    -quiet \
+    ONLY_ACTIVE_ARCH=YES \
+    ENABLE_USER_SCRIPT_SANDBOXING=NO \
+    COMPILER_INDEX_STORE_ENABLE=NO \
+    SWIFT_INDEX_STORE_ENABLE=NO \
+    $IOS_SIGNING_ARGS)
+
+  [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
+  mkdir -p "$(dirname "$build_stamp")"
+  echo "$build_hash" > "$build_stamp"
+  info "App built: $APP_PATH"
+}
+
 build_app() {
   if [[ "$SKIP_BUILD" == true ]]; then
     if [[ "$PLATFORM" == "ios" && ! -d "$APP_PATH" ]] || [[ "$PLATFORM" == "android" && ! -f "$APP_PATH" ]]; then
@@ -1498,6 +1685,8 @@ build_app() {
     fi
   elif [[ "$SDK_TYPE" == "android" ]]; then
     build_android_native
+  elif [[ "$SDK_TYPE" == "ios" ]]; then
+    build_ios_native
   fi
 }
 
