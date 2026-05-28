@@ -97,12 +97,24 @@ fi
 log "Detected Android System WebView Chrome ${WV_VERSION:-$TARGET_VERSION.x} (major $TARGET_VERSION); cache miss, installing."
 
 # ── Resolve a download URL for $TARGET_VERSION.x from Chrome-for-Testing ────
+# We stage the manifest in a file and pass its path to python as argv. Piping
+# curl into `python3 -` while also feeding the script via a heredoc collides
+# on stdin: the heredoc wins, python reads its script from stdin, and the
+# subsequent json.load(sys.stdin) sees EOF.
 MANIFEST_URL=https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+MANIFEST_JSON="$TMP/manifest.json"
+
 log "Resolving Chromedriver for Chrome $TARGET_VERSION.x ($PLATFORM_KEY) from Chrome-for-Testing manifest..."
-DL_URL="$(curl -fsSL --max-time 30 "$MANIFEST_URL" | python3 - "$TARGET_VERSION" "$PLATFORM_KEY" <<'PY'
+curl -fsSL --max-time 30 -o "$MANIFEST_JSON" "$MANIFEST_URL" \
+  || fail "Failed to download Chrome-for-Testing manifest from $MANIFEST_URL"
+
+DL_URL="$(python3 - "$TARGET_VERSION" "$PLATFORM_KEY" "$MANIFEST_JSON" <<'PY'
 import json, sys
-target_major, platform_key = sys.argv[1], sys.argv[2]
-data = json.load(sys.stdin)
+target_major, platform_key, manifest_path = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(manifest_path) as f:
+    data = json.load(f)
 match = None
 for v in data.get("versions", []):
     if v["version"].startswith(target_major + "."):
@@ -118,8 +130,6 @@ PY
 [[ -n "$DL_URL" ]] || fail "Empty download URL resolved."
 log "Downloading $DL_URL"
 
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
 curl -fSL --max-time 180 -o "$TMP/chromedriver.zip" "$DL_URL"
 unzip -q "$TMP/chromedriver.zip" -d "$TMP"
 
