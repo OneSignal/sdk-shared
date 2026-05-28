@@ -322,26 +322,35 @@ export async function returnToApp() {
   await driver.pause(1_000);
 }
 
-/** Expand an Android notification row when OEMs keep it collapsed. */
+/**
+ * Expand an Android notification row when OEMs keep it collapsed. The chevron
+ * lookup is scoped to the ancestor row containing `title`; otherwise a busy
+ * shade (e.g. Samsung One UI with Battery/USB above us) matches the topmost
+ * expand button instead of ours.
+ */
 async function expandNotificationRow(title: string): Promise<void> {
-  const byId = await $('//*[@resource-id="android:id/expand_button"]');
-  if (await byId.isDisplayed().catch(() => false)) {
-    await byId.click();
-    return;
-  }
+  const expandPredicate =
+    '@resource-id="android:id/expand_button" or ' +
+    'contains(@content-desc,"xpand") or ' +
+    'contains(@content-desc,"ollapse")';
 
-  // Match "Expand" variants without relying on exact text.
-  const byDesc = await $('//*[contains(@content-desc, "xpand")]');
-  if (await byDesc.isDisplayed().catch(() => false)) {
-    await byDesc.click();
+  const titleXpath = `//*[@text="${title}"]`;
+  const scopedExpandXpath =
+    `${titleXpath}/ancestor::android.widget.FrameLayout` +
+    `[.//*[${expandPredicate}]][1]` +
+    `//*[${expandPredicate}]`;
+
+  const scoped = await $(scopedExpandXpath);
+  if (await scoped.isDisplayed().catch(() => false)) {
+    await scoped.click();
     return;
   }
 
   // Last resort: pinch-open the row near its title.
-  const row = await $(`//*[@text="${title}"]/ancestor::android.widget.FrameLayout[1]`);
+  const row = await $(`${titleXpath}/ancestor::android.widget.FrameLayout[1]`);
   const target = (await row.isDisplayed().catch(() => false))
     ? row
-    : await $(`//*[@text="${title}"]`);
+    : await $(titleXpath);
   if (!(await target.isDisplayed().catch(() => false))) return;
   await driver
     .execute('mobile: pinchOpenGesture', {
