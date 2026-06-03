@@ -45,7 +45,7 @@ describe('Live Activities', () => {
       const button = await scrollToEl(buttonId);
       await button.waitForEnabled({ timeout: 15_000 });
       await button.click();
-      await driver.pause(2000);
+      await driver.pause(3000);
     };
 
     await clickLiveActivityButton('start_live_activity_button');
