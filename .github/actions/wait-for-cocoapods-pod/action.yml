@@ -1,0 +1,23 @@
+name: 'Wait for OneSignal iOS SDK on CocoaPods'
+description: 'Poll CocoaPods CDN until OneSignalXCFramework:<version> is published. Useful in release workflows that race podspec publication.'
+
+inputs:
+  version:
+    description: 'OneSignal iOS SDK version to wait for'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Wait for podspec
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        SPEC_URL="https://cdn.cocoapods.org/Specs/d/f/3/OneSignalXCFramework/${VERSION}/OneSignalXCFramework.podspec.json"
+        echo "Waiting for OneSignalXCFramework:${VERSION}"
+        echo "URL: ${SPEC_URL}"
+        curl "${SPEC_URL}" \
+             --output /dev/null --silent \
+             --fail --retry 50 --retry-delay 60 --retry-all-errors

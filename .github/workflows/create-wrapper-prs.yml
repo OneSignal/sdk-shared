@@ -153,8 +153,31 @@ jobs:
         with:
           version: ${{ inputs.android_version }}
 
+  wait-for-ios-pod:
+    # CocoaPods CDN propagation can lag behind pod publish. Block wrapper PR
+    # fan-out until both the version shard and podspec JSON are visible so
+    # downstream iOS builds do not fail resolving OneSignalXCFramework.
+    # Always runs so Android-only invocations still satisfy downstream needs.
+    needs: validate-inputs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip when Android-only
+        if: inputs.ios_version == ''
+        run: echo "No ios_version provided; skipping CocoaPods propagation wait."
+      - uses: actions/checkout@v6
+        if: inputs.ios_version != ''
+        with:
+          repository: OneSignal/sdk-shared
+          ref: main
+          sparse-checkout: |
+            .github/actions/wait-for-cocoapods-pod
+      - uses: ./.github/actions/wait-for-cocoapods-pod
+        if: inputs.ios_version != ''
+        with:
+          version: ${{ inputs.ios_version }}
+
   versions:
-    needs: [validate-inputs, wait-for-android-artifact]
+    needs: [validate-inputs, wait-for-android-artifact, wait-for-ios-pod]
     runs-on: ubuntu-latest
     outputs:
       capacitor: ${{ steps.versions.outputs.capacitor }}
