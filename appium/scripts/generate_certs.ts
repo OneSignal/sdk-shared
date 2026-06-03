@@ -14,7 +14,8 @@
  *   portal as Explicit App IDs with the required capabilities (App Groups for
  *   both, plus Live Activities on .LA). This script does not configure
  *   capabilities.
- * - An App Store Connect API key with role Developer or Admin.
+ * - App Store Connect API credentials from the "OneSignal Sdk-Shared Script"
+ *   key in https://appstoreconnect.apple.com/access/integrations/api.
  * - Bun (or `tsx`) to run the script.
  *
  * Environment variables
@@ -25,12 +26,8 @@
  *
  * Usage
  * -----
- *   ASC_KEY_ID=... ASC_ISSUER_ID=... ASC_KEY_FILE=~/Downloads/AuthKey_XXX.p8 \
+ *   ASC_KEY_ID=... ASC_ISSUER_ID=... ASC_KEY_FILE=$HOME/Documents/AuthKey_XXX.p8 \
  *     bun appium/scripts/generate_certs.ts
- *
- *   # or with tsx:
- *   ASC_KEY_ID=... ASC_ISSUER_ID=... ASC_KEY_FILE=... \
- *     npx tsx appium/scripts/generate_certs.ts
  */
 
 import { createPrivateKey, sign } from 'node:crypto';
