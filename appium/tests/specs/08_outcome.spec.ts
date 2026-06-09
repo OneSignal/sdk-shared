@@ -20,27 +20,27 @@ describe('Outcomes', () => {
   it('can send a normal outcome', async () => {
     const normalRadio = await openModal('send_outcome_button', 'outcome_type_normal_radio');
     await normalRadio.click();
-    
+
     const nameInput = await byTestId('outcome_name_input');
-    await nameInput.setValue('test_normal');
+    await nameInput.setValue('normal');
 
     const sendBtn = await byTestId('outcome_send_button');
     await sendBtn.click();
 
-    await expectSnackbar('Outcome sent: test_normal');
+    await expectSnackbar('Outcome sent: normal');
   });
 
   it('can send a unique outcome', async () => {
     const uniqueRadio = await openModal('send_outcome_button', 'outcome_type_unique_radio');
     await uniqueRadio.click();
-    
+
     const nameInput = await byTestId('outcome_name_input');
-    await nameInput.setValue('test_unique');
+    await nameInput.setValue('unique');
 
     const sendBtn = await byTestId('outcome_send_button');
     await sendBtn.click();
 
-    await expectSnackbar('Unique outcome sent: test_unique');
+    await expectSnackbar('Unique outcome sent: unique');
   });
 
   it('can send an outcome with value', async () => {
@@ -48,7 +48,7 @@ describe('Outcomes', () => {
     await withValueRadio.click();
 
     const nameInput = await byTestId('outcome_name_input');
-    await nameInput.setValue('test_valued');
+    await nameInput.setValue('valued');
 
     const valueInput = await byTestId('outcome_value_input');
     await valueInput.waitForDisplayed({ timeout: 5_000 });
@@ -57,6 +57,6 @@ describe('Outcomes', () => {
     const sendBtn = await byTestId('outcome_send_button');
     await sendBtn.click();
 
-    await expectSnackbar('Outcome sent: test_valued = 3.14');
+    await expectSnackbar('Outcome sent: valued = 3.14');
   });
 });

@@ -348,9 +348,7 @@ async function expandNotificationRow(title: string): Promise<void> {
 
   // Last resort: pinch-open the row near its title.
   const row = await $(`${titleXpath}/ancestor::android.widget.FrameLayout[1]`);
-  const target = (await row.isDisplayed().catch(() => false))
-    ? row
-    : await $(titleXpath);
+  const target = (await row.isDisplayed().catch(() => false)) ? row : await $(titleXpath);
   if (!(await target.isDisplayed().catch(() => false))) return;
   await driver
     .execute('mobile: pinchOpenGesture', {

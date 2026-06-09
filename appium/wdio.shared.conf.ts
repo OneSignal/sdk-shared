@@ -135,7 +135,7 @@ export const sharedConfig: WebdriverIO.Config = {
     const sdkType = process.env.SDK_TYPE;
     const platform = process.env.PLATFORM;
     if (!sdkType || !platform) return;
-    const externalId = sdkType === platform ? `appium-${sdkType}` : `appium-${sdkType}-${platform}`;
+    const externalId = sdkType === platform ? sdkType : `${sdkType}-${platform}`;
     await deleteUser(externalId);
   },
 };

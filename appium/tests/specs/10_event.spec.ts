@@ -38,18 +38,18 @@ describe('Custom Events', () => {
   it('can send a custom event with no properties', async () => {
     const { customEvent } = getTestData();
     const nameInput = await openModal('track_event_button', 'event_name_input');
-    await nameInput.setValue(`${customEvent}_no_props`);
+    await nameInput.setValue(customEvent);
 
     const trackBtn = await byTestId('event_track_button');
     await trackBtn.click();
 
-    await expectSnackbar(`Event tracked: ${customEvent}_no_props`);
+    await expectSnackbar(`Event tracked: ${customEvent}`);
   });
 
   it('can send a custom event with properties', async () => {
     const { customEvent } = getTestData();
     const nameInput = await openModal('track_event_button', 'event_name_input');
-    await nameInput.setValue(`${customEvent}_with_props`);
+    await nameInput.setValue(`${customEvent}_props`);
 
     const propertiesInput = await byTestId('event_properties_input');
     const json = JSON.stringify(TEST_JSON);
@@ -58,6 +58,6 @@ describe('Custom Events', () => {
     const trackBtn = await byTestId('event_track_button');
     await trackBtn.click();
 
-    await expectSnackbar(`Event tracked: ${customEvent}_with_props`);
+    await expectSnackbar(`Event tracked: ${customEvent}_props`);
   });
 });
