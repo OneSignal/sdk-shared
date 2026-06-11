@@ -520,6 +520,27 @@ EOF
   fi
 }
 
+patch_cordova_ios_podfile() {
+  local podfile="$DEMO_DIR/ios/App/Podfile"
+
+  if [[ ! -f "$podfile" ]]; then
+    return
+  fi
+
+  PODFILE="$podfile" python3 <<'PY'
+import os
+from pathlib import Path
+
+podfile = Path(os.environ["PODFILE"])
+text = podfile.read_text()
+pod_line = "  pod 'OneSignalCordovaDependencies', :path => '../../node_modules/onesignal-cordova-plugin'"
+
+if "OneSignalCordovaDependencies" not in text:
+    text = text.replace("target 'App' do\n", f"target 'App' do\n{pod_line}\n", 1)
+    podfile.write_text(text)
+PY
+}
+
 setup_cordova_sdk() {
   local stamp="$CORDOVA_DIR/.cordova-sdk-source.stamp"
   local installed_dir="$DEMO_DIR/node_modules/onesignal-cordova-plugin"
@@ -527,6 +548,7 @@ setup_cordova_sdk() {
 
   CORDOVA_SDK_SRC_HASH=$(find "$CORDOVA_DIR/src" "$CORDOVA_DIR/www" \
                               "$CORDOVA_DIR/package.json" "$CORDOVA_DIR/plugin.xml" \
+                              "$CORDOVA_DIR/OneSignalCordovaDependencies.podspec" \
                               "$CORDOVA_DIR/build-extras-onesignal.gradle" \
                          -type f 2>/dev/null \
                          | sort \
@@ -595,6 +617,8 @@ cap_sync_inputs_hash() {
 build_cordova_ios() {
   write_cordova_demo_env
   setup_cordova_sdk
+
+  patch_cordova_ios_podfile
 
   info "Building web bundle (vite)..."
   (cd "$DEMO_DIR" && vp run build)
