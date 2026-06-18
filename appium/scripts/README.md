@@ -18,19 +18,30 @@
    cp .env.example .env
    ```
 
-   At minimum, set your OneSignal credentials:
+   At minimum, set your OneSignal credentials (the script fails fast without them). Use the OneSignal app **dedicated to Appium tests** — not a general or shared app, whose live in-app marketing campaigns can cover the UI and cause misleading "element not displayed" failures:
 
    ```
-   ONESIGNAL_APP_ID=your-app-id
-   ONESIGNAL_API_KEY=your-api-key
+   ONESIGNAL_APP_ID=your-appium-test-app-id
+   ONESIGNAL_API_KEY=your-appium-test-api-key
    ```
 
 3. **Install Appium and drivers** (if not already):
 
    ```bash
    npm i -g appium
-   appium driver install xcuitest
+   appium driver install xcuitest      # iOS
+   appium driver install uiautomator2  # Android
    ```
+
+4. **Install [Vite+](https://vite.plus)** (if not already) — it provides the `vpx` command the script uses to run WebdriverIO (the `vpx` symlink is created on `vp`'s first run):
+
+   ```bash
+   curl -fsSL https://vite.plus | bash
+   ```
+
+The script checks all of these up front and prints the exact install command for anything missing; `node_modules` in `appium/` is installed automatically on first run.
+
+> **CI vs local:** CI runs on BrowserStack (Node 24) without this script. Notification-dependent tests (in `02_push.spec.ts` and `12_activity.spec.ts`) are skipped on BrowserStack iOS via `isBrowserStackIos()` because BrowserStack requires an Enterprise Signing Certificate for those notification flows, which we don't have yet (temporary — they'll be re-enabled once signing support is available), so for now they only run locally. If your local Node is 26+, the script sets `WDIO_USE_NATIVE_FETCH=1` automatically.
 
 ## Usage
 
@@ -118,6 +129,14 @@ All env vars can be set in `.env` or exported in your shell. See [`.env.example`
   ./run-local.sh --platform=ios --sdk=flutter
   ```
 
-- **Simulator not found**: Check available simulators with `xcrun simctl list devices available` and update `IOS_SIMULATOR` / `IOS_RUNTIME` in your `.env`.
+- **Simulator not found**: The script falls back automatically to the booted simulator, or to the newest installed iOS runtime, when the requested device/runtime isn't on your machine. To pin a specific one, check `xcrun simctl list devices available` and set `DEVICE` / `OS_VERSION` / `IOS_RUNTIME` in your `.env`.
 
-- **Appium fails to start**: Make sure Appium and the required drivers are installed (`appium driver list --installed`).
+- **Appium fails to start**: Make sure Appium and the required drivers are installed (`appium driver list --installed`). The script checks both up front and prints the install command for anything missing.
+
+- **`vpx: command not found`**: Install [Vite+](https://vite.plus) with `curl -fsSL https://vite.plus | bash`. If `vp` is installed but `vpx` is missing, run `vp --version` once — `vp` creates the `vpx` symlink on its first run.
+
+- **`UND_ERR_INVALID_ARG` / fetch errors on Node 26+**: webdriverio's undici dispatcher is rejected by Node 26+'s `fetch`. The script exports `WDIO_USE_NATIVE_FETCH=1` automatically when it detects Node 26+; if you invoke `vpx wdio run` manually, export it yourself.
+
+- **Test waiting for the notification permission alert fails**: A reused simulator remembers a previously-decided notification permission, and `simctl privacy` can't reset it. The script's app reset uninstalls the app, which restores the prompt — avoid `--skip`/`--skip-reset` when running the push specs.
+
+- **Misleading "element not displayed" failures**: Live in-app marketing campaigns on the configured app can cover the UI. Use the OneSignal app dedicated to Appium tests (set `ONESIGNAL_APP_ID`/`ONESIGNAL_API_KEY` in `.env`) rather than a general or shared app.

@@ -199,6 +199,64 @@ if [[ "$SDK_TYPE" == "ios" && "$PLATFORM" != "ios" ]]; then
   exit 0
 fi
 
+# ── Preflight checks ──────────────────────────────────────────────────────────
+# Fail fast on missing local tooling with the exact remediation, instead of
+# surfacing as cryptic failures much later (e.g. a bare `appium: command not
+# found` followed by a 30s startup timeout). CI never runs this script — it
+# calls `vpx wdio run` directly on BrowserStack — so these checks are
+# local-only by construction.
+preflight() {
+  command -v appium >/dev/null 2>&1 \
+    || error "appium not found on PATH. Install it with: npm i -g appium"
+
+  local driver
+  if [[ "$PLATFORM" == "ios" ]]; then driver="xcuitest"; else driver="uiautomator2"; fi
+  appium driver list --installed 2>&1 | grep -q "$driver" \
+    || error "Appium driver '$driver' is not installed. Install it with: appium driver install $driver
+        (check what's installed with: appium driver list --installed)"
+
+  if ! command -v vpx >/dev/null 2>&1; then
+    if command -v vp >/dev/null 2>&1; then
+      error "vpx not found on PATH. Vite+ creates the vpx symlink on vp's first run — run 'vp --version' once, or reinstall: curl -fsSL https://vite.plus | bash"
+    fi
+    error "vpx not found on PATH. Install Vite+ with: curl -fsSL https://vite.plus | bash"
+  fi
+
+  if [[ ! -d "$APPIUM_DIR/node_modules" ]]; then
+    # package.json declares "packageManager": "bun@…"; fall back to vp (which
+    # run_tests already uses) when bun isn't installed.
+    if command -v bun >/dev/null 2>&1; then
+      info "node_modules missing in $APPIUM_DIR — running 'bun install'..."
+      (cd "$APPIUM_DIR" && bun install)
+    elif command -v vp >/dev/null 2>&1; then
+      info "node_modules missing in $APPIUM_DIR — running 'vp install'..."
+      (cd "$APPIUM_DIR" && vp install)
+    else
+      error "node_modules missing in $APPIUM_DIR. Run 'bun install' (or 'vp install') there first."
+    fi
+  fi
+
+  # webdriverio 9.x ships an undici-v6 dispatcher that Node 26+'s fetch
+  # rejects with UND_ERR_INVALID_ARG. WDIO_USE_NATIVE_FETCH=1 makes wdio skip
+  # the custom dispatcher. CI is on Node 24 and unaffected.
+  local node_major=""
+  if command -v node >/dev/null 2>&1; then
+    node_major="$(node -v 2>/dev/null | sed -E 's/^v([0-9]+).*/\1/' || true)"
+  fi
+  if [[ "${node_major:-0}" =~ ^[0-9]+$ ]] && (( ${node_major:-0} >= 26 )) && [[ -z "${WDIO_USE_NATIVE_FETCH:-}" ]]; then
+    export WDIO_USE_NATIVE_FETCH=1
+    info "Node $node_major detected — setting WDIO_USE_NATIVE_FETCH=1 (works around webdriverio's undici dispatcher being rejected by Node 26+ fetch)."
+  fi
+
+  if [[ -z "${ONESIGNAL_APP_ID:-}" || -z "${ONESIGNAL_API_KEY:-}" ]]; then
+    error "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set. Use the OneSignal app
+      dedicated to Appium tests (not a general/shared app — its live in-app
+      marketing campaigns can cover the UI and cause misleading 'element not
+      displayed' failures). Set both in $SCRIPT_DIR/.env (cp .env.example .env)."
+  fi
+}
+preflight
+
 # ── Real-device validation + signing setup ────────────────────────────────────
 # When --device-real is set, we need a physical-device build and codesigning
 # inputs. Centralised here so the rest of the script stays simulator-shaped
@@ -1731,11 +1789,6 @@ start_ios_simulator() {
     return
   fi
 
-  if xcrun simctl list devices booted 2>/dev/null | grep -q "Booted"; then
-    info "Simulator already running"
-    return
-  fi
-
   local udid
   udid=$(xcrun simctl list devices available -j \
     | python3 -c "
@@ -1748,8 +1801,65 @@ for runtime, devices in data['devices'].items():
                 print(d['udid']); sys.exit(0)
 " 2>/dev/null || true)
 
+  # Requested device/runtime isn't installed on this machine (e.g. defaults
+  # assume iOS 26.2 but only 26.5 is installed). Fall back to the booted
+  # simulator if there is one, else the newest installed iOS runtime, and
+  # align DEVICE/OS_VERSION so the Appium session targets what actually runs.
   if [[ -z "$udid" ]]; then
-    error "Simulator '$IOS_SIMULATOR' ($IOS_RUNTIME) not found. Run: xcrun simctl list devices available"
+    warn "Simulator '$IOS_SIMULATOR' ($IOS_RUNTIME) not found on this machine."
+    local fallback
+    fallback=$(xcrun simctl list devices -j \
+      | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for runtime, devices in data['devices'].items():
+    if '.iOS-' not in runtime:
+        continue
+    for d in devices:
+        if d['state'] == 'Booted':
+            rt = runtime.rsplit('.', 1)[-1]
+            print(d['udid'] + '|' + d['name'] + '|' + rt + '|' + rt.replace('iOS-', '').replace('-', '.'))
+            sys.exit(0)
+" 2>/dev/null || true)
+    if [[ -z "$fallback" ]]; then
+      fallback=$(xcrun simctl list devices available -j \
+        | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+runtimes = []
+for runtime, devices in data['devices'].items():
+    rt = runtime.rsplit('.', 1)[-1]
+    if not rt.startswith('iOS-'):
+        continue
+    try:
+        ver = tuple(int(p) for p in rt.replace('iOS-', '').split('-'))
+    except ValueError:
+        continue
+    avail = [d for d in devices if d.get('isAvailable')]
+    if avail:
+        runtimes.append((ver, rt, avail))
+for ver, rt, avail in sorted(runtimes, reverse=True):
+    exact = [d for d in avail if d['name'] == '$IOS_SIMULATOR']
+    iphones = sorted((d for d in avail if d['name'].startswith('iPhone')), key=lambda d: d['name'])
+    pick = exact[0] if exact else (iphones[-1] if iphones else avail[0])
+    print(pick['udid'] + '|' + pick['name'] + '|' + rt + '|' + '.'.join(str(p) for p in ver))
+    sys.exit(0)
+" 2>/dev/null || true)
+    fi
+    if [[ -z "$fallback" ]]; then
+      error "No usable iOS simulator found. Run: xcrun simctl list devices available, then set DEVICE / OS_VERSION / IOS_RUNTIME in $SCRIPT_DIR/.env"
+    fi
+    udid="${fallback%%|*}"
+    IOS_SIMULATOR="$(cut -d'|' -f2 <<<"$fallback")"
+    IOS_RUNTIME="$(cut -d'|' -f3 <<<"$fallback")"
+    OS_VERSION="$(cut -d'|' -f4 <<<"$fallback")"
+    DEVICE="$IOS_SIMULATOR"
+    info "Falling back to '$IOS_SIMULATOR' (iOS $OS_VERSION, $udid). Set DEVICE / OS_VERSION / IOS_RUNTIME in $SCRIPT_DIR/.env to pin a different one."
+  fi
+
+  if xcrun simctl list devices booted 2>/dev/null | grep -q "Booted"; then
+    info "Simulator already running"
+    return
   fi
 
   info "Booting simulator '$IOS_SIMULATOR' ($udid)..."
@@ -1887,6 +1997,9 @@ cleanup_android_automation() {
 reset_app() {
   if [[ "$SKIP_RESET" == true ]]; then
     info "Skipping app reset (--skip-reset)"
+    if [[ "$PLATFORM" == "ios" ]]; then
+      warn "iOS notification-permission state persists with --skip-reset; the test that waits for the permission alert will fail if it was already decided. Re-run without --skip/--skip-reset to reset."
+    fi
     return
   fi
 
@@ -1901,12 +2014,13 @@ reset_app() {
       xcrun devicectl device uninstall app --device "$UDID" "$bundle" 2>/dev/null || true
     else
       local sim_target="${UDID:-booted}"
-      if xcrun simctl listapps "$sim_target" 2>/dev/null | grep -q "$bundle"; then
-        info "Uninstalling $bundle..."
-        xcrun simctl uninstall "$sim_target" "$bundle" 2>/dev/null || true
-      else
-        info "App not installed — nothing to reset"
-      fi
+      # Uninstall unconditionally: a previously-decided notification permission
+      # survives reinstalls and makes the permission-alert test fail, and
+      # `simctl privacy` cannot reset it (notifications is SpringBoard state,
+      # not a TCC service — it's absent from `simctl privacy`'s service list).
+      # Uninstalling the app is the only reliable way to get the prompt back.
+      info "Uninstalling $bundle (also resets notification-permission state)..."
+      xcrun simctl uninstall "$sim_target" "$bundle" 2>/dev/null || true
     fi
   else
     local package="${BUNDLE_ID:-}"
