@@ -578,24 +578,43 @@ EOF
   fi
 }
 
-patch_cordova_ios_podfile() {
+patch_cordova_ios_podfile_git_branch() {
   local podfile="$DEMO_DIR/ios/App/Podfile"
+  local branch
 
   if [[ ! -f "$podfile" ]]; then
     return
   fi
 
-  PODFILE="$podfile" python3 <<'PY'
+  branch=$(git -C "$CORDOVA_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+  if [[ "$branch" != rel/* ]]; then
+    return
+  fi
+
+  info "Repointing OneSignalCordovaDependencies pod to git branch ${branch}..."
+  PODFILE="$podfile" BRANCH="$branch" python3 <<'PY'
 import os
+import re
 from pathlib import Path
 
 podfile = Path(os.environ["PODFILE"])
+branch = os.environ["BRANCH"]
 text = podfile.read_text()
-pod_line = "  pod 'OneSignalCordovaDependencies', :path => '../../node_modules/onesignal-cordova-plugin'"
+pod_line = (
+    "pod 'OneSignalCordovaDependencies', "
+    ":git => 'https://github.com/OneSignal/OneSignal-Cordova-SDK.git', "
+    f":branch => '{branch}'"
+)
 
-if "OneSignalCordovaDependencies" not in text:
-    text = text.replace("target 'App' do\n", f"target 'App' do\n{pod_line}\n", 1)
-    podfile.write_text(text)
+text, count = re.subn(
+    r"pod 'OneSignalCordovaDependencies'.*",
+    pod_line,
+    text,
+)
+if count == 0:
+    raise SystemExit("Unable to find OneSignalCordovaDependencies pod in Podfile")
+
+podfile.write_text(text)
 PY
 }
 
@@ -676,8 +695,6 @@ build_cordova_ios() {
   write_cordova_demo_env
   setup_cordova_sdk
 
-  patch_cordova_ios_podfile
-
   info "Building web bundle (vite)..."
   (cd "$DEMO_DIR" && vp run build)
 
@@ -696,7 +713,11 @@ build_cordova_ios() {
     xattr -w com.apple.xcode.CreatedByBuildSystem true "$DEMO_DIR/ios/App/build" 2>/dev/null || true
 
     info "Syncing Capacitor (also installs/updates Pods)..."
-    (cd "$DEMO_DIR" && bunx cap sync ios)
+    if ! (cd "$DEMO_DIR" && vpx cap sync ios); then
+      patch_cordova_ios_podfile_git_branch
+      info "Refreshing OneSignalXCFramework after local dependency changes..."
+      (cd "$DEMO_DIR/ios/App" && pod update OneSignalXCFramework)
+    fi
     mkdir -p "$(dirname "$sync_stamp")"
     echo "$sync_hash" > "$sync_stamp"
   fi
@@ -734,7 +755,7 @@ build_cordova_android() {
     info "Capacitor sync inputs unchanged, skipping cap sync"
   else
     info "Syncing Capacitor..."
-    (cd "$DEMO_DIR" && bunx cap sync android)
+    (cd "$DEMO_DIR" && vpx cap sync android)
     mkdir -p "$(dirname "$sync_stamp")"
     echo "$sync_hash" > "$sync_stamp"
   fi
