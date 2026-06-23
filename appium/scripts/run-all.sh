@@ -145,9 +145,11 @@ for platform in "${PLATFORMS[@]}"; do
     fi
     echo ""
     echo -e "${BOLD}━━━ Running: ${label} ━━━${NC}"
-    # `${arr[@]+"${arr[@]}"}` expands the array only when it has elements;
-    # under `set -u`, a bare `"${EXTRA_ARGS[@]}"` errors out on an empty array.
-    combo_args=("${EXTRA_ARGS[@]}")
+    # Under `set -u`, a bare empty-array expansion can error on older bash.
+    combo_args=()
+    if (( ${#EXTRA_ARGS[@]} > 0 )); then
+      combo_args+=("${EXTRA_ARGS[@]}")
+    fi
     if (( PODS_REQUESTED )); then
       case "$sdk" in
         flutter|cordova|capacitor) combo_args+=(--pods) ;;
