@@ -23,7 +23,7 @@ SDKS_FILTER=""
 BAIL=0
 for arg in "$@"; do
   case "$arg" in
-    --skip-build|--skip-device|--skip-reset|--skip|--quiet|-q)
+    --skip-build|--skip-device|--skip-reset|--skip|--pods|--quiet|-q)
       EXTRA_ARGS+=("$arg") ;;
     --spec=*)
       EXTRA_ARGS+=("$arg") ;;
@@ -59,6 +59,7 @@ Options forwarded to run-local.sh:
   --skip-device    Skip simulator/emulator launch
   --skip-reset     Keep existing app data
   --skip           Shortcut for --skip-build --skip-device --skip-reset
+  --pods           Use examples/demo-pods for flutter, cordova, capacitor
   --spec=GLOB      Spec glob to run (default: full suite, grouped into one session)
   -q, --quiet      Hide run-local [INFO] log lines
   -h, --help       Show this help

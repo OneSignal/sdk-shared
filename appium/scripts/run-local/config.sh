@@ -10,6 +10,7 @@ configure_runner() {
   SKIP_RESET=false
   SPEC=""
   QUIET=false
+  PODS_DEMO=false
   ANDROID_CHANNEL_ID=7ec2ece9-c538-4656-9516-1316f48a005c
   IOS_REAL_DEVICE=false
   UDID="${UDID:-}"
@@ -29,6 +30,7 @@ configure_runner() {
       --skip-build)     SKIP_BUILD=true ;;
       --skip-device)    SKIP_DEVICE=true ;;
       --skip-reset)     SKIP_RESET=true ;;
+      --pods)           PODS_DEMO=true ;;
       --spec=*)         SPEC="${arg#--spec=}" ;;
       --quiet|-q)       QUIET=true ;;
       --help|-h)
@@ -58,6 +60,8 @@ Options:
   --skip-build        Skip app build (reuse existing)
   --skip-device       Skip simulator/emulator launch
   --skip-reset        Keep existing app data
+  --pods              Use examples/demo-pods instead of examples/demo for
+                      flutter, cordova, and capacitor SDKs
   --device-real       Build & run against a physical iPhone (requires --udid
                       and XCODE_TEAM_ID). Implies --skip-device. iOS only.
                       Supported SDKs: cordova, capacitor, react-native, expo.
@@ -148,6 +152,13 @@ USAGE
   if [[ "$SDK_TYPE" == "ios" && "$PLATFORM" != "ios" ]]; then
     warn "--sdk=ios only runs on --platform=ios; skipping --platform=$PLATFORM"
     exit 0
+  fi
+
+  if [[ "$PODS_DEMO" == true ]]; then
+    case "$SDK_TYPE" in
+      flutter|cordova|capacitor) ;;
+      *) warn "--pods only affects flutter, cordova, and capacitor SDKs; using examples/demo for $SDK_TYPE" ;;
+    esac
   fi
 
   # ── Preflight checks ──────────────────────────────────────────────────────────
@@ -247,7 +258,11 @@ USAGE
   if [[ "$SDK_TYPE" == "flutter" ]]; then
     FLUTTER_DIR="${FLUTTER_DIR:-$SDK_ROOT/OneSignal-Flutter-SDK}"
     [[ -d "$FLUTTER_DIR" ]] || error "Flutter SDK not found at $FLUTTER_DIR — set FLUTTER_DIR in .env"
-    DEMO_DIR="$FLUTTER_DIR/examples/demo"
+    if [[ "$PODS_DEMO" == true ]]; then
+      DEMO_DIR="$FLUTTER_DIR/examples/demo-pods"
+    else
+      DEMO_DIR="$FLUTTER_DIR/examples/demo"
+    fi
     if [[ "$PLATFORM" == "ios" ]]; then
       APP_PATH="${APP_PATH:-$DEMO_DIR/build/ios/iphonesimulator/Runner.app}"
     else
@@ -265,7 +280,11 @@ USAGE
   elif [[ "$SDK_TYPE" == "cordova" ]]; then
     CORDOVA_DIR="${CORDOVA_DIR:-$SDK_ROOT/OneSignal-Cordova-SDK}"
     [[ -d "$CORDOVA_DIR" ]] || error "Cordova SDK not found at $CORDOVA_DIR — set CORDOVA_DIR in .env"
-    DEMO_DIR="$CORDOVA_DIR/examples/demo"
+    if [[ "$PODS_DEMO" == true ]]; then
+      DEMO_DIR="$CORDOVA_DIR/examples/demo-pods"
+    else
+      DEMO_DIR="$CORDOVA_DIR/examples/demo"
+    fi
     if [[ "$PLATFORM" == "ios" ]]; then
       APP_PATH="${APP_PATH:-$DEMO_DIR/ios/App/build/Build/Products/${IOS_BUILD_DIR}/App.app}"
     else
@@ -274,7 +293,11 @@ USAGE
   elif [[ "$SDK_TYPE" == "capacitor" ]]; then
     CAPACITOR_DIR="${CAPACITOR_DIR:-$SDK_ROOT/OneSignal-Capacitor-SDK}"
     [[ -d "$CAPACITOR_DIR" ]] || error "Capacitor SDK not found at $CAPACITOR_DIR — set CAPACITOR_DIR in .env"
-    DEMO_DIR="$CAPACITOR_DIR/examples/demo"
+    if [[ "$PODS_DEMO" == true ]]; then
+      DEMO_DIR="$CAPACITOR_DIR/examples/demo-pods"
+    else
+      DEMO_DIR="$CAPACITOR_DIR/examples/demo"
+    fi
     if [[ "$PLATFORM" == "ios" ]]; then
       APP_PATH="${APP_PATH:-$DEMO_DIR/ios/App/build/Build/Products/${IOS_BUILD_DIR}/App.app}"
     else
