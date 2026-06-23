@@ -158,7 +158,6 @@ podfile.write_text(text)
 PY
 }
 
-
 # Hash of everything that affects `cap sync <platform>` output. Used to skip
 # the (slow) sync — which internally runs `pod install` + `xcodebuild clean`
 # on iOS, and Gradle plugin wiring on Android — when nothing relevant changed.
@@ -227,8 +226,16 @@ build_cordova_ios() {
   fi
 
   info "Building release .app for ${IOS_SDK}..."
+  local -a xcode_target_args
+  if [[ -d "$DEMO_DIR/ios/App/App.xcworkspace" ]]; then
+    xcode_target_args=(-workspace App.xcworkspace)
+  elif [[ -d "$DEMO_DIR/ios/App/App.xcodeproj" ]]; then
+    xcode_target_args=(-project App.xcodeproj)
+  else
+    error "No App.xcworkspace or App.xcodeproj found under $DEMO_DIR/ios/App"
+  fi
   (cd "$DEMO_DIR/ios/App" && xcodebuild \
-    -workspace App.xcworkspace \
+    "${xcode_target_args[@]}" \
     -scheme App \
     -configuration Release \
     -sdk "$IOS_SDK" \
