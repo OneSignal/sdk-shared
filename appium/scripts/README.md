@@ -62,6 +62,7 @@ If `--platform` or `--sdk` are not provided, the script prompts interactively.
 | `--skip-build`  | Skip app build (reuse existing `.app`/`.apk`)               |
 | `--skip-device` | Skip simulator/emulator launch                              |
 | `--skip-reset`  | Keep existing app data between runs                         |
+| `--pods`        | Use `examples/demo-pods` for Flutter, Cordova, and Capacitor |
 | `-h, --help`    | Show help                                                   |
 
 ### Examples

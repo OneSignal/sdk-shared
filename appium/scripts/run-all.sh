@@ -21,10 +21,13 @@ EXTRA_ARGS=()
 PLATFORM_FILTER=""
 SDKS_FILTER=""
 BAIL=0
+PODS_REQUESTED=0
 for arg in "$@"; do
   case "$arg" in
     --skip-build|--skip-device|--skip-reset|--skip|--quiet|-q)
       EXTRA_ARGS+=("$arg") ;;
+    --pods)
+      PODS_REQUESTED=1 ;;
     --spec=*)
       EXTRA_ARGS+=("$arg") ;;
     --platform=ios|--platform=android)
@@ -59,6 +62,8 @@ Options forwarded to run-local.sh:
   --skip-device    Skip simulator/emulator launch
   --skip-reset     Keep existing app data
   --skip           Shortcut for --skip-build --skip-device --skip-reset
+  --pods           Use examples/demo-pods for flutter, cordova, capacitor
+                   (ignored for other SDKs)
   --spec=GLOB      Spec glob to run (default: full suite, grouped into one session)
   -q, --quiet      Hide run-local [INFO] log lines
   -h, --help       Show this help
@@ -91,6 +96,19 @@ if [[ -n "$SDKS_FILTER" ]]; then
   done
 else
   SDKS=("${ALL_SDKS[@]}")
+fi
+
+if (( PODS_REQUESTED )); then
+  PODS_IGNORED=()
+  for sdk in "${SDKS[@]}"; do
+    case "$sdk" in
+      flutter|cordova|capacitor) ;;
+      *) PODS_IGNORED+=("$sdk") ;;
+    esac
+  done
+  if (( ${#PODS_IGNORED[@]} > 0 )); then
+    warn "--pods only applies to flutter, cordova, and capacitor; ignoring it for: ${PODS_IGNORED[*]}"
+  fi
 fi
 
 declare -a RESULTS
@@ -129,7 +147,13 @@ for platform in "${PLATFORMS[@]}"; do
     echo -e "${BOLD}━━━ Running: ${label} ━━━${NC}"
     # `${arr[@]+"${arr[@]}"}` expands the array only when it has elements;
     # under `set -u`, a bare `"${EXTRA_ARGS[@]}"` errors out on an empty array.
-    if "$SCRIPT_DIR/run-local.sh" --platform="$platform" --sdk="$sdk" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}; then
+    combo_args=("${EXTRA_ARGS[@]}")
+    if (( PODS_REQUESTED )); then
+      case "$sdk" in
+        flutter|cordova|capacitor) combo_args+=(--pods) ;;
+      esac
+    fi
+    if "$SCRIPT_DIR/run-local.sh" --platform="$platform" --sdk="$sdk" ${combo_args[@]+"${combo_args[@]}"}; then
       RESULTS+=("PASS  ${label}")
     else
       RESULTS+=("FAIL  ${label}")
