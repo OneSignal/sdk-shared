@@ -663,10 +663,10 @@ build_dotnet_android() {
   local sdk_hash demo_hash build_hash
   sdk_hash=$(dotnet_sdk_inputs_hash android)
   demo_hash=$(dotnet_demo_inputs_hash android "$sdk_hash")
-  # Fold the ABI into the stamp so flipping DOTNET_ANDROID_ABI between
+  # Fold the RID into the stamp so flipping DOTNET_ANDROID_ABI/RID between
   # runs (or changing the default) busts the cache - the on-disk APK
   # would otherwise look up-to-date but contain the wrong native libs.
-  build_hash=$(printf '%s\n%s\n' "$demo_hash" "$DOTNET_ANDROID_ABI" | shasum | awk '{print $1}')
+  build_hash=$(printf '%s\n%s\n' "$demo_hash" "$DOTNET_ANDROID_RID" | shasum | awk '{print $1}')
 
   local stamp="$DEMO_DIR/bin/Debug/.dotnet-build-android.stamp"
   if dotnet_build_is_cached "$stamp" "$APP_PATH" "$build_hash"; then
@@ -692,16 +692,16 @@ build_dotnet_android() {
   # --no-dependencies: SDK already built above, so we skip MSBuild's
   # up-to-date check on every referenced project.
   #
-  # AndroidSupportedAbis: restrict to the host's native ABI (set above) so
+  # RuntimeIdentifier: restrict to the host's native ABI (set above) so
   # _BuildApkEmbed only packs one Mono runtime instead of all four.
-  info "Building Debug APK (ABI=${DOTNET_ANDROID_ABI})..."
+  info "Building Debug APK (RID=${DOTNET_ANDROID_RID}, ABI=${DOTNET_ANDROID_ABI})..."
   (cd "$DEMO_DIR" && dotnet build demo.csproj \
     -c Debug \
     -f "${DOTNET_TFM}-android" \
     -p:EmbedAssembliesIntoApk=true \
     -p:AndroidUseFastDeployment=false \
     -p:AndroidLinkMode=None \
-    -p:AndroidSupportedAbis="$DOTNET_ANDROID_ABI" \
+    -p:RuntimeIdentifier="$DOTNET_ANDROID_RID" \
     --no-dependencies)
 
   [[ -f "$APP_PATH" ]] || error ".apk not found after build at $APP_PATH"

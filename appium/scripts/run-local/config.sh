@@ -84,6 +84,7 @@ Env vars (set in .env or export):
   DOTNET_DIR         .NET MAUI SDK repo root (default: ../../DotNet/OneSignal-DotNet-SDK)
   DOTNET_TFM         .NET target framework moniker base (default: net10.0)
   DOTNET_ANDROID_ABI .NET Android ABI to pack (default: host arch)
+  DOTNET_ANDROID_RID .NET Android runtime identifier (derived from ABI)
   UNITY_DIR          Unity SDK repo root (default: ../../OneSignal-Unity-SDK)
   UNITY_PATH         Path to Unity Editor binary
                      (default: /Applications/Unity/Hub/Editor/6000.4.6f1/Unity.app/Contents/MacOS/Unity)
@@ -335,6 +336,13 @@ USAGE
         arm64)  DOTNET_ANDROID_ABI="${DOTNET_ANDROID_ABI:-arm64-v8a}" ;;
         x86_64) DOTNET_ANDROID_ABI="${DOTNET_ANDROID_ABI:-x86_64}" ;;
         *) error "Unsupported host arch for .NET Android build: $(uname -m)" ;;
+      esac
+      case "$DOTNET_ANDROID_ABI" in
+        arm64-v8a)   DOTNET_ANDROID_RID="${DOTNET_ANDROID_RID:-android-arm64}" ;;
+        armeabi-v7a) DOTNET_ANDROID_RID="${DOTNET_ANDROID_RID:-android-arm}" ;;
+        x86)         DOTNET_ANDROID_RID="${DOTNET_ANDROID_RID:-android-x86}" ;;
+        x86_64)      DOTNET_ANDROID_RID="${DOTNET_ANDROID_RID:-android-x64}" ;;
+        *) error "Unsupported .NET Android ABI: $DOTNET_ANDROID_ABI" ;;
       esac
       APP_PATH="${APP_PATH:-$DEMO_DIR/bin/Debug/${DOTNET_TFM}-android/com.onesignal.example-Signed.apk}"
     fi
