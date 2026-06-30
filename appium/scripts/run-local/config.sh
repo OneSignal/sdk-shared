@@ -87,7 +87,7 @@ Env vars (set in .env or export):
   DOTNET_ANDROID_RID .NET Android runtime identifier (derived from ABI)
   UNITY_DIR          Unity SDK repo root (default: ../../OneSignal-Unity-SDK)
   UNITY_PATH         Path to Unity Editor binary
-                     (default: /Applications/Unity/Hub/Editor/6000.4.6f1/Unity.app/Contents/MacOS/Unity)
+                     (default: /Applications/Unity/Hub/Editor/6000.4.11f1/Unity.app/Contents/MacOS/Unity)
   UNITY_IOS_SIM_ARCH Unity iOS simulator arch (default: host arch)
   ANDROID_DIR        Native Android SDK repo root (default: ../../OneSignal-Android-SDK)
   ANDROID_FLAVOR     Native Android product flavor (default: gms; also: huawei)
@@ -350,7 +350,7 @@ USAGE
     UNITY_DIR="${UNITY_DIR:-$SDK_ROOT/OneSignal-Unity-SDK}"
     [[ -d "$UNITY_DIR" ]] || error "Unity SDK not found at $UNITY_DIR — set UNITY_DIR in .env"
     DEMO_DIR="$UNITY_DIR/examples/demo"
-    UNITY_PATH="${UNITY_PATH:-/Applications/Unity/Hub/Editor/6000.4.6f1/Unity.app/Contents/MacOS/Unity}"
+    UNITY_PATH="${UNITY_PATH:-/Applications/Unity/Hub/Editor/6000.4.11f1/Unity.app/Contents/MacOS/Unity}"
     if [[ "$PLATFORM" == "ios" ]]; then
       # Match the host arch so Apple Silicon hosts run the sim natively instead
       # of going through Rosetta. UNITY_IOS_SIM_ARCH still wins as an override.
