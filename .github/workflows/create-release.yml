@@ -273,6 +273,10 @@ jobs:
               releaseNotes += '\n';
             }
 
+            // Strip Linear issue IDs; Linear magic words (fix, resolve, etc.) would
+            // otherwise link this release PR to the issues and churn their status
+            releaseNotes = releaseNotes.replace(/\[SDK-\d+\]\s*|\bSDK-\d+\b\s*/g, '');
+
             core.setOutput('notes', releaseNotes);
 
       - name: Check for existing PR
