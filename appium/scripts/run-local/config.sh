@@ -344,7 +344,10 @@ USAGE
         x86_64)      DOTNET_ANDROID_RID="${DOTNET_ANDROID_RID:-android-x64}" ;;
         *) error "Unsupported .NET Android ABI: $DOTNET_ANDROID_ABI" ;;
       esac
-      APP_PATH="${APP_PATH:-$DEMO_DIR/bin/Debug/${DOTNET_TFM}-android/com.onesignal.example-Signed.apk}"
+      # The build passes -p:RuntimeIdentifier, so MSBuild emits the APK into a
+      # RID subfolder; the RID-less parent dir may hold a stale APK from a
+      # build without the RID restriction.
+      APP_PATH="${APP_PATH:-$DEMO_DIR/bin/Debug/${DOTNET_TFM}-android/${DOTNET_ANDROID_RID}/com.onesignal.example-Signed.apk}"
     fi
   elif [[ "$SDK_TYPE" == "unity" ]]; then
     UNITY_DIR="${UNITY_DIR:-$SDK_ROOT/OneSignal-Unity-SDK}"
