@@ -193,6 +193,8 @@ jobs:
             // Helper function to fetch and format native SDK release notes e.g.
             // Update Android SDK from 5.1.33 to 5.1.34
             // fix: ... ([OneSignal-Android-SDK#some-number](https://github.com/OneSignal/OneSignal-Android-SDK/pull/some-number))
+            const stripLinearIssueIds = (text) => text.replace(/\[SDK-\d+\]\s*|\bSDK-\d+\b\s*/g, '');
+
             const fetchNativeSDKReleaseNotes = async (fromVersion, toVersion, owner, repo) => {
               try {
                 // Fetch all releases
@@ -264,18 +266,16 @@ jobs:
               releaseNotes += '\n### 🛠️ Native Dependency Updates\n\n';
               if (hasAndroidUpdate) {
                 releaseNotes += `- Update Android SDK from ${androidFrom} to ${androidTo}\n`;
-                releaseNotes += await fetchNativeSDKReleaseNotes(androidFrom, androidTo, 'OneSignal', 'OneSignal-Android-SDK');
+                const androidNotes = await fetchNativeSDKReleaseNotes(androidFrom, androidTo, 'OneSignal', 'OneSignal-Android-SDK');
+                releaseNotes += stripLinearIssueIds(androidNotes);
               }
               if (hasIosUpdate) {
                 releaseNotes += `- Update iOS SDK from ${iosFrom} to ${iosTo}\n`;
-                releaseNotes += await fetchNativeSDKReleaseNotes(iosFrom, iosTo, 'OneSignal', 'OneSignal-iOS-SDK');
+                const iosNotes = await fetchNativeSDKReleaseNotes(iosFrom, iosTo, 'OneSignal', 'OneSignal-iOS-SDK');
+                releaseNotes += stripLinearIssueIds(iosNotes);
               }
               releaseNotes += '\n';
             }
-
-            // Strip Linear issue IDs; Linear magic words (fix, resolve, etc.) would
-            // otherwise link this release PR to the issues and churn their status
-            releaseNotes = releaseNotes.replace(/\[SDK-\d+\]\s*|\bSDK-\d+\b\s*/g, '');
 
             core.setOutput('notes', releaseNotes);
 
@@ -304,6 +304,7 @@ jobs:
             const fs = require('fs');
             const existingBody = fs.readFileSync('existing_body.md', 'utf8');
             const newNotes = process.env.NEW_NOTES;
+            const stripLinearIssueIds = (text) => text.replace(/\[SDK-\d+\]\s*|\bSDK-\d+\b\s*/g, '');
 
             // Regex to extract a single SDK update entry (main bullet + sub-bullets)
             // Matches: "- Update {SDK} from X to Y\n" followed by any "  - " sub-bullets
@@ -325,8 +326,8 @@ jobs:
 
             // Build combined native deps section
             let combinedDeps = '';
-            if (finalAndroid) combinedDeps += finalAndroid;
-            if (finalIos) combinedDeps += finalIos;
+            if (finalAndroid) combinedDeps += stripLinearIssueIds(finalAndroid);
+            if (finalIos) combinedDeps += stripLinearIssueIds(finalIos);
 
             let mergedNotes = newNotes;
 
