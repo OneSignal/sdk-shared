@@ -4,6 +4,11 @@
 
 ## Setup
 
+**Quick start:** run `./bootstrap.sh` — it idempotently installs Appium + drivers,
+Vite+ (and the `vpx` symlink), test deps, and creates `.env` from the example.
+Then fill in your OneSignal credentials in `.env` and open a new shell so `vpx`
+is on `PATH`. The manual steps below are the same thing, broken out.
+
 1. **Clone the SDK repo** next to `sdk-shared` (or set `FLUTTER_DIR`):
 
    ```
@@ -33,11 +38,19 @@
    appium driver install uiautomator2  # Android
    ```
 
-4. **Install [Vite+](https://vite.plus)** (if not already) — it provides the `vpx` command the script uses to run WebdriverIO (the `vpx` symlink is created on `vp`'s first run):
+4. **Install [Vite+](https://vite.plus)** (if not already) — it provides the `vpx` command the script uses to run WebdriverIO:
 
    ```bash
    curl -fsSL https://vite.plus | bash
    ```
+
+   `vpx` is the `vp` binary under an argv[0] alias. If the installer doesn't create the symlink (seen on some versions), add it manually and open a new shell:
+
+   ```bash
+   ln -sf ../current/bin/vp ~/.vite-plus/bin/vpx
+   ```
+
+   > Note: the npm package `vite-plus` ships only `vp`/`oxfmt`/`oxlint` (no `vpx`). Use the official installer above; `./bootstrap.sh` handles the symlink for you.
 
 The script checks all of these up front and prints the exact install command for anything missing; `node_modules` in `appium/` is installed automatically on first run.
 
