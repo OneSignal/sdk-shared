@@ -729,6 +729,70 @@ EOF
   fi
 }
 
+prepare_unity_e2e_accessibility() {
+  local backup_dir manifest lockfile csc csc_meta
+  backup_dir=$(mktemp -d)
+  manifest="$DEMO_DIR/Packages/manifest.json"
+  lockfile="$DEMO_DIR/Packages/packages-lock.json"
+  csc="$DEMO_DIR/Assets/csc.rsp"
+  csc_meta="$csc.meta"
+
+  cp "$manifest" "$backup_dir/manifest.json"
+  if [[ -f "$lockfile" ]]; then
+    cp "$lockfile" "$backup_dir/packages-lock.json"
+  else
+    touch "$backup_dir/packages-lock.missing"
+  fi
+  if [[ -f "$csc" ]]; then
+    cp "$csc" "$backup_dir/csc.rsp"
+  else
+    touch "$backup_dir/csc.rsp.missing"
+  fi
+  if [[ -f "$csc_meta" ]]; then
+    cp "$csc_meta" "$backup_dir/csc.rsp.meta"
+  else
+    touch "$backup_dir/csc.rsp.meta.missing"
+  fi
+
+  python3 - "$manifest" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+manifest = json.loads(path.read_text())
+manifest["dependencies"]["com.unity.modules.accessibility"] = "1.0.0"
+path.write_text(json.dumps(manifest, indent=2) + "\n")
+PY
+  printf '%s\n' '-define:ONESIGNAL_E2E_ACCESSIBILITY' > "$csc"
+  printf '%s\n' "$backup_dir"
+}
+
+restore_unity_e2e_accessibility() {
+  local backup_dir="$1"
+  local lockfile="$DEMO_DIR/Packages/packages-lock.json"
+  local csc="$DEMO_DIR/Assets/csc.rsp"
+  local csc_meta="$csc.meta"
+
+  cp "$backup_dir/manifest.json" "$DEMO_DIR/Packages/manifest.json"
+  if [[ -f "$backup_dir/packages-lock.missing" ]]; then
+    rm -f "$lockfile"
+  else
+    cp "$backup_dir/packages-lock.json" "$lockfile"
+  fi
+  if [[ -f "$backup_dir/csc.rsp.missing" ]]; then
+    rm -f "$csc"
+  else
+    cp "$backup_dir/csc.rsp" "$csc"
+  fi
+  if [[ -f "$backup_dir/csc.rsp.meta.missing" ]]; then
+    rm -f "$csc_meta"
+  else
+    cp "$backup_dir/csc.rsp.meta" "$csc_meta"
+  fi
+  rm -rf "$backup_dir"
+}
+
 # Hash any source/asset/config file under the given roots that can affect the
 # compiled .app/.apk for a Unity build. Mirrors `dotnet_hash_paths` in spirit:
 # centralised so SDK and demo hashes stay in sync. Skips Unity-managed caches
@@ -837,6 +901,9 @@ build_unity_ios() {
 
   [[ -x "$UNITY_PATH" ]] || error "Unity Editor not found at $UNITY_PATH — set UNITY_PATH in .env"
 
+  local e2e_backup
+  e2e_backup=$(prepare_unity_e2e_accessibility)
+
   # Top-level skip: if neither the demo nor the SDK changed and the .app is
   # still on disk, both stages (Unity batchmode 5-10min + xcodebuild 1-2min)
   # would otherwise reproduce identical output. Skip the whole thing.
@@ -846,6 +913,7 @@ build_unity_ios() {
 
   local stamp="$DEMO_DIR/Build/.unity-build-ios-${UNITY_IOS_SIM_ARCH}.stamp"
   if unity_build_is_cached "$stamp" "$APP_PATH" "$demo_hash"; then
+    restore_unity_e2e_accessibility "$e2e_backup"
     info "Unity SDK + demo source unchanged, skipping iOS rebuild"
     info "App: $APP_PATH"
     return
@@ -857,9 +925,12 @@ build_unity_ios() {
   mkdir -p "$xcode_dir"
 
   info "Generating Xcode project from Unity (batchmode, log: $log)..."
-  if ! "$UNITY_PATH" -batchmode -nographics -quit -buildTarget iOS \
+  local unity_status=0
+  "$UNITY_PATH" -batchmode -nographics -quit -buildTarget iOS \
         -projectPath "$DEMO_DIR" -executeMethod BuildScript.BuildiOSSimulator \
-        -logFile "$log"; then
+        -logFile "$log" || unity_status=$?
+  restore_unity_e2e_accessibility "$e2e_backup"
+  if [[ $unity_status -ne 0 ]]; then
     unity_failure_hint "$log" >&2
     error "Unity batchmode build failed"
   fi
@@ -924,12 +995,16 @@ build_unity_android() {
 
   [[ -x "$UNITY_PATH" ]] || error "Unity Editor not found at $UNITY_PATH — set UNITY_PATH in .env"
 
+  local e2e_backup
+  e2e_backup=$(prepare_unity_e2e_accessibility)
+
   local sdk_hash demo_hash
   sdk_hash=$(unity_sdk_inputs_hash android)
   demo_hash=$(unity_demo_inputs_hash "$sdk_hash")
 
   local stamp="$DEMO_DIR/Build/.unity-build-android.stamp"
   if unity_build_is_cached "$stamp" "$APP_PATH" "$demo_hash"; then
+    restore_unity_e2e_accessibility "$e2e_backup"
     info "Unity SDK + demo source unchanged, skipping Android rebuild"
     info "App: $APP_PATH"
     return
@@ -939,9 +1014,12 @@ build_unity_android() {
   mkdir -p "$DEMO_DIR/Build/Android"
 
   info "Building APK from Unity (batchmode, log: $log)..."
-  if ! "$UNITY_PATH" -batchmode -nographics -quit -buildTarget Android \
+  local unity_status=0
+  "$UNITY_PATH" -batchmode -nographics -quit -buildTarget Android \
         -projectPath "$DEMO_DIR" -executeMethod BuildScript.BuildAndroidEmulator \
-        -logFile "$log"; then
+        -logFile "$log" || unity_status=$?
+  restore_unity_e2e_accessibility "$e2e_backup"
+  if [[ $unity_status -ne 0 ]]; then
     unity_failure_hint "$log" >&2
     error "Unity batchmode build failed"
   fi
