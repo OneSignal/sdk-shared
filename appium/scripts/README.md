@@ -56,6 +56,15 @@ The script checks all of these up front and prints the exact install command for
 
 > **CI vs local:** CI runs on BrowserStack (Node 24) without this script. Notification-dependent tests (in `02_push.spec.ts` and `12_activity.spec.ts`) are skipped on BrowserStack iOS via `isBrowserStackIos()` because BrowserStack requires an Enterprise Signing Certificate for those notification flows, which we don't have yet (temporary — they'll be re-enabled once signing support is available), so for now they only run locally. If your local Node is 26+, the script sets `WDIO_USE_NATIVE_FETCH=1` automatically.
 
+### Per-SDK prerequisites
+
+`bootstrap.sh` handles the shared tooling. Individual SDKs need a bit more the first time:
+
+- **All wrapper SDKs:** install the SDK repo's own deps once (`bun install` in the repo root). `build.sh` packs the SDK from source but does not install its deps.
+- **flutter:** enable Swift Package Manager once — `flutter config --enable-swift-package-manager`. Without it, `flutter build ios` falls back to CocoaPods, which fails on the prebuilt OneSignal XCFramework with `Multiple commands produce …/XCFrameworkIntermediates/…`.
+- **dotnet:** the demo targets **.NET 10**, so use the **official .NET 10 SDK** (Homebrew's `dotnet` can't install workloads), then `dotnet workload install maui`. iOS builds require **Xcode 26.6 / iOS 26.5 SDK** — run `xcodebuild -downloadPlatform iOS` to get the matching simulator runtime. On Apple Silicon, if the tarball SDK is killed with "Code Signature Invalid", ad-hoc re-sign it (`codesign --force --sign - …`).
+- **unity:** install the exact editor the demo pins — see `examples/demo/ProjectSettings/ProjectVersion.txt` (e.g. `6000.4.11f1`) — **with the iOS Build Support module**, and activate a Unity license (Unity Hub → Preferences → Licenses). On recent macOS, `brew install rsync`: Apple's bundled `openrsync` fails the Unity XCFramework dSYM copy during the Xcode build.
+
 ## Usage
 
 ```bash
@@ -69,7 +78,7 @@ If `--platform` or `--sdk` are not provided, the script prompts interactively.
 | Flag            | Description                                                 |
 | --------------- | ----------------------------------------------------------- |
 | `--platform=P`  | `ios` or `android`                                          |
-| `--sdk=S`       | `flutter` or `react-native`                                 |
+| `--sdk=S`       | `flutter`, `react-native`, `cordova`, `capacitor`, `expo`, `dotnet`, `unity`, `android`, `ios` |
 | `--spec=GLOB`   | Spec file glob (default: `tests/specs/**/*.spec.ts`)        |
 | `--skip`        | Skip build, device launch, and app reset (rerun tests only) |
 | `--skip-build`  | Skip app build (reuse existing `.app`/`.apk`)               |
@@ -116,6 +125,22 @@ Skip only the build (simulator + reset still happen):
 ./run-local.sh --platform=ios --sdk=flutter --skip-build
 ```
 
+## Running all combos (`run-all.sh`)
+
+`run-all.sh` loops `run-local.sh` over every SDK/platform combo and prints a PASS/FAIL summary.
+
+```bash
+./run-all.sh                              # every combo, both platforms
+./run-all.sh --platform=ios               # iOS only
+./run-all.sh --sdks=flutter,react-native  # subset of SDKs
+./run-all.sh --releases                   # check out the latest release point per repo first
+./run-all.sh --bail                       # stop after the first failing combo
+```
+
+`--releases` runs `checkout-releases.sh`, which checks out the newest stable `rel/X.Y.Z` branch (or newest semver tag for expo/ios) in each SDK repo, honoring the `*_DIR` overrides from `.env`. Repos with uncommitted changes are skipped, never clobbered.
+
+> Within each combo the specs still **bail on the first failing test** locally (`mochaOpts.bail = isLocal`), so one early failure hides the specs after it.
+
 ### Environment Variables
 
 All env vars can be set in `.env` or exported in your shell. See [`.env.example`](.env.example) for the full list.
@@ -125,6 +150,15 @@ All env vars can be set in `.env` or exported in your shell. See [`.env.example`
 | `ONESIGNAL_APP_ID`  | --                                 | OneSignal app ID (written to demo app `.env`) |
 | `ONESIGNAL_API_KEY` | --                                 | OneSignal REST API key                        |
 | `FLUTTER_DIR`       | `../../OneSignal-Flutter-SDK`      | Path to the Flutter SDK repo                  |
+| `RN_DIR`            | `../../react-native-onesignal`    | React Native SDK repo                         |
+| `CORDOVA_DIR`       | `../../OneSignal-Cordova-SDK`      | Cordova SDK repo                              |
+| `CAPACITOR_DIR`     | `../../OneSignal-Capacitor-SDK`    | Capacitor SDK repo                           |
+| `EXPO_DIR`          | `../../onesignal-expo-plugin`      | Expo plugin repo                             |
+| `DOTNET_DIR`        | `../../DotNet/OneSignal-DotNet-SDK`| .NET MAUI SDK repo                           |
+| `UNITY_DIR`         | `../../OneSignal-Unity-SDK`        | Unity SDK repo                               |
+| `ANDROID_DIR`       | `../../OneSignal-Android-SDK`      | Native Android SDK repo                      |
+| `IOS_DIR`           | `../../OneSignal-iOS-SDK`          | Native iOS SDK repo                          |
+| `UNITY_PATH`        | Unity Hub editor path             | Unity Editor binary (unity builds)           |
 | `APP_PATH`          | auto-detected from build           | Path to `.app` or `.apk`                      |
 | `BUNDLE_ID`         | `com.onesignal.example`            | App bundle/package ID                         |
 | `DEVICE`            | `iPhone 17` / `Samsung Galaxy S26` | Device name for WebdriverIO                   |
@@ -147,10 +181,14 @@ All env vars can be set in `.env` or exported in your shell. See [`.env.example`
 
 - **Appium fails to start**: Make sure Appium and the required drivers are installed (`appium driver list --installed`). The script checks both up front and prints the install command for anything missing.
 
-- **`vpx: command not found`**: Install [Vite+](https://vite.plus) with `curl -fsSL https://vite.plus | bash`. If `vp` is installed but `vpx` is missing, run `vp --version` once — `vp` creates the `vpx` symlink on its first run.
+- **`vpx: command not found`**: Run `./bootstrap.sh` (installs Vite+ and creates the `vpx` symlink), or install manually with `curl -fsSL https://vite.plus | bash`. The installer sometimes omits the `vpx` symlink — if `vp` exists but `vpx` doesn't, create it and open a new shell: `ln -sf ../current/bin/vp ~/.vite-plus/bin/vpx`. (The npm `vite-plus` package ships no `vpx`.)
 
 - **`UND_ERR_INVALID_ARG` / fetch errors on Node 26+**: webdriverio's undici dispatcher is rejected by Node 26+'s `fetch`. The script exports `WDIO_USE_NATIVE_FETCH=1` automatically when it detects Node 26+; if you invoke `vpx wdio run` manually, export it yourself.
 
 - **Test waiting for the notification permission alert fails**: A reused simulator remembers a previously-decided notification permission, and `simctl privacy` can't reset it. The script's app reset uninstalls the app, which restores the prompt — avoid `--skip`/`--skip-reset` when running the push specs.
 
 - **Misleading "element not displayed" failures**: Live in-app marketing campaigns on the configured app can cover the UI. Use the OneSignal app dedicated to Appium tests (set `ONESIGNAL_APP_ID`/`ONESIGNAL_API_KEY` in `.env`) rather than a general or shared app.
+
+- **Only a few specs ran before the suite stopped**: Local runs bail on the first failing test (`mochaOpts.bail = isLocal`), so one early failure masks the specs after it. Use `--spec` to isolate a spec, or fix the first failure and re-run.
+
+- **Image-notification / Live-Activity tests fail locally**: The `02_push` image test and `12_activity` are skipped on BrowserStack and only run locally, so they need manual attention. The image test's attachment check can be too short for the simulator (rich media downloads slower than the wait), so it may flake — confirm manually by sending the notification and long-pressing the banner to see the attached image.
