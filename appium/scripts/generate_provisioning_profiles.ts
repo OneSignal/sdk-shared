@@ -27,7 +27,7 @@
  * Usage
  * -----
  *   ASC_KEY_ID=... ASC_ISSUER_ID=... ASC_KEY_FILE=$HOME/Documents/AuthKey_XXX.p8 \
- *     bun appium/scripts/generate_certs.ts
+ *     bun appium/scripts/generate_provisioning_profiles.ts
  */
 
 import { createPrivateKey, sign } from 'node:crypto';
