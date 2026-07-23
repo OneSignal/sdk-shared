@@ -179,10 +179,10 @@ USAGE
           (check what's installed with: appium driver list --installed)"
 
     if ! command -v vpx >/dev/null 2>&1; then
-      if command -v vp >/dev/null 2>&1; then
-        error "vpx not found on PATH. Vite+ creates the vpx symlink on vp's first run — run 'vp --version' once, or reinstall: curl -fsSL https://vite.plus | bash"
+      if [[ -x "$HOME/.vite-plus/current/bin/vp" ]]; then
+        error "vpx not found on PATH, but Vite+ is installed — the vpx symlink is missing or ~/.vite-plus/bin isn't on PATH. Run $SCRIPT_DIR/bootstrap.sh (or: ln -sf ../current/bin/vp ~/.vite-plus/bin/vpx && open a new shell / source ~/.vite-plus/env)."
       fi
-      error "vpx not found on PATH. Install Vite+ with: curl -fsSL https://vite.plus | bash"
+      error "vpx not found on PATH. Run $SCRIPT_DIR/bootstrap.sh (installs Vite+ and creates the vpx symlink), or install manually: curl -fsSL https://vite.plus | bash"
     fi
 
     if [[ ! -d "$APPIUM_DIR/node_modules" ]]; then
