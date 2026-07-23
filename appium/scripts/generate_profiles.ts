@@ -2,12 +2,11 @@
 /**
  * Create (or regenerate) iOS Development provisioning profiles for the OneSignal
  * demo app (main target, Notification Service Extension, Live Activity widget)
- * via the App Store Connect API. It does not create signing certificates.
+ * via the App Store Connect API.
  *
  * Idempotent: if a profile with the target name already exists, it is deleted
  * and recreated with all currently registered dev certs + enabled iOS devices.
- * Re-run after registering a device, rotating a signing certificate, or when
- * Apple's one-year profile validity expires.
+ * Re-run whenever you register a new device or rotate a signing cert.
  *
  * Prerequisites
  * -------------
