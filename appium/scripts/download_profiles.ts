@@ -209,7 +209,7 @@ async function main(): Promise<void> {
     if (!profile) {
       throw new Error(
         `No ACTIVE ${PROFILE_TYPE} profile found for bundle ID ${bundleId}. ` +
-          `Run generate_certs.ts (or create one in the developer portal) and retry.`,
+          `Run generate_profiles.ts (or create one in the developer portal) and retry.`,
       );
     }
 

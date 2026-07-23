@@ -2,11 +2,12 @@
 /**
  * Create (or regenerate) iOS Development provisioning profiles for the OneSignal
  * demo app (main target, Notification Service Extension, Live Activity widget)
- * via the App Store Connect API.
+ * via the App Store Connect API. It does not create signing certificates.
  *
  * Idempotent: if a profile with the target name already exists, it is deleted
  * and recreated with all currently registered dev certs + enabled iOS devices.
- * Re-run whenever you register a new device or rotate a signing cert.
+ * Re-run after registering a device, rotating a signing certificate, or when
+ * Apple's one-year profile validity expires.
  *
  * Prerequisites
  * -------------
@@ -27,7 +28,7 @@
  * Usage
  * -----
  *   ASC_KEY_ID=... ASC_ISSUER_ID=... ASC_KEY_FILE=$HOME/Documents/AuthKey_XXX.p8 \
- *     bun appium/scripts/generate_certs.ts
+ *     bun appium/scripts/generate_profiles.ts
  */
 
 import { createPrivateKey, sign } from 'node:crypto';
