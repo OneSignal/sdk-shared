@@ -1,0 +1,111 @@
+name: 'Determine Next Version'
+description: 'Determine the next semantic version from merged pull request titles'
+
+inputs:
+  github-token:
+    description: GitHub token used to read tags and pull requests
+    required: true
+  target-repo:
+    description: Repository containing the releases and pull requests
+    required: true
+  target-branch:
+    description: Branch receiving release pull requests
+    required: false
+    default: main
+  tag-prefix:
+    description: Prefix used by version tags, such as "v"
+    required: false
+    default: ''
+
+outputs:
+  version:
+    description: The next semantic version without the tag prefix
+    value: ${{ steps.release.outputs.version }}
+  previous-version:
+    description: The latest stable semantic version
+    value: ${{ steps.release.outputs.previous-version }}
+  bump:
+    description: The detected semantic version bump
+    value: ${{ steps.release.outputs.bump }}
+
+runs:
+  using: composite
+  steps:
+    - name: Determine release type
+      id: release
+      uses: actions/github-script@v9
+      env:
+        TARGET_REPO: ${{ inputs.target-repo }}
+        TARGET_BRANCH: ${{ inputs.target-branch }}
+        TAG_PREFIX: ${{ inputs.tag-prefix }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const [owner, repo] = process.env.TARGET_REPO.split('/');
+          const prefix = process.env.TAG_PREFIX;
+          const tags = await github.paginate(github.rest.repos.listTags, {
+            owner,
+            repo,
+            per_page: 100,
+          });
+          const latestTag = tags.find(({ name }) => {
+            const version = prefix && name.startsWith(prefix)
+              ? name.slice(prefix.length)
+              : name;
+            return (!prefix || name.startsWith(prefix)) &&
+              /^\d+\.\d+\.\d+$/.test(version);
+          });
+
+          if (!latestTag) {
+            core.setFailed('Could not find a stable semantic version tag');
+            return;
+          }
+
+          const previousVersion = latestTag.name.slice(prefix.length);
+          const { data: commit } = await github.rest.repos.getCommit({
+            owner,
+            repo,
+            ref: latestTag.name,
+          });
+          const releasedAt = commit.commit.committer.date;
+          const query = [
+            `repo:${owner}/${repo}`,
+            'is:pr',
+            'is:merged',
+            `base:${process.env.TARGET_BRANCH}`,
+            `merged:>=${releasedAt.slice(0, 10)}`,
+          ].join(' ');
+          const mergedPulls = await github.paginate(
+            github.rest.search.issuesAndPullRequests,
+            { q: query, per_page: 100 },
+          );
+          const titles = mergedPulls
+            .filter(({ pull_request: pull }) =>
+              pull?.merged_at && new Date(pull.merged_at) > new Date(releasedAt))
+            .map(({ title }) => title.trim());
+
+          const matches = pattern => titles.some(title => pattern.test(title));
+          const bump = matches(/^[\w-]+(?:\([^)]+\))?!:/i) ? 'major'
+            : matches(/^feat(?:\([^)]+\))?:/i) ? 'minor'
+            : matches(/^(?:fix|perf)(?:\([^)]+\))?:/i) ? 'patch'
+            : null;
+
+          if (!bump) {
+            core.setFailed(`No releasable pull requests found after ${latestTag.name}`);
+            return;
+          }
+
+          const [major, minor, patch] = previousVersion.split('.').map(Number);
+          const nextVersion = {
+            major: `${major + 1}.0.0`,
+            minor: `${major}.${minor + 1}.0`,
+            patch: `${major}.${minor}.${patch + 1}`,
+          }[bump];
+
+          core.info(
+            `Determined ${bump} release ${previousVersion} → ${nextVersion} ` +
+            `from ${titles.length} merged pull requests`,
+          );
+          core.setOutput('version', nextVersion);
+          core.setOutput('previous-version', previousVersion);
+          core.setOutput('bump', bump);
