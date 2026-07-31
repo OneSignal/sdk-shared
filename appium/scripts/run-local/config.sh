@@ -11,6 +11,7 @@ configure_runner() {
   SPEC=""
   QUIET=false
   PODS_DEMO=false
+  RELEASE=false
   ANDROID_CHANNEL_ID=7ec2ece9-c538-4656-9516-1316f48a005c
   IOS_REAL_DEVICE=false
   UDID="${UDID:-}"
@@ -31,6 +32,7 @@ configure_runner() {
       --skip-device)    SKIP_DEVICE=true ;;
       --skip-reset)     SKIP_RESET=true ;;
       --pods)           PODS_DEMO=true ;;
+      --release)        RELEASE=true ;;
       --spec=*)         SPEC="${arg#--spec=}" ;;
       --quiet|-q)       QUIET=true ;;
       --help|-h)
@@ -62,6 +64,7 @@ Options:
   --skip-reset        Keep existing app data
   --pods              Use examples/demo-pods instead of examples/demo for
                       flutter, cordova, and capacitor SDKs
+  --release           Check out the latest release point in each SDK repo first
   --device-real       Build & run against a physical iPhone (requires --udid
                       and XCODE_TEAM_ID). Implies --skip-device. iOS only.
                       Supported SDKs: cordova, capacitor, react-native, expo.
@@ -115,6 +118,10 @@ USAGE
       *) warn "Unknown option: $arg (ignored)" ;;
     esac
   done
+
+  if [[ "$RELEASE" == true ]]; then
+    "$SCRIPT_DIR/checkout-releases.sh"
+  fi
 
   # Ensure values set via CLI flags propagate to wdio (which reads them as env).
   export APPIUM_PORT

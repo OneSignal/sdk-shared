@@ -133,11 +133,11 @@ Skip only the build (simulator + reset still happen):
 ./run-all.sh                              # every combo, both platforms
 ./run-all.sh --platform=ios               # iOS only
 ./run-all.sh --sdks=flutter,react-native  # subset of SDKs
-./run-all.sh --releases                   # check out the latest release point per repo first
+./run-all.sh --release                    # check out the latest release point per repo first
 ./run-all.sh --bail                       # stop after the first failing combo
 ```
 
-`--releases` runs `checkout-releases.sh`, which checks out the newest stable `rel/X.Y.Z` branch (or newest semver tag for expo/ios) in each SDK repo, honoring the `*_DIR` overrides from `.env`. Repos with uncommitted changes are skipped, never clobbered.
+`--release` is available on both `run-all.sh` and `run-local.sh`. It runs `checkout-releases.sh`, which checks out the newest stable `rel/X.Y.Z` branch (or newest semver tag for expo/ios) in each SDK repo, honoring the `*_DIR` overrides from `.env`. Repos with uncommitted changes are skipped, never clobbered.
 
 > Within each combo the specs still **bail on the first failing test** locally (`mochaOpts.bail = isLocal`), so one early failure hides the specs after it.
 

@@ -22,15 +22,15 @@ PLATFORM_FILTER=""
 SDKS_FILTER=""
 BAIL=0
 PODS_REQUESTED=0
-RELEASES=0
+RELEASE=0
 for arg in "$@"; do
   case "$arg" in
     --skip-build|--skip-device|--skip-reset|--skip|--quiet|-q)
       EXTRA_ARGS+=("$arg") ;;
     --pods)
       PODS_REQUESTED=1 ;;
-    --releases)
-      RELEASES=1 ;;
+    --release)
+      RELEASE=1 ;;
     --spec=*)
       EXTRA_ARGS+=("$arg") ;;
     --platform=ios|--platform=android)
@@ -59,7 +59,7 @@ Options:
                            Note: 'android' (native) skips --platform=ios and
                                  'ios' (native) skips --platform=android.
   --bail                   Stop after the first failing combo
-  --releases               Check out the latest release point in each SDK repo
+  --release                Check out the latest release point in each SDK repo
                            first (runs checkout-releases.sh; honors *_DIR from
                            .env). Skips repos with uncommitted changes.
 
@@ -117,7 +117,7 @@ if (( PODS_REQUESTED )); then
   fi
 fi
 
-if (( RELEASES )); then
+if (( RELEASE )); then
   echo -e "${BOLD}━━━ Checking out latest releases ━━━${NC}"
   if ! "$SCRIPT_DIR/checkout-releases.sh"; then
     error "checkout-releases.sh failed; aborting before running combos"
