@@ -64,7 +64,7 @@ Options:
   --skip-reset        Keep existing app data
   --pods              Use examples/demo-pods instead of examples/demo for
                       flutter, cordova, and capacitor SDKs
-  --release           Check out the latest release point in each SDK repo first
+  --release           Check out the latest release point for the selected SDK
   --device-real       Build & run against a physical iPhone (requires --udid
                       and XCODE_TEAM_ID). Implies --skip-device. iOS only.
                       Supported SDKs: cordova, capacitor, react-native, expo.
@@ -119,10 +119,6 @@ USAGE
     esac
   done
 
-  if [[ "$RELEASE" == true ]]; then
-    "$SCRIPT_DIR/checkout-releases.sh"
-  fi
-
   # Ensure values set via CLI flags propagate to wdio (which reads them as env).
   export APPIUM_PORT
   [[ -n "$WDA_LOCAL_PORT" ]] && export WDA_LOCAL_PORT
@@ -160,6 +156,10 @@ USAGE
   if [[ "$SDK_TYPE" == "ios" && "$PLATFORM" != "ios" ]]; then
     warn "--sdk=ios only runs on --platform=ios; skipping --platform=$PLATFORM"
     exit 0
+  fi
+
+  if [[ "$RELEASE" == true ]]; then
+    "$SCRIPT_DIR/checkout-releases.sh" "$SDK_TYPE"
   fi
 
   if [[ "$PODS_DEMO" == true ]]; then

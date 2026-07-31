@@ -59,9 +59,9 @@ Options:
                            Note: 'android' (native) skips --platform=ios and
                                  'ios' (native) skips --platform=android.
   --bail                   Stop after the first failing combo
-  --release                Check out the latest release point in each SDK repo
-                           first (runs checkout-releases.sh; honors *_DIR from
-                           .env). Skips repos with uncommitted changes.
+  --release                Check out the latest release point for the selected
+                           SDK repos first (honors *_DIR from .env). Skips repos
+                           with uncommitted changes.
 
 Options forwarded to run-local.sh:
   --skip-build     Skip per-app build (reuse existing artifact)
@@ -119,7 +119,7 @@ fi
 
 if (( RELEASE )); then
   echo -e "${BOLD}━━━ Checking out latest releases ━━━${NC}"
-  if ! "$SCRIPT_DIR/checkout-releases.sh"; then
+  if ! "$SCRIPT_DIR/checkout-releases.sh" "${SDKS[@]}"; then
     error "checkout-releases.sh failed; aborting before running combos"
     exit 1
   fi
