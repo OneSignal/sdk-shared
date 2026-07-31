@@ -85,6 +85,7 @@ If `--platform` or `--sdk` are not provided, the script prompts interactively.
 | `--skip-device` | Skip simulator/emulator launch                              |
 | `--skip-reset`  | Keep existing app data between runs                         |
 | `--pods`        | Use `examples/demo-pods` for Flutter, Cordova, and Capacitor |
+| `--release`     | Check out the latest release point in each SDK repo first    |
 | `-h, --help`    | Show help                                                   |
 
 ### Examples
@@ -93,6 +94,12 @@ Run all tests (full build + fresh install):
 
 ```bash
 ./run-local.sh --platform=ios --sdk=flutter
+```
+
+Run against the latest SDK release points:
+
+```bash
+./run-local.sh --platform=ios --sdk=flutter --release
 ```
 
 Run a single spec file:

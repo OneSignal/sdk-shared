@@ -45,6 +45,9 @@ Quick start:
 cd scripts
 cp .env.example .env   # add the OneSignal app dedicated to Appium tests
 ./run-local.sh --platform=ios --sdk=flutter
+
+# Check out the latest SDK release points before running
+./run-local.sh --platform=ios --sdk=flutter --release
 ```
 
 ## Test Specs
