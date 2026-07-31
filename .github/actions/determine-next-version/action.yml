@@ -1,0 +1,195 @@
+name: 'Determine Next Version'
+description: 'Determine the next semantic version since the latest stable GitHub release'
+
+inputs:
+  github-token:
+    description: GitHub token used to read releases, tags, commits, and pull requests
+    required: true
+  target-repo:
+    description: Repository containing the releases and pull requests
+    required: true
+  target-branch:
+    description: Branch receiving release pull requests
+    required: false
+    default: main
+  tag-prefix:
+    description: Optional accepted prefix for version tags, such as "v"
+    required: false
+    default: ''
+
+outputs:
+  version:
+    description: The next semantic version without the tag prefix
+    value: ${{ steps.release.outputs.version }}
+  previous-version:
+    description: The latest stable released semantic version
+    value: ${{ steps.release.outputs.previous-version }}
+  bump:
+    description: The detected semantic version bump
+    value: ${{ steps.release.outputs.bump }}
+  release-needed:
+    description: Whether merged pull requests require a release
+    value: ${{ steps.release.outputs.release-needed }}
+
+runs:
+  using: composite
+  steps:
+    - name: Determine release type
+      id: release
+      uses: actions/github-script@v9
+      env:
+        TARGET_REPO: ${{ inputs.target-repo }}
+        TARGET_BRANCH: ${{ inputs.target-branch }}
+        TAG_PREFIX: ${{ inputs.tag-prefix }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const [owner, repo] = process.env.TARGET_REPO.split('/');
+          const branch = process.env.TARGET_BRANCH;
+          const prefix = process.env.TAG_PREFIX;
+          const parseVersion = name => {
+            const version = prefix && name.startsWith(prefix)
+              ? name.slice(prefix.length)
+              : name;
+            return /^\d+\.\d+\.\d+$/.test(version) ? version : null;
+          };
+          const compareVersions = (left, right) => {
+            const leftParts = left.split('.').map(Number);
+            const rightParts = right.split('.').map(Number);
+            for (let index = 0; index < leftParts.length; index++) {
+              if (leftParts[index] !== rightParts[index]) {
+                return leftParts[index] - rightParts[index];
+              }
+            }
+            return 0;
+          };
+
+          const [releases, tags] = await Promise.all([
+            github.paginate(github.rest.repos.listReleases, {
+              owner,
+              repo,
+              per_page: 100,
+            }),
+            github.paginate(github.rest.repos.listTags, {
+              owner,
+              repo,
+              per_page: 100,
+            }),
+          ]);
+          const releaseTagNames = new Set(
+            releases
+              .filter(release => !release.draft && !release.prerelease)
+              .map(release => release.tag_name),
+          );
+
+          const tagsByCommit = new Map();
+          for (const tag of tags) {
+            if (!releaseTagNames.has(tag.name)) continue;
+
+            const version = parseVersion(tag.name);
+            if (!version) continue;
+
+            const commitTags = tagsByCommit.get(tag.commit.sha) || [];
+            commitTags.push({ name: tag.name, version });
+            tagsByCommit.set(tag.commit.sha, commitTags);
+          }
+
+          let latestTag = null;
+          let tagPage = 1;
+          while (!latestTag) {
+            const { data: branchCommits } = await github.rest.repos.listCommits({
+              owner,
+              repo,
+              sha: branch,
+              per_page: 100,
+              page: tagPage,
+            });
+            if (branchCommits.length === 0) break;
+
+            for (const commit of branchCommits) {
+              const commitTags = tagsByCommit.get(commit.sha);
+              if (!commitTags) continue;
+
+              latestTag = commitTags.reduce((latest, candidate) =>
+                compareVersions(candidate.version, latest.version) > 0
+                  ? candidate
+                  : latest);
+              break;
+            }
+            tagPage++;
+          }
+
+          if (!latestTag) {
+            core.setFailed(
+              `Could not find a stable GitHub release tag on ${branch}`,
+            );
+            return;
+          }
+
+          const commits = [];
+          let page = 1;
+          let totalCommits;
+          do {
+            const { data: comparison } =
+              await github.rest.repos.compareCommitsWithBasehead({
+                owner,
+                repo,
+                basehead: `${latestTag.name}...${branch}`,
+                per_page: 100,
+                page,
+              });
+            commits.push(...comparison.commits);
+            totalCommits = comparison.total_commits;
+            page++;
+          } while (commits.length < totalCommits);
+
+          const mergedPulls = new Map();
+          for (const commit of commits) {
+            const pulls = await github.paginate(
+              github.rest.repos.listPullRequestsAssociatedWithCommit,
+              {
+                owner,
+                repo,
+                commit_sha: commit.sha,
+                per_page: 100,
+              },
+            );
+            for (const pull of pulls) {
+              if (pull.merged_at && pull.base.ref === branch) {
+                mergedPulls.set(pull.number, pull);
+              }
+            }
+          }
+          const titles = [...mergedPulls.values()]
+            .map(({ title }) => title.trim());
+
+          const matches = pattern => titles.some(title => pattern.test(title));
+          const bump = matches(/^[\w-]+(?:\([^)]+\))?!:/i) ? 'major'
+            : matches(/^feat(?:\([^)]+\))?:/i) ? 'minor'
+            : matches(/^(?:fix|perf)(?:\([^)]+\))?:/i) ? 'patch'
+            : null;
+
+          core.setOutput('previous-version', latestTag.version);
+          if (!bump) {
+            core.info(
+              `No releasable pull requests found after ${latestTag.name}`,
+            );
+            core.setOutput('release-needed', 'false');
+            return;
+          }
+
+          const previousVersion = latestTag.version;
+          const [major, minor, patch] = previousVersion.split('.').map(Number);
+          const nextVersion = {
+            major: `${major + 1}.0.0`,
+            minor: `${major}.${minor + 1}.0`,
+            patch: `${major}.${minor}.${patch + 1}`,
+          }[bump];
+
+          core.info(
+            `Determined ${bump} release ${previousVersion} → ${nextVersion} ` +
+            `from ${titles.length} merged pull requests`,
+          );
+          core.setOutput('version', nextVersion);
+          core.setOutput('bump', bump);
+          core.setOutput('release-needed', 'true');
