@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Check out the latest stable release point in each downstream SDK repo.
+# Check out the latest stable release point for the requested downstream SDKs.
 #   - rel-branch repos: newest stable rel/X.Y.Z branch (betas + non-semver excluded)
 #   - tag-only repos (expo, ios): newest semver tag (detached HEAD)
+# Pass SDK names as arguments; omitting them checks out every SDK.
 # Repo paths honor the same *_DIR overrides as run-local.sh (loaded from .env),
 # falling back to the config.sh defaults under $SDK_ROOT.
 # Repos with uncommitted changes are skipped, never clobbered.
@@ -18,24 +19,45 @@ if [[ -f "$SCRIPT_DIR/.env" ]]; then
   set +a
 fi
 
-# var|default-subpath|kind  (kind: rel = latest rel/* branch, tag = latest semver tag)
+# sdk|var|default-subpath|kind  (kind: rel = latest rel/* branch, tag = latest semver tag)
 # Defaults mirror run-local/config.sh; override any via *_DIR in .env.
 REPOS=(
-  "FLUTTER_DIR|OneSignal-Flutter-SDK|rel"
-  "RN_DIR|react-native-onesignal|rel"
-  "CORDOVA_DIR|OneSignal-Cordova-SDK|rel"
-  "CAPACITOR_DIR|OneSignal-Capacitor-SDK|rel"
-  "DOTNET_DIR|DotNet/OneSignal-DotNet-SDK|rel"
-  "UNITY_DIR|OneSignal-Unity-SDK|rel"
-  "ANDROID_DIR|OneSignal-Android-SDK|rel"
-  "EXPO_DIR|onesignal-expo-plugin|tag"
-  "IOS_DIR|OneSignal-iOS-SDK|tag"
+  "flutter|FLUTTER_DIR|OneSignal-Flutter-SDK|rel"
+  "react-native|RN_DIR|react-native-onesignal|rel"
+  "cordova|CORDOVA_DIR|OneSignal-Cordova-SDK|rel"
+  "capacitor|CAPACITOR_DIR|OneSignal-Capacitor-SDK|rel"
+  "dotnet|DOTNET_DIR|DotNet/OneSignal-DotNet-SDK|rel"
+  "unity|UNITY_DIR|OneSignal-Unity-SDK|rel"
+  "android|ANDROID_DIR|OneSignal-Android-SDK|rel"
+  "expo|EXPO_DIR|onesignal-expo-plugin|tag"
+  "ios|IOS_DIR|OneSignal-iOS-SDK|tag"
 )
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 
+for selected in "$@"; do
+  case "$selected" in
+    flutter|react-native|cordova|capacitor|dotnet|unity|android|expo|ios) ;;
+    *)
+      echo -e "${RED}FAIL${NC}  Unknown SDK: $selected"
+      exit 2
+      ;;
+  esac
+done
+
 for entry in "${REPOS[@]}"; do
-  IFS='|' read -r var subpath kind <<< "$entry"
+  IFS='|' read -r sdk var subpath kind <<< "$entry"
+  if (( $# > 0 )); then
+    selected_sdk=false
+    for selected in "$@"; do
+      if [[ "$sdk" == "$selected" ]]; then
+        selected_sdk=true
+        break
+      fi
+    done
+    [[ "$selected_sdk" == true ]] || continue
+  fi
+
   p="${!var:-$SDK_ROOT/$subpath}"   # .env override wins, else default
   name="$(basename "$p")"
 
