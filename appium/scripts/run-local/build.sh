@@ -1,6 +1,37 @@
 #!/usr/bin/env bash
 
 # ── 1. Build app ─────────────────────────────────────────────────────────────
+ensure_flutter_swift_package_manager() {
+  # Without SPM, flutter build ios falls back to CocoaPods for onesignal_flutter
+  # and fails on the prebuilt OneSignal XCFramework (Multiple commands produce
+  # XCFrameworkIntermediates, or Podfile.lock vs podspec version skew).
+  if flutter config --list 2>/dev/null | grep -q 'enable-swift-package-manager: true'; then
+    return 0
+  fi
+  info "Enabling Flutter Swift Package Manager (required for OneSignal iOS builds)..."
+  flutter config --enable-swift-package-manager
+}
+
+sync_flutter_onesignal_xcframework_pod() {
+  # NSE/Widget extension targets still resolve OneSignalXCFramework via CocoaPods
+  # even when SPM owns the Flutter plugin. Podfile.lock often lags the podspec
+  # pin after an iOS SDK bump (e.g. 5.4.1 lock vs 5.5.0 podspec).
+  local lock="$DEMO_DIR/ios/Podfile.lock"
+  local podspec="$FLUTTER_DIR/ios/onesignal_flutter.podspec"
+  [[ -f "$lock" && -f "$podspec" ]] || return 0
+
+  local locked wanted
+  locked="$(awk '/^- OneSignalXCFramework \(/ {
+    if (match($0, /[0-9]+\.[0-9]+\.[0-9]+/)) { print substr($0, RSTART, RLENGTH); exit }
+  }' "$lock" 2>/dev/null || true)"
+  wanted="$(awk -F"'" '/OneSignalXCFramework/ { print $4; exit }' "$podspec" 2>/dev/null || true)"
+
+  [[ -n "$locked" && -n "$wanted" && "$locked" != "$wanted" ]] || return 0
+
+  info "Updating OneSignalXCFramework CocoaPods pin ($locked -> $wanted)..."
+  (cd "$DEMO_DIR/ios" && pod update OneSignalXCFramework --repo-update)
+}
+
 build_flutter_ios() {
   if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
     info "Writing .env for demo app..."
@@ -12,11 +43,12 @@ EOF
     warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — skipping demo .env"
   fi
 
+  ensure_flutter_swift_package_manager
+
   info "Installing Flutter dependencies..."
   (cd "$FLUTTER_DIR" && flutter pub get)
 
-  # info "Installing CocoaPods..."
-  # (cd "$DEMO_DIR/ios" && pod install)
+  sync_flutter_onesignal_xcframework_pod
 
   info "Building debug .app for simulator (this may take a few minutes)..."
   (cd "$DEMO_DIR" && flutter build ios --simulator --debug)

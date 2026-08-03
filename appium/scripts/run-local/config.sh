@@ -185,6 +185,16 @@ USAGE
       || error "Appium driver '$driver' is not installed. Install it with: appium driver install $driver
           (check what's installed with: appium driver list --installed)"
 
+    # Vite+ installs into ~/.vite-plus/bin and updates shell rc files, but the
+    # current terminal (e.g. right after bootstrap.sh) may not have sourced
+    # ~/.vite-plus/env yet. Prepend the shim dir when the binary is present.
+    if ! command -v vpx >/dev/null 2>&1; then
+      local vp_bin="$HOME/.vite-plus/bin"
+      if [[ -x "$vp_bin/vpx" ]]; then
+        export PATH="$vp_bin:$PATH"
+        info "Added $vp_bin to PATH for this run (restart the shell or: source \"$HOME/.vite-plus/env\")."
+      fi
+    fi
     if ! command -v vpx >/dev/null 2>&1; then
       if [[ -x "$HOME/.vite-plus/current/bin/vp" ]]; then
         error "vpx not found on PATH, but Vite+ is installed — the vpx symlink is missing or ~/.vite-plus/bin isn't on PATH. Run $SCRIPT_DIR/bootstrap.sh (or: ln -sf ../current/bin/vp ~/.vite-plus/bin/vpx && open a new shell / source ~/.vite-plus/env)."
