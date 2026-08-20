@@ -84,22 +84,21 @@ for ver, rt, avail in sorted(runtimes, reverse=True):
     info "Falling back to '$IOS_SIMULATOR' (iOS $OS_VERSION, $udid). Set DEVICE / OS_VERSION / IOS_RUNTIME in $SCRIPT_DIR/.env to pin a different one."
   fi
 
-  if xcrun simctl list devices booted 2>/dev/null | grep -q "Booted"; then
-    info "Simulator already running"
+  # Keep every later step pinned to the simulator selected above. In
+  # particular, `booted` is ambiguous when multiple simulators are running.
+  UDID="$udid"
+
+  if xcrun simctl list devices booted 2>/dev/null | grep -q "$UDID"; then
+    info "Simulator already running ($UDID)"
     return
   fi
 
-  info "Booting simulator '$IOS_SIMULATOR' ($udid)..."
-  xcrun simctl boot "$udid" 2>/dev/null || true
+  info "Booting simulator '$IOS_SIMULATOR' ($UDID)..."
+  xcrun simctl boot "$UDID" 2>/dev/null || true
   open -a Simulator
 
   info "Waiting for simulator..."
-  local retries=0
-  while ! xcrun simctl list devices booted 2>/dev/null | grep -q "Booted"; do
-    retries=$((retries + 1))
-    [[ $retries -gt 60 ]] && error "Simulator failed to boot after 60s"
-    sleep 1
-  done
+  xcrun simctl bootstatus "$UDID" -b >/dev/null
   info "Simulator ready"
 }
 
