@@ -23,10 +23,13 @@ SDKS_FILTER=""
 BAIL=0
 PODS_REQUESTED=0
 RELEASE=0
+WIPE_EMULATOR=0
 for arg in "$@"; do
   case "$arg" in
     --skip-build|--skip-device|--skip-reset|--skip|--quiet|-q)
       EXTRA_ARGS+=("$arg") ;;
+    --wipe-emulator)
+      WIPE_EMULATOR=1 ;;
     --pods)
       PODS_REQUESTED=1 ;;
     --release)
@@ -68,6 +71,7 @@ Options forwarded to run-local.sh:
   --skip-device    Skip simulator/emulator launch
   --skip-reset     Keep existing app data
   --skip           Shortcut for --skip-build --skip-device --skip-reset
+  --wipe-emulator  Wipe the Android AVD before the first Android combo
   --pods           Use examples/demo-pods for flutter, cordova, capacitor
                    (ignored for other SDKs)
   --spec=GLOB      Spec glob to run (default: full suite, grouped into one session)
@@ -131,6 +135,7 @@ FAILED=0
 BAILED=0
 SKIPPED=0
 BAIL_OUT=0
+ANDROID_EMULATOR_WIPED=0
 
 for platform in "${PLATFORMS[@]}"; do
   for sdk in "${SDKS[@]}"; do
@@ -169,6 +174,10 @@ for platform in "${PLATFORMS[@]}"; do
       case "$sdk" in
         flutter|cordova|capacitor) combo_args+=(--pods) ;;
       esac
+    fi
+    if [[ "$platform" == "android" ]] && (( WIPE_EMULATOR )) && (( ! ANDROID_EMULATOR_WIPED )); then
+      combo_args+=(--wipe-emulator)
+      ANDROID_EMULATOR_WIPED=1
     fi
     if "$SCRIPT_DIR/run-local.sh" --platform="$platform" --sdk="$sdk" ${combo_args[@]+"${combo_args[@]}"}; then
       RESULTS+=("PASS  ${label}")

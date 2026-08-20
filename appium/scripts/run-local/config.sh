@@ -12,6 +12,7 @@ configure_runner() {
   QUIET=false
   PODS_DEMO=false
   RELEASE=false
+  WIPE_EMULATOR=false
   ANDROID_CHANNEL_ID=7ec2ece9-c538-4656-9516-1316f48a005c
   IOS_REAL_DEVICE=false
   UDID="${UDID:-}"
@@ -31,6 +32,7 @@ configure_runner() {
       --skip-build)     SKIP_BUILD=true ;;
       --skip-device)    SKIP_DEVICE=true ;;
       --skip-reset)     SKIP_RESET=true ;;
+      --wipe-emulator)  WIPE_EMULATOR=true ;;
       --pods)           PODS_DEMO=true ;;
       --release)        RELEASE=true ;;
       --spec=*)         SPEC="${arg#--spec=}" ;;
@@ -62,6 +64,8 @@ Options:
   --skip-build        Skip app build (reuse existing)
   --skip-device       Skip simulator/emulator launch
   --skip-reset        Keep existing app data
+  --wipe-emulator     Wipe the Android AVD before launch. Deletes all emulator
+                      apps and data; incompatible with --skip-device.
   --pods              Use examples/demo-pods instead of examples/demo for
                       flutter, cordova, and capacitor SDKs
   --release           Check out the latest release point for the selected SDK
@@ -142,6 +146,11 @@ USAGE
     ios|android) ;;
     *) error "PLATFORM must be 'ios' or 'android', got '$PLATFORM'" ;;
   esac
+
+  if [[ "$WIPE_EMULATOR" == true ]]; then
+    [[ "$PLATFORM" == "android" ]] || error "--wipe-emulator only supports --platform=android"
+    [[ "$SKIP_DEVICE" == false ]] || error "--wipe-emulator cannot be combined with --skip-device or --skip"
+  fi
 
   case "$SDK_TYPE" in
     flutter|react-native|cordova|capacitor|dotnet|expo|unity|android|ios) ;;

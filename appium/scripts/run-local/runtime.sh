@@ -103,6 +103,19 @@ for ver, rt, avail in sorted(runtimes, reverse=True):
 }
 
 start_android_emulator() {
+  if [[ "$WIPE_EMULATOR" == true ]] && adb devices 2>/dev/null | grep -q "emulator-.*device$"; then
+    info "Stopping the running emulator before wiping '$AVD_NAME'..."
+    adb -s emulator-5554 emu kill >/dev/null 2>&1 || true
+    local stop_elapsed=0
+    while adb devices 2>/dev/null | grep -q "emulator-"; do
+      sleep 1
+      stop_elapsed=$((stop_elapsed + 1))
+      if [[ $stop_elapsed -ge 30 ]]; then
+        error "Emulator did not stop after 30s; stop it manually and retry --wipe-emulator"
+      fi
+    done
+  fi
+
   if adb devices 2>/dev/null | grep -q "emulator-.*device$"; then
     info "Emulator already running"
     return
@@ -121,8 +134,13 @@ start_android_emulator() {
   info "Starting emulator '$AVD_NAME' (logs: $emulator_log)..."
   # Detach (`set -m` + `disown`) so Ctrl-C on the script doesn't SIGINT the
   # emulator, and so subsequent `--skip-device` runs can reuse the booted AVD.
+  local -a emulator_args=(-avd "$AVD_NAME" -no-audio -no-boot-anim)
+  if [[ "$WIPE_EMULATOR" == true ]]; then
+    info "Wiping emulator data before launch..."
+    emulator_args+=(-wipe-data)
+  fi
   set -m
-  emulator -avd "$AVD_NAME" -no-audio -no-boot-anim \
+  emulator "${emulator_args[@]}" \
     </dev/null >"$emulator_log" 2>&1 &
   disown %% 2>/dev/null || true
   set +m
@@ -140,6 +158,23 @@ start_android_emulator() {
     fi
   done
   info "Emulator booted"
+}
+
+check_android_storage() {
+  [[ "$PLATFORM" == "android" ]] || return 0
+
+  local minimum_kb=1048576
+  local available_kb
+  available_kb=$(adb -s emulator-5554 shell df -k /data 2>/dev/null | awk 'END {print $4}' | tr -d '\r')
+  [[ "$available_kb" =~ ^[0-9]+$ ]] || return 0
+  (( available_kb >= minimum_kb )) && return 0
+
+  warn "Android emulator has less than 1 GiB free; trimming app caches..."
+  adb -s emulator-5554 shell pm trim-caches 2G >/dev/null 2>&1 || true
+  available_kb=$(adb -s emulator-5554 shell df -k /data 2>/dev/null | awk 'END {print $4}' | tr -d '\r')
+  if [[ ! "$available_kb" =~ ^[0-9]+$ ]] || (( available_kb < minimum_kb )); then
+    error "Android emulator storage is too low for reliable APK installation. Re-run with --wipe-emulator (deletes all data in AVD '$AVD_NAME')."
+  fi
 }
 
 start_device() {
@@ -274,6 +309,7 @@ validate_existing_app() {
 prepare_runtime() {
   validate_existing_app
   start_device
+  check_android_storage
   install_chromedriver_if_needed
   start_appium
   cleanup_android_automation
