@@ -62,6 +62,7 @@ run_tests() {
     WDA_LOCAL_PORT="${WDA_LOCAL_PORT:-}" \
     SYSTEM_PORT="${SYSTEM_PORT:-}" \
     UDID="${UDID:-}" \
+    APPIUM_UDID="${ANDROID_UDID:-}" \
     XCODE_TEAM_ID="${XCODE_TEAM_ID:-}" \
     XCODE_SIGNING_ID="${XCODE_SIGNING_ID:-}" \
     vpx wdio run "${wdio_args[@]}"

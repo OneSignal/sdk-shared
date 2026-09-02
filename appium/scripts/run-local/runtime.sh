@@ -102,32 +102,48 @@ for ver, rt, avail in sorted(runtimes, reverse=True):
   info "Simulator ready"
 }
 
+find_android_emulator_udid() {
+  local serial state avd_name
+  while read -r serial state; do
+    [[ "$serial" == emulator-* && "$state" == "device" ]] || continue
+    avd_name=$(adb -s "$serial" emu avd name 2>/dev/null | head -1 | tr -d '\r')
+    if [[ "$avd_name" == "$AVD_NAME" ]]; then
+      echo "$serial"
+      return 0
+    fi
+  done < <(adb devices 2>/dev/null | awk 'NR > 1 && NF >= 2 {print $1, $2}')
+  return 1
+}
+
+pin_android_emulator() {
+  ANDROID_UDID="$1"
+  ANDROID_SERIAL="$ANDROID_UDID"
+  APPIUM_UDID="$ANDROID_UDID"
+  export ANDROID_UDID ANDROID_SERIAL APPIUM_UDID
+}
+
 start_android_emulator() {
-  if [[ "$WIPE_EMULATOR" == true ]] && adb devices 2>/dev/null | grep -q "emulator-.*device$"; then
-    info "Stopping the running emulator before wiping '$AVD_NAME'..."
-    adb -s emulator-5554 emu kill >/dev/null 2>&1 || true
+  local emulator_udid=""
+  emulator_udid=$(find_android_emulator_udid || true)
+
+  if [[ "$WIPE_EMULATOR" == true && -n "$emulator_udid" ]]; then
+    info "Stopping the running emulator '$AVD_NAME' ($emulator_udid) before wiping..."
+    adb -s "$emulator_udid" emu kill >/dev/null 2>&1 || true
     local stop_elapsed=0
-    while adb devices 2>/dev/null | grep -q "emulator-"; do
+    while adb devices 2>/dev/null | awk 'NR > 1 {print $1}' | grep -q "^${emulator_udid}$"; do
       sleep 1
       stop_elapsed=$((stop_elapsed + 1))
       if [[ $stop_elapsed -ge 30 ]]; then
         error "Emulator did not stop after 30s; stop it manually and retry --wipe-emulator"
       fi
     done
+    emulator_udid=""
   fi
 
-  if adb devices 2>/dev/null | grep -q "emulator-.*device$"; then
-    info "Emulator already running"
+  if [[ -n "$emulator_udid" ]]; then
+    pin_android_emulator "$emulator_udid"
+    info "Emulator '$AVD_NAME' already running ($ANDROID_UDID)"
     return
-  fi
-
-  # If a previous run left a wedged offline emulator, kill it so we can relaunch
-  # cleanly. Reconnecting an offline emulator almost never recovers it.
-  if adb devices 2>/dev/null | grep -q "emulator-.*offline"; then
-    warn "Killing stale offline emulator..."
-    adb -s emulator-5554 emu kill >/dev/null 2>&1 || true
-    pkill -9 -f "qemu-system-.*-avd ${AVD_NAME}" 2>/dev/null || true
-    sleep 2
   fi
 
   local emulator_log="/tmp/emulator-${AVD_NAME}.log"
@@ -148,7 +164,11 @@ start_android_emulator() {
   info "Waiting for emulator to boot..."
   local boot="" elapsed=0
   while [[ "$boot" != "1" ]]; do
-    boot=$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
+    emulator_udid=$(find_android_emulator_udid || true)
+    if [[ -n "$emulator_udid" ]]; then
+      pin_android_emulator "$emulator_udid"
+      boot=$(adb -s "$ANDROID_UDID" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
+    fi
     sleep 2
     elapsed=$((elapsed + 2))
     if [[ $elapsed -ge 240 ]]; then
@@ -157,7 +177,7 @@ start_android_emulator() {
       return 1
     fi
   done
-  info "Emulator booted"
+  info "Emulator '$AVD_NAME' booted ($ANDROID_UDID)"
 }
 
 check_android_storage() {
@@ -165,13 +185,13 @@ check_android_storage() {
 
   local minimum_kb=1048576
   local available_kb
-  available_kb=$(adb -s emulator-5554 shell df -k /data 2>/dev/null | awk 'END {print $4}' | tr -d '\r')
+  available_kb=$(adb -s "$ANDROID_UDID" shell df -k /data 2>/dev/null | awk 'END {print $4}' | tr -d '\r')
   [[ "$available_kb" =~ ^[0-9]+$ ]] || return 0
   (( available_kb >= minimum_kb )) && return 0
 
   warn "Android emulator has less than 1 GiB free; trimming app caches..."
-  adb -s emulator-5554 shell pm trim-caches 2G >/dev/null 2>&1 || true
-  available_kb=$(adb -s emulator-5554 shell df -k /data 2>/dev/null | awk 'END {print $4}' | tr -d '\r')
+  adb -s "$ANDROID_UDID" shell pm trim-caches 2G >/dev/null 2>&1 || true
+  available_kb=$(adb -s "$ANDROID_UDID" shell df -k /data 2>/dev/null | awk 'END {print $4}' | tr -d '\r')
   if [[ ! "$available_kb" =~ ^[0-9]+$ ]] || (( available_kb < minimum_kb )); then
     error "Android emulator storage is too low for reliable APK installation. Re-run with --wipe-emulator (deletes all data in AVD '$AVD_NAME')."
   fi
@@ -179,6 +199,13 @@ check_android_storage() {
 
 start_device() {
   if [[ "$SKIP_DEVICE" == true ]]; then
+    if [[ "$PLATFORM" == "android" ]]; then
+      local emulator_udid=""
+      emulator_udid=$(find_android_emulator_udid || true)
+      [[ -n "$emulator_udid" ]] \
+        || error "Android emulator '$AVD_NAME' is not running; remove --skip-device or start it first"
+      pin_android_emulator "$emulator_udid"
+    fi
     info "Skipping device launch (--skip-device)"
     return
   fi
@@ -246,11 +273,11 @@ start_appium() {
 # Clear stale UiAutomator2 state between Android combos without rebooting the emulator.
 cleanup_android_automation() {
   [[ "$PLATFORM" == "android" ]] || return 0
-  adb shell cmd statusbar collapse >/dev/null 2>&1 || true
-  adb shell input keyevent KEYCODE_BACK >/dev/null 2>&1 || true
-  adb shell input keyevent KEYCODE_HOME >/dev/null 2>&1 || true
-  adb shell am force-stop io.appium.uiautomator2.server >/dev/null 2>&1 || true
-  adb shell am force-stop io.appium.uiautomator2.server.test >/dev/null 2>&1 || true
+  adb -s "$ANDROID_UDID" shell cmd statusbar collapse >/dev/null 2>&1 || true
+  adb -s "$ANDROID_UDID" shell input keyevent KEYCODE_BACK >/dev/null 2>&1 || true
+  adb -s "$ANDROID_UDID" shell input keyevent KEYCODE_HOME >/dev/null 2>&1 || true
+  adb -s "$ANDROID_UDID" shell am force-stop io.appium.uiautomator2.server >/dev/null 2>&1 || true
+  adb -s "$ANDROID_UDID" shell am force-stop io.appium.uiautomator2.server.test >/dev/null 2>&1 || true
 }
 
 reset_app() {
@@ -287,11 +314,11 @@ reset_app() {
       info "No BUNDLE_ID set — skipping reset"
       return
     fi
-    adb shell bmgr wipe "$package" >/dev/null 2>&1 || true
-    if adb shell pm list packages 2>/dev/null | grep -q "$package"; then
-      info "Clearing and uninstalling $package..."
-      adb shell pm clear "$package" >/dev/null 2>&1 || true
-      adb uninstall "$package" 2>/dev/null || true
+    adb -s "$ANDROID_UDID" shell bmgr wipe "$package" >/dev/null 2>&1 || true
+    if adb -s "$ANDROID_UDID" shell pm list packages 2>/dev/null | grep -q "$package"; then
+      info "Clearing and uninstalling $package from $ANDROID_UDID..."
+      adb -s "$ANDROID_UDID" shell pm clear "$package" >/dev/null 2>&1 || true
+      adb -s "$ANDROID_UDID" uninstall "$package" 2>/dev/null || true
     else
       info "App not installed — nothing to reset"
     fi
