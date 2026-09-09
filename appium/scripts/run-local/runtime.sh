@@ -122,6 +122,31 @@ pin_android_emulator() {
   export ANDROID_UDID ANDROID_SERIAL APPIUM_UDID
 }
 
+wait_for_android_emulator() {
+  info "Waiting for emulator to boot..."
+  local emulator_udid="" boot="" elapsed=0
+  while true; do
+    emulator_udid=$(find_android_emulator_udid || true)
+    if [[ -n "$emulator_udid" ]]; then
+      pin_android_emulator "$emulator_udid"
+      boot=$(adb -s "$ANDROID_UDID" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
+      if [[ "$boot" == "1" ]] \
+        && adb -s "$ANDROID_UDID" shell service check settings 2>/dev/null | grep -q "Service settings: found" \
+        && adb -s "$ANDROID_UDID" shell service check package 2>/dev/null | grep -q "Service package: found"; then
+        info "Emulator '$AVD_NAME' ready ($ANDROID_UDID)"
+        return
+      fi
+    fi
+    sleep 2
+    elapsed=$((elapsed + 2))
+    if [[ $elapsed -ge 240 ]]; then
+      error "Emulator failed to become ready after 240s. The default_boot snapshot may be corrupt; try:"
+      error "  rm -rf ~/.android/avd/${AVD_NAME}.avd/snapshots/default_boot"
+      return 1
+    fi
+  done
+}
+
 start_android_emulator() {
   local emulator_udid=""
   emulator_udid=$(find_android_emulator_udid || true)
@@ -143,6 +168,7 @@ start_android_emulator() {
   if [[ -n "$emulator_udid" ]]; then
     pin_android_emulator "$emulator_udid"
     info "Emulator '$AVD_NAME' already running ($ANDROID_UDID)"
+    wait_for_android_emulator
     return
   fi
 
@@ -161,23 +187,7 @@ start_android_emulator() {
   disown %% 2>/dev/null || true
   set +m
 
-  info "Waiting for emulator to boot..."
-  local boot="" elapsed=0
-  while [[ "$boot" != "1" ]]; do
-    emulator_udid=$(find_android_emulator_udid || true)
-    if [[ -n "$emulator_udid" ]]; then
-      pin_android_emulator "$emulator_udid"
-      boot=$(adb -s "$ANDROID_UDID" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
-    fi
-    sleep 2
-    elapsed=$((elapsed + 2))
-    if [[ $elapsed -ge 240 ]]; then
-      error "Emulator failed to boot after 240s. The default_boot snapshot may be corrupt; try:"
-      error "  rm -rf ~/.android/avd/${AVD_NAME}.avd/snapshots/default_boot"
-      return 1
-    fi
-  done
-  info "Emulator '$AVD_NAME' booted ($ANDROID_UDID)"
+  wait_for_android_emulator
 }
 
 check_android_storage() {
