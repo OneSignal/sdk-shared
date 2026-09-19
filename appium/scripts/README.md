@@ -144,7 +144,7 @@ Skip only the build (simulator + reset still happen):
 ./run-all.sh --bail                       # stop after the first failing combo
 ```
 
-`--release` is available on both `run-all.sh` and `run-local.sh`. It runs `checkout-releases.sh`, which checks out the newest stable `rel/X.Y.Z` branch (or newest semver tag for expo/ios) in each SDK repo, honoring the `*_DIR` overrides from `.env`. Repos with uncommitted changes are skipped, never clobbered.
+`--release` is available on both `run-all.sh` and `run-local.sh`. It runs `checkout-releases.sh`, which checks out the newest stable `rel/X.Y.Z` branch (or newest semver tag for expo/ios) in each SDK repo, honoring the `*_DIR` overrides from `.env`. Uncommitted changes, including untracked files, are stashed before checkout and can be restored later with `git stash pop`.
 
 > Within each combo the specs still **bail on the first failing test** locally (`mochaOpts.bail = isLocal`), so one early failure hides the specs after it.
 

@@ -63,8 +63,8 @@ Options:
                                  'ios' (native) skips --platform=android.
   --bail                   Stop after the first failing combo
   --release                Check out the latest release point for the selected
-                           SDK repos first (honors *_DIR from .env). Skips repos
-                           with uncommitted changes.
+                           SDK repos first (honors *_DIR from .env). Stashes
+                           uncommitted changes, including untracked files.
 
 Options forwarded to run-local.sh:
   --skip-build     Skip per-app build (reuse existing artifact)

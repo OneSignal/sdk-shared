@@ -5,7 +5,7 @@
 # Pass SDK names as arguments; omitting them checks out every SDK.
 # Repo paths honor the same *_DIR overrides as run-local.sh (loaded from .env),
 # falling back to the config.sh defaults under $SDK_ROOT.
-# Repos with uncommitted changes are skipped, never clobbered.
+# Uncommitted changes, including untracked files, are stashed before checkout.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -64,10 +64,6 @@ for entry in "${REPOS[@]}"; do
   if [[ ! -d "$p/.git" ]]; then
     echo -e "${RED}SKIP${NC}  $name (not a git repo: $p — set $var in .env)"; continue
   fi
-  if [[ -n "$(git -C "$p" status --porcelain)" ]]; then
-    echo -e "${YELLOW}SKIP${NC}  $name (uncommitted changes — leaving on $(git -C "$p" rev-parse --abbrev-ref HEAD))"; continue
-  fi
-
   git -C "$p" fetch --prune --tags origin >/dev/null 2>&1
 
   if [[ "$kind" == "rel" ]]; then
@@ -80,6 +76,17 @@ for entry in "${REPOS[@]}"; do
     target=$(git -C "$p" tag --sort=-v:refname | grep -E '^v?[0-9]+\.[0-9]+(\.[0-9]+)?$' | head -1)
     if [[ -z "$target" ]]; then
       echo -e "${RED}SKIP${NC}  $name (no semver tag found)"; continue
+    fi
+  fi
+
+  if [[ -n "$(git -C "$p" status --porcelain)" ]]; then
+    current_ref="$(git -C "$p" symbolic-ref --short -q HEAD || git -C "$p" rev-parse --short HEAD)"
+    if git -C "$p" stash push --include-untracked \
+      -m "appium --release: before checkout from $current_ref" >/dev/null; then
+      stash_ref="$(git -C "$p" stash list -1 --format='%gd')"
+      echo -e "${YELLOW}STASH${NC} $name changes saved as $stash_ref"
+    else
+      echo -e "${RED}SKIP${NC}  $name (could not stash uncommitted changes)"; continue
     fi
   fi
 
