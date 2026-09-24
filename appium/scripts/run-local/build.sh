@@ -4,6 +4,7 @@
 build_flutter_ios() {
   if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
     info "Writing .env for demo app..."
+    stage_demo_file "$DEMO_DIR/.env"
     cat > "$DEMO_DIR/.env" <<EOF
 ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
@@ -28,6 +29,7 @@ EOF
 build_flutter_android() {
   if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
     info "Writing .env for demo app..."
+    stage_demo_file "$DEMO_DIR/.env"
     cat > "$DEMO_DIR/.env" <<EOF
 ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
@@ -49,6 +51,7 @@ EOF
 write_rn_demo_env() {
   if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
     info "Writing .env for demo app..."
+    stage_demo_file "$DEMO_DIR/.env"
     cat > "$DEMO_DIR/.env" <<EOF
 ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
@@ -108,6 +111,7 @@ build_rn_android() {
 write_cordova_demo_env() {
   if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
     info "Writing .env for demo app..."
+    stage_demo_file "$DEMO_DIR/.env"
     cat > "$DEMO_DIR/.env" <<EOF
 VITE_ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 VITE_ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
@@ -281,6 +285,7 @@ build_cordova_android() {
 write_capacitor_demo_env() {
   if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
     info "Writing .env for demo app..."
+    stage_demo_file "$DEMO_DIR/.env"
     cat > "$DEMO_DIR/.env" <<EOF
 VITE_ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 VITE_ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
@@ -370,6 +375,7 @@ write_expo_demo_env() {
   # undefined at runtime even though Expo CLI loads the file.
   if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
     info "Writing .env for demo app..."
+    stage_demo_file "$DEMO_DIR/.env"
     cat > "$DEMO_DIR/.env" <<EOF
 EXPO_PUBLIC_ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 EXPO_PUBLIC_ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
@@ -490,6 +496,7 @@ build_expo_android() {
 write_dotnet_demo_env() {
   if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
     info "Writing .env for demo app..."
+    stage_demo_file "$DEMO_DIR/.env"
     cat > "$DEMO_DIR/.env" <<EOF
 ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
@@ -713,6 +720,7 @@ build_dotnet_android() {
 write_unity_demo_env() {
   if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
     info "Writing .env for demo app..."
+    stage_demo_file "$DEMO_DIR/.env"
     cat > "$DEMO_DIR/.env" <<EOF
 ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
@@ -723,6 +731,7 @@ EOF
     # Copy in lockstep so the built .app/.apk has the same E2E_MODE flag,
     # which the AccessibilityBridge gates on.
     mkdir -p "$DEMO_DIR/Assets/StreamingAssets"
+    stage_demo_file "$DEMO_DIR/Assets/StreamingAssets/.env"
     cp "$DEMO_DIR/.env" "$DEMO_DIR/Assets/StreamingAssets/.env"
   else
     warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — skipping demo .env"
@@ -1158,6 +1167,7 @@ build_ios_native() {
   else
     warn "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set — writing empty Secrets.plist; demo will fall back to SecretsConfig.defaultAppId"
   fi
+  stage_demo_file "$secrets"
   plutil -create xml1 "$secrets"
   [[ -n "${ONESIGNAL_APP_ID:-}" ]] && \
     plutil -insert ONESIGNAL_APP_ID -string "$ONESIGNAL_APP_ID" "$secrets"

@@ -19,6 +19,11 @@ source "$RUN_LOCAL_LIB_DIR/sdk-artifacts.sh"
 source "$RUN_LOCAL_LIB_DIR/build.sh"
 source "$RUN_LOCAL_LIB_DIR/runtime.sh"
 
+restore_demo_files
+trap restore_demo_files EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 configure_runner "$@"
 
 # ── 4. Run tests ─────────────────────────────────────────────────────────────

@@ -156,6 +156,8 @@ Skip only the build (simulator + reset still happen):
 
 All env vars can be set in `.env` or exported in your shell. See [`.env.example`](.env.example) for the full list.
 
+Credential files the runner writes into demo repos (`.env`, Unity's `StreamingAssets/.env`, iOS `Secrets.plist`) are backed up to `appium/.demo-backups/` and restored when the run exits, pass or fail. If a run is killed hard, the next run restores them first.
+
 | Variable            | Default                            | Description                                   |
 | ------------------- | ---------------------------------- | --------------------------------------------- |
 | `ONESIGNAL_APP_ID`  | --                                 | OneSignal app ID (written to demo app `.env`) |
