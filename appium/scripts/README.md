@@ -86,6 +86,7 @@ If `--platform` or `--sdk` are not provided, the script prompts interactively.
 | `--skip-reset`  | Keep existing app data between runs                         |
 | `--pods`        | Use `examples/demo-pods` for Flutter, Cordova, and Capacitor |
 | `--release`     | Check out the latest release point in each SDK repo first    |
+| `--main`        | Check out the latest `main` in each SDK repo first           |
 | `-h, --help`    | Show help                                                   |
 
 ### Examples
@@ -141,10 +142,13 @@ Skip only the build (simulator + reset still happen):
 ./run-all.sh --platform=ios               # iOS only
 ./run-all.sh --sdks=flutter,react-native  # subset of SDKs
 ./run-all.sh --release                    # check out the latest release point per repo first
+./run-all.sh --main                       # check out the latest main per repo first
 ./run-all.sh --bail                       # stop after the first failing combo
 ```
 
 `--release` is available on both `run-all.sh` and `run-local.sh`. It runs `checkout-releases.sh`, which checks out the newest stable `rel/X.Y.Z` branch (or newest semver tag for expo/ios) in each SDK repo, honoring the `*_DIR` overrides from `.env`. Uncommitted changes, including untracked files, are stashed before checkout and can be restored later with `git stash pop`.
+
+`--main` works the same way but checks out `main` and fast-forwards it to `origin/main` in each repo (runs `checkout-releases.sh --main`). If local `main` has diverged from `origin/main`, the repo is left on local `main` with a warning. `--release` and `--main` are mutually exclusive.
 
 > Within each combo the specs still **bail on the first failing test** locally (`mochaOpts.bail = isLocal`), so one early failure hides the specs after it.
 

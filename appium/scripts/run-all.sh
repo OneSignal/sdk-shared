@@ -23,6 +23,7 @@ SDKS_FILTER=""
 BAIL=0
 PODS_REQUESTED=0
 RELEASE=0
+MAIN=0
 WIPE_EMULATOR=0
 for arg in "$@"; do
   case "$arg" in
@@ -34,6 +35,8 @@ for arg in "$@"; do
       PODS_REQUESTED=1 ;;
     --release)
       RELEASE=1 ;;
+    --main)
+      MAIN=1 ;;
     --spec=*)
       EXTRA_ARGS+=("$arg") ;;
     --platform=ios|--platform=android)
@@ -65,6 +68,9 @@ Options:
   --release                Check out the latest release point for the selected
                            SDK repos first (honors *_DIR from .env). Stashes
                            uncommitted changes, including untracked files.
+  --main                   Check out main at the latest origin/main for the
+                           selected SDK repos first (honors *_DIR from .env).
+                           Stashes uncommitted changes, including untracked files.
 
 Options forwarded to run-local.sh:
   --skip-build     Skip per-app build (reuse existing artifact)
@@ -85,6 +91,11 @@ USAGE
     *) warn "Unknown option: $arg (ignored)" ;;
   esac
 done
+
+if (( RELEASE && MAIN )); then
+  error "--release and --main are mutually exclusive"
+  exit 2
+fi
 
 if [[ -n "$PLATFORM_FILTER" ]]; then
   PLATFORMS=("$PLATFORM_FILTER")
@@ -125,6 +136,15 @@ if (( RELEASE )); then
   echo -e "${BOLD}━━━ Checking out latest releases ━━━${NC}"
   if ! "$SCRIPT_DIR/checkout-releases.sh" "${SDKS[@]}"; then
     error "checkout-releases.sh failed; aborting before running combos"
+    exit 1
+  fi
+  echo ""
+fi
+
+if (( MAIN )); then
+  echo -e "${BOLD}━━━ Checking out latest main ━━━${NC}"
+  if ! "$SCRIPT_DIR/checkout-releases.sh" --main "${SDKS[@]}"; then
+    error "checkout-releases.sh --main failed; aborting before running combos"
     exit 1
   fi
   echo ""

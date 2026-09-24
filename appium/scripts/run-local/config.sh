@@ -12,6 +12,7 @@ configure_runner() {
   QUIET=false
   PODS_DEMO=false
   RELEASE=false
+  MAIN=false
   WIPE_EMULATOR=false
   ANDROID_CHANNEL_ID=7ec2ece9-c538-4656-9516-1316f48a005c
   IOS_REAL_DEVICE=false
@@ -35,6 +36,7 @@ configure_runner() {
       --wipe-emulator)  WIPE_EMULATOR=true ;;
       --pods)           PODS_DEMO=true ;;
       --release)        RELEASE=true ;;
+      --main)           MAIN=true ;;
       --spec=*)         SPEC="${arg#--spec=}" ;;
       --quiet|-q)       QUIET=true ;;
       --help|-h)
@@ -69,6 +71,8 @@ Options:
   --pods              Use examples/demo-pods instead of examples/demo for
                       flutter, cordova, and capacitor SDKs
   --release           Check out the latest release point for the selected SDK
+  --main              Check out main at the latest origin/main for the selected SDK
+                      (stashes uncommitted changes, including untracked files)
   --device-real       Build & run against a physical iPhone (requires --udid
                       and XCODE_TEAM_ID). Implies --skip-device. iOS only.
                       Supported SDKs: cordova, capacitor, react-native, expo.
@@ -167,8 +171,14 @@ USAGE
     exit 0
   fi
 
+  if [[ "$RELEASE" == true && "$MAIN" == true ]]; then
+    error "--release and --main are mutually exclusive"
+  fi
+
   if [[ "$RELEASE" == true ]]; then
     "$SCRIPT_DIR/checkout-releases.sh" "$SDK_TYPE"
+  elif [[ "$MAIN" == true ]]; then
+    "$SCRIPT_DIR/checkout-releases.sh" --main "$SDK_TYPE"
   fi
 
   if [[ "$PODS_DEMO" == true ]]; then

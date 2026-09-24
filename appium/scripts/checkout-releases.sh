@@ -2,6 +2,7 @@
 # Check out the latest stable release point for the requested downstream SDKs.
 #   - rel-branch repos: newest stable rel/X.Y.Z branch (betas + non-semver excluded)
 #   - tag-only repos (expo, ios): newest semver tag (detached HEAD)
+# With --main, every repo instead checks out main and fast-forwards to origin/main.
 # Pass SDK names as arguments; omitting them checks out every SDK.
 # Repo paths honor the same *_DIR overrides as run-local.sh (loaded from .env),
 # falling back to the config.sh defaults under $SDK_ROOT.
@@ -35,6 +36,12 @@ REPOS=(
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 
+MODE=release
+if [[ "${1:-}" == "--main" ]]; then
+  MODE=main
+  shift
+fi
+
 for selected in "$@"; do
   case "$selected" in
     flutter|react-native|cordova|capacitor|dotnet|unity|android|expo|ios) ;;
@@ -66,7 +73,12 @@ for entry in "${REPOS[@]}"; do
   fi
   git -C "$p" fetch --prune --tags origin >/dev/null 2>&1
 
-  if [[ "$kind" == "rel" ]]; then
+  if [[ "$MODE" == "main" ]]; then
+    target=main
+    if ! git -C "$p" show-ref --verify --quiet refs/remotes/origin/main; then
+      echo -e "${RED}SKIP${NC}  $name (no origin/main branch found)"; continue
+    fi
+  elif [[ "$kind" == "rel" ]]; then
     target=$(git -C "$p" for-each-ref --format='%(refname:short)' 'refs/remotes/origin/rel/*' \
       | sed 's|^origin/||' | grep -E '^rel/[0-9]+\.[0-9]+(\.[0-9]+)?$' | sort -V | tail -1)
     if [[ -z "$target" ]]; then
@@ -82,7 +94,7 @@ for entry in "${REPOS[@]}"; do
   if [[ -n "$(git -C "$p" status --porcelain)" ]]; then
     current_ref="$(git -C "$p" symbolic-ref --short -q HEAD || git -C "$p" rev-parse --short HEAD)"
     if git -C "$p" stash push --include-untracked \
-      -m "appium --release: before checkout from $current_ref" >/dev/null; then
+      -m "appium --$MODE: before checkout from $current_ref" >/dev/null; then
       stash_ref="$(git -C "$p" stash list -1 --format='%gd')"
       echo -e "${YELLOW}STASH${NC} $name changes saved as $stash_ref"
     else
@@ -91,6 +103,14 @@ for entry in "${REPOS[@]}"; do
   fi
 
   if git -C "$p" checkout "$target" >/dev/null 2>&1; then
+    if [[ "$MODE" == "main" ]]; then
+      if git -C "$p" merge --ff-only origin/main >/dev/null 2>&1; then
+        echo -e "${GREEN}OK${NC}    $name -> main ($(git -C "$p" rev-parse --short HEAD))"
+      else
+        echo -e "${YELLOW}WARN${NC}  $name on main but could not fast-forward to origin/main (local main has diverged)"
+      fi
+      continue
+    fi
     [[ "$kind" == "rel" ]] && git -C "$p" pull --ff-only >/dev/null 2>&1
     echo -e "${GREEN}OK${NC}    $name -> $target"
   else
