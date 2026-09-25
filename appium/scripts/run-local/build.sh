@@ -589,13 +589,16 @@ build_dotnet_sdk() {
     return
   fi
 
-  local -a xcode_args
+  local -a platform_args
   if [[ "$platform" == "ios" ]]; then
-    read -r -a xcode_args <<<"$(dotnet_ios_xcode_check_args)"
+    read -r -a platform_args <<<"$(dotnet_ios_xcode_check_args)"
+  else
+    # Without this, MSBuild on macOS still evaluates net10.0-ios and requires the iOS workload.
+    platform_args=(-p:OneSignalAndroidOnly=true)
   fi
 
   info "Building .NET SDK + bindings for ${tfm}..."
-  dotnet build "$sdk_proj" -c Debug -f "$tfm" ${xcode_args[@]+"${xcode_args[@]}"}
+  dotnet build "$sdk_proj" -c Debug -f "$tfm" ${platform_args[@]+"${platform_args[@]}"}
 
   [[ -f "$sdk_dll" ]] || error "SDK build did not produce $sdk_dll"
   mkdir -p "$(dirname "$stamp")"
@@ -708,6 +711,7 @@ build_dotnet_android() {
     -p:EmbedAssembliesIntoApk=true \
     -p:AndroidUseFastDeployment=false \
     -p:AndroidLinkMode=None \
+    -p:OneSignalAndroidOnly=true \
     -p:RuntimeIdentifier="$DOTNET_ANDROID_RID" \
     --no-dependencies)
 
