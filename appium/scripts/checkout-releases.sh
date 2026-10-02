@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Check out the latest stable release point for the requested downstream SDKs.
 #   - rel-branch repos: newest stable rel/X.Y.Z branch (betas + non-semver excluded)
-#   - tag-only repos (expo, ios): newest semver tag (detached HEAD)
+#   - tag repos (expo, ios): newest semver tag (detached HEAD), unless a stable
+#     rel/X.Y.Z branch is newer (pending release), in which case that branch
 # With --main, every repo instead checks out main and fast-forwards to origin/main.
 # Pass SDK names as arguments; omitting them checks out every SDK.
 # Repo paths honor the same *_DIR overrides as run-local.sh (loaded from .env),
@@ -35,6 +36,11 @@ REPOS=(
 )
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
+
+latest_rel_branch() {
+  git -C "$1" for-each-ref --format='%(refname:short)' 'refs/remotes/origin/rel/*' \
+    | sed 's|^origin/||' | grep -E '^rel/[0-9]+\.[0-9]+(\.[0-9]+)?$' | sort -V | tail -1
+}
 
 MODE=release
 if [[ "${1:-}" == "--main" ]]; then
@@ -79,15 +85,25 @@ for entry in "${REPOS[@]}"; do
       echo -e "${RED}SKIP${NC}  $name (no origin/main branch found)"; continue
     fi
   elif [[ "$kind" == "rel" ]]; then
-    target=$(git -C "$p" for-each-ref --format='%(refname:short)' 'refs/remotes/origin/rel/*' \
-      | sed 's|^origin/||' | grep -E '^rel/[0-9]+\.[0-9]+(\.[0-9]+)?$' | sort -V | tail -1)
+    target=$(latest_rel_branch "$p")
     if [[ -z "$target" ]]; then
       echo -e "${RED}SKIP${NC}  $name (no stable rel/* branch found)"; continue
     fi
   else
-    target=$(git -C "$p" tag --sort=-v:refname | grep -E '^v?[0-9]+\.[0-9]+(\.[0-9]+)?$' | head -1)
+    # A pending rel/X.Y.Z branch newer than the latest tag is the upcoming release.
+    tag=$(git -C "$p" tag --sort=-v:refname | grep -E '^v?[0-9]+\.[0-9]+(\.[0-9]+)?$' | head -1)
+    rel=$(latest_rel_branch "$p")
+    target=$tag
+    if [[ -n "$rel" ]]; then
+      rel_version="${rel#rel/}"
+      tag_version="${tag#v}"
+      if [[ -z "$tag" || ( "$rel_version" != "$tag_version" \
+        && "$(printf '%s\n%s\n' "$tag_version" "$rel_version" | sort -V | tail -1)" == "$rel_version" ) ]]; then
+        target=$rel
+      fi
+    fi
     if [[ -z "$target" ]]; then
-      echo -e "${RED}SKIP${NC}  $name (no semver tag found)"; continue
+      echo -e "${RED}SKIP${NC}  $name (no semver tag or stable rel/* branch found)"; continue
     fi
   fi
 
@@ -111,7 +127,7 @@ for entry in "${REPOS[@]}"; do
       fi
       continue
     fi
-    [[ "$kind" == "rel" ]] && git -C "$p" pull --ff-only >/dev/null 2>&1
+    [[ "$target" == rel/* ]] && git -C "$p" pull --ff-only >/dev/null 2>&1
     echo -e "${GREEN}OK${NC}    $name -> $target"
   else
     echo -e "${RED}FAIL${NC}  $name (could not checkout $target)"
