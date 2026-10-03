@@ -70,8 +70,10 @@ build_rn_ios() {
   local lock="$DEMO_DIR/ios/Podfile.lock"
   local stamp="$DEMO_DIR/ios/build/.podfile.lock.stamp"
   if [[ ! -f "$lock" ]] || [[ ! -f "$stamp" ]] || ! cmp -s "$lock" "$stamp"; then
-    info "Installing CocoaPods..."
-    (cd "$DEMO_DIR/ios" && pod install)
+    # pod install never refreshes the spec repo, so a newly pinned
+    # OneSignalXCFramework fails to resolve on a stale local cache.
+    info "Updating OneSignalXCFramework and installing CocoaPods..."
+    (cd "$DEMO_DIR" && vp run update:pods)
     mkdir -p "$(dirname "$stamp")"
     cp "$lock" "$stamp" 2>/dev/null || true
   else
@@ -394,7 +396,7 @@ EOF
 expo_demo_inputs_hash() {
   local platform_dir="$1"  # ios | android
   local content_hash
-  content_hash=$(find "$DEMO_DIR/App.tsx" "$DEMO_DIR/index.js" \
+  content_hash=$(find "$DEMO_DIR/App.tsx" "$DEMO_DIR/index.js" "$DEMO_DIR/app" \
                       "$DEMO_DIR/app.config.ts" "$DEMO_DIR/metro.config.js" \
                       "$DEMO_DIR/package.json" "$DEMO_DIR/bun.lock" \
                       "$DEMO_DIR/tsconfig.json" "$DEMO_DIR/eslint.config.js" \
@@ -429,9 +431,47 @@ expo_demo_inputs_hash() {
   echo "${content_hash}-${EXPO_PLUGIN_SRC_HASH:-none}"
 }
 
+expo_demo_deps_hash() {
+  hash_files "$DEMO_DIR/package.json" "$DEMO_DIR/bun.lock"
+}
+
+# node_modules and the generated ios/ and android/ dirs are gitignored, so they
+# survive branch switches (e.g. checkout-releases.sh) and can belong to a
+# different Expo SDK than the checked-out source. Reinstall and re-prebuild
+# whenever the inputs that produced them change.
+prepare_expo_demo() {
+  local platform="$1"  # ios | android
+  local deps_stamp="$DEMO_DIR/node_modules/.appium-deps.stamp"
+
+  if [[ ! -f "$deps_stamp" ]] || [[ "$(cat "$deps_stamp")" != "$(expo_demo_deps_hash)" ]]; then
+    info "Expo demo dependencies changed, reinstalling node_modules..."
+    rm -rf "$DEMO_DIR/node_modules"
+    # Drop the plugin entry first: vp verifies its lockfile integrity hash
+    # before replacing it, and a stale hash makes the re-add fail.
+    (cd "$DEMO_DIR" && vp remove onesignal-expo-plugin)
+  fi
+
+  setup_expo_plugin
+  expo_demo_deps_hash > "$deps_stamp"
+
+  local prebuild_stamp="$DEMO_DIR/$platform/.appium-prebuild.stamp"
+  local prebuild_hash
+  prebuild_hash="$(hash_files "$DEMO_DIR/package.json" "$DEMO_DIR/bun.lock" \
+                              "$DEMO_DIR/app.config.ts" "$DEMO_DIR/assets" \
+                              "$DEMO_DIR/customNSE" "$DEMO_DIR/customWidget")-${EXPO_PLUGIN_SRC_HASH:-none}"
+  if [[ -f "$prebuild_stamp" ]] && [[ "$(cat "$prebuild_stamp")" == "$prebuild_hash" ]]; then
+    info "Expo $platform native project up to date, skipping prebuild"
+    return
+  fi
+
+  info "Expo demo config or plugin changed, running expo prebuild --clean --platform $platform..."
+  (cd "$DEMO_DIR" && CI=1 vp exec expo prebuild --clean --platform "$platform" --no-install)
+  echo "$prebuild_hash" > "$prebuild_stamp"
+}
+
 build_expo_ios() {
   write_expo_demo_env
-  setup_expo_plugin
+  prepare_expo_demo ios
 
   # Top-level skip: if neither the demo's JS/native sources nor the plugin
   # changed and the .app is still on disk, an xcodebuild "up to date" pass
@@ -484,7 +524,7 @@ build_expo_ios() {
 
 build_expo_android() {
   write_expo_demo_env
-  setup_expo_plugin
+  prepare_expo_demo android
 
   info "Building release APK (self-contained, no Metro required)..."
   (cd "$DEMO_DIR/android" && ./gradlew assembleRelease)
