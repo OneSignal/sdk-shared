@@ -322,6 +322,59 @@ export async function returnToApp() {
   await driver.pause(1_000);
 }
 
+/** Values returned by Appium's `mobile: queryAppState` on both platforms. */
+export const AppState = {
+  NotRunning: 1,
+  RunningInBackgroundSuspended: 2,
+  RunningInBackground: 3,
+  RunningInForeground: 4,
+} as const;
+
+const appIdArgs = () =>
+  getPlatform() === 'ios' ? { bundleId: PACKAGE_ID } : { appId: PACKAGE_ID };
+
+export async function getAppState(): Promise<number> {
+  return Number(await driver.execute('mobile: queryAppState', appIdArgs()));
+}
+
+export async function terminateApp() {
+  await driver.execute('mobile: terminateApp', appIdArgs());
+}
+
+/** Send the app to the background until something else activates it. */
+export async function backgroundApp() {
+  await driver.execute('mobile: backgroundApp', { seconds: -1 });
+}
+
+/** Bundle id (iOS) or package (Android) of the app currently in the foreground. */
+export async function getForegroundAppId(): Promise<string> {
+  if (getPlatform() === 'android') return driver.getCurrentPackage();
+  const info = (await driver.execute('mobile: activeAppInfo')) as { bundleId?: string };
+  return info.bundleId ?? '';
+}
+
+/** Tap a notification from the iOS banner or the Android shade, whatever app is in front. */
+export async function tapNotification(title: string, timeoutMs = 30_000) {
+  await switchToNativeContext();
+
+  if (getPlatform() === 'android') {
+    await driver.openNotifications();
+    const titleEl = $(`//*[@text="${title}"]`);
+    await titleEl.waitForDisplayed({ timeout: timeoutMs });
+    await titleEl.click();
+    return;
+  }
+
+  await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
+  try {
+    const banner = $(`-ios predicate string:label CONTAINS "${title}"`);
+    await banner.waitForDisplayed({ timeout: timeoutMs });
+    await banner.click();
+  } finally {
+    await driver.updateSettings({ defaultActiveApplication: PACKAGE_ID });
+  }
+}
+
 export async function hasLogView(): Promise<boolean> {
   return $(byTestIdSelector('log_view'))
     .isExisting()

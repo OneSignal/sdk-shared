@@ -54,7 +54,7 @@ is on `PATH`. The manual steps below are the same thing, broken out.
 
 The script checks all of these up front and prints the exact install command for anything missing; `node_modules` in `appium/` is installed automatically on first run.
 
-> **CI vs local:** CI runs on BrowserStack (Node 24) without this script. Notification-dependent tests (in `02_push.spec.ts` and `12_activity.spec.ts`) are skipped on BrowserStack iOS via `isBrowserStackIos()` because BrowserStack requires an Enterprise Signing Certificate for those notification flows, which we don't have yet (temporary — they'll be re-enabled once signing support is available), so for now they only run locally. If your local Node is 26+, the script sets `WDIO_USE_NATIVE_FETCH=1` automatically.
+> **CI vs local:** CI runs on BrowserStack (Node 24) without this script. Notification-dependent tests (in `02_push.spec.ts`, `12_activity.spec.ts`, and `13_notification_click.spec.ts`) are skipped on BrowserStack iOS via `isBrowserStackIos()` because BrowserStack requires an Enterprise Signing Certificate for those notification flows, which we don't have yet (temporary — they'll be re-enabled once signing support is available), so for now they only run locally. If your local Node is 26+, the script sets `WDIO_USE_NATIVE_FETCH=1` automatically.
 
 ### Per-SDK prerequisites
 

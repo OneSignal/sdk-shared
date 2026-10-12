@@ -155,6 +155,52 @@ export async function deleteUser(externalId: string) {
   }
 }
 
+/** Whether the backend has a push token for this subscription and considers it enabled. */
+export async function isPushSubscriptionReady(externalId: string, subscriptionId: string) {
+  const response = await fetch(
+    `https://api.onesignal.com/apps/${process.env.ONESIGNAL_APP_ID}/users/by/external_id/${externalId}`,
+    { headers: { Authorization: `Key ${process.env.ONESIGNAL_API_KEY}` } },
+  ).catch(() => null);
+  if (!response?.ok) return false;
+
+  const user = (await response.json()) as {
+    subscriptions?: { id: string; enabled?: boolean; token?: string }[];
+  };
+  const subscription = user.subscriptions?.find((s) => s.id === subscriptionId);
+  return Boolean(subscription?.enabled && subscription.token);
+}
+
+/** Send a push to one subscription through the REST API. Throws if OneSignal rejects it. */
+export async function sendPushNotification(opts: {
+  subscriptionId: string;
+  title: string;
+  body: string;
+  url?: string;
+}) {
+  const response = await fetch('https://api.onesignal.com/notifications?c=push', {
+    method: 'POST',
+    headers: {
+      Authorization: `Key ${process.env.ONESIGNAL_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      app_id: process.env.ONESIGNAL_APP_ID,
+      include_subscription_ids: [opts.subscriptionId],
+      headings: { en: opts.title },
+      contents: { en: opts.body },
+      ...(opts.url ? { url: opts.url } : {}),
+    }),
+  });
+
+  // The API can return 200 with an `errors` field and no id (e.g. unsubscribed target).
+  const result = (await response.json().catch(() => ({}))) as { id?: string; errors?: unknown };
+  if (!response.ok || !result.id) {
+    throw new Error(
+      `Failed to send push: ${response.status} ${JSON.stringify(result.errors ?? result)}`,
+    );
+  }
+}
+
 export async function getToggleState(el: {
   getAttribute(name: string): Promise<string | null>;
 }): Promise<boolean> {
