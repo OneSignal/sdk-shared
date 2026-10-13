@@ -200,6 +200,23 @@ When a list exceeds `maxVisible` items (default 5), the overflow is hidden behin
 
 - Bottom padding: 24
 
+## Log View
+
+Sticky panel below the header bar (see build.md Prompt 2.0). Dark, logcat-style, independent of light/dark app theme.
+
+| Property         | Value                                                        |
+| ---------------- | ------------------------------------------------------------ |
+| Background       | `#1E1E1E`                                                    |
+| Entry text       | `#D4D4D4`, monospace, 10                                     |
+| Timestamp, empty state | osGrey600                                              |
+| Header text      | `LOGS ({count})`, osGrey500, monospace, 11, bold, 0.5 letter spacing |
+| Header icons     | osGrey500, 18; trash (filled) then chevron, 12 apart          |
+| Header padding   | 4 vertical, 16 horizontal                                    |
+| Body height      | 100 (fixed; scrolls internally)                              |
+| Body padding     | 0 top, 16 horizontal, 6 bottom                               |
+| Entry line height | 1.4                                                         |
+| Stacking         | Above page content, below the header bar                     |
+
 ## Loading State
 
 Inline placeholder shown inside a list card while remote data is being fetched (e.g. aliases, tags, emails, SMS after login or cold start). Occupies the same slot as the empty-state message, so the layout does not shift when data arrives.
