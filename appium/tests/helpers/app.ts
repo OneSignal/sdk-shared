@@ -429,7 +429,10 @@ export async function hasLogView(): Promise<boolean> {
     .catch(() => false);
 }
 
-/** Text of every entry in the demo's on-screen log view, oldest first. */
+/**
+ * Text of the demo's log entries, oldest first. Native Android only sees
+ * entries on screen, so counts can miss older matches that scrolled away.
+ */
 export async function getLogMessages(): Promise<string[]> {
   if (isWebViewSDK) {
     return driver.execute(() =>
