@@ -7,8 +7,6 @@ import {
   returnToApp,
   killApp,
   backgroundApp,
-  getForegroundAppId,
-  getForegroundActivity,
   hasLogView,
   expectOneNewLog,
 } from '../helpers/app.js';
@@ -21,11 +19,15 @@ import {
 
 const itSkipBsIos = isBrowserStackIos() ? it.skip : it;
 
-const LAUNCH_URL = 'https://onesignal.com';
-const BROWSERS: Record<'ios' | 'android', RegExp> = {
-  ios: /^com\.apple\.mobilesafari$/,
-  android: /chrome|browser/i,
+const LAUNCH_URL_HOST = 'onesignal.com';
+const LAUNCH_URL = `https://${LAUNCH_URL_HOST}`;
+const ADDRESS_BARS: Record<'ios' | 'android', string> = {
+  ios: '-ios predicate string:name == "TabBarItemTitle"',
+  android: 'android=new UiSelector().resourceId("com.android.chrome:id/url_bar")',
 };
+// Chrome asks for notification permission on its first launch, covering the address bar.
+const CHROME_DIALOG_DISMISS =
+  'android=new UiSelector().resourceId("com.android.chrome:id/negative_button")';
 
 async function tapPushAndExpectLaunchUrl(subscriptionId: string, title: string) {
   const notificationId = await sendPushNotification({
@@ -36,18 +38,22 @@ async function tapPushAndExpectLaunchUrl(subscriptionId: string, title: string) 
   });
   await tapNotification(title);
 
-  const browser = BROWSERS[getPlatform()];
-  await driver.waitUntil(
-    async () => browser.test(await getForegroundAppId()) && !(await isBrowserFirstRun()),
-    { timeout: 20_000, timeoutMsg: 'Launch URL never opened' },
-  );
+  await driver.waitUntil(async () => (await getBrowserAddress()).includes(LAUNCH_URL_HOST), {
+    timeout: 20_000,
+    timeoutMsg: 'Launch URL never opened',
+  });
 
   await expectSingleClickEvent(notificationId);
 }
 
-/** A browser setup screen (e.g. Chrome's FirstRunActivity) is showing instead of the URL. */
-async function isBrowserFirstRun() {
-  return getPlatform() === 'android' && /firstrun/i.test(await getForegroundActivity());
+/** Address shown by the foreground browser, or empty if no browser address bar is showing. */
+async function getBrowserAddress(): Promise<string> {
+  if (getPlatform() === 'android') {
+    const dismiss = $(CHROME_DIALOG_DISMISS);
+    if (await dismiss.isExisting()) await dismiss.click();
+  }
+  const addressBar = $(ADDRESS_BARS[getPlatform()]);
+  return (await addressBar.isExisting()) ? addressBar.getText() : '';
 }
 
 /** The JS click listener must fire exactly once for the tapped notification. */
