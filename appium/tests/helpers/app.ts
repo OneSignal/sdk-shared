@@ -322,6 +322,46 @@ export async function returnToApp() {
   await driver.pause(1_000);
 }
 
+export async function hasLogView(): Promise<boolean> {
+  return $(byTestIdSelector('log_view'))
+    .isExisting()
+    .catch(() => false);
+}
+
+/** Text of every entry in the demo's on-screen log view, oldest first. */
+export async function getLogMessages(): Promise<string[]> {
+  if (isWebViewSDK) {
+    return driver.execute(() =>
+      Array.from(document.querySelectorAll('[data-testid^="log_entry_"]')).map(
+        (el) => el.textContent ?? '',
+      ),
+    );
+  }
+
+  const selector =
+    getPlatform() === 'android'
+      ? 'android=new UiSelector().resourceIdMatches(".*log_entry_.*")'
+      : '-ios predicate string:name BEGINSWITH "log_entry_"';
+  return $$(selector).map((el) => el.getText());
+}
+
+/** Number of log entries that contain every one of `parts`. */
+export async function countLogMessages(...parts: string[]): Promise<number> {
+  const messages = await getLogMessages();
+  return messages.filter((message) => parts.every((part) => message.includes(part))).length;
+}
+
+/** Expect exactly one new log entry containing every one of `parts` beyond `baseline`. */
+export async function expectOneNewLog(parts: string[], baseline = 0, timeoutMs = 15_000) {
+  await driver.waitUntil(async () => (await countLogMessages(...parts)) > baseline, {
+    timeout: timeoutMs,
+    timeoutMsg: `No new log entry containing ${JSON.stringify(parts)}`,
+  });
+  // Give a duplicate replay time to land before counting.
+  await driver.pause(2_000);
+  expect(await countLogMessages(...parts)).toBe(baseline + 1);
+}
+
 /**
  * Expand an Android notification row when OEMs keep it collapsed. The chevron
  * lookup is scoped to the ancestor row containing `title`; otherwise a busy
@@ -394,7 +434,9 @@ export async function waitForNotification(opts: {
         await image.waitForDisplayed({ timeout: 5_000 });
       }
 
-      await returnToApp();
+      // Tap rather than press back so the click listener fires, matching iOS.
+      await titleEl.click();
+      await driver.pause(1_000);
     } finally {
       await ensureMainWebViewContext();
     }
@@ -460,12 +502,24 @@ export async function checkNotification(opts: {
   const button = await scrollToEl(opts.buttonId);
   await driver.pause(2_000); // small wait to hopefully get image notif early
 
+  const displayLog = ['Notification foregroundWillDisplay:', opts.title];
+  const clickLog = ['Notification click:', opts.title];
+  const logged = await hasLogView();
+  const [displaysBefore, clicksBefore] = logged
+    ? await Promise.all([countLogMessages(...displayLog), countLogMessages(...clickLog)])
+    : [0, 0];
+
   await button.click();
   await waitForNotification({
     title: opts.title,
     body: opts.body,
     expectImage: opts.expectImage,
   });
+
+  // Demos without the log view can't report JS events yet.
+  if (!logged) return;
+  await expectOneNewLog(displayLog, displaysBefore);
+  await expectOneNewLog(clickLog, clicksBefore);
 }
 
 export async function isWebViewVisible() {

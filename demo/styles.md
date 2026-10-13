@@ -17,6 +17,8 @@ Design spec for OneSignal SDK demo/sample apps. Values use platform-independent 
 | osDivider           | `#E8EAED`            | Dividers                            |
 | osWarningBackground | `#FFF8E1`            | Guidance / warning banner card      |
 | osBackdrop          | `rgba(0,0,0,0.54)`   | Dialog / overlay backdrop           |
+| osLogBackground     | `#1E1E1E`            | Log View background                 |
+| osLogText           | `#D4D4D4`            | Log View entry text                 |
 
 ## Spacing
 
@@ -199,6 +201,25 @@ When a list exceeds `maxVisible` items (default 5), the overflow is hidden behin
 ## Scrollable List
 
 - Bottom padding: 24
+
+## Log View
+
+Sticky panel below the header bar (see build.md Prompt 2.0). Dark, logcat-style, independent of light/dark app theme.
+
+| Property         | Value                                                        |
+| ---------------- | ------------------------------------------------------------ |
+| Background       | osLogBackground (`#1E1E1E`)                                  |
+| Entry text       | osLogText (`#D4D4D4`), monospace, 8                          |
+| Timestamp, empty state | osGrey600                                              |
+| Header text      | `LOGS ({count})`, osGrey500, monospace, 11, bold, 0.5 letter spacing |
+| Header icons     | osGrey500; trash (filled) 14, then chevron 18, 12 apart       |
+| Header height    | 24 (fixed; content vertically centered)                      |
+| Header padding   | 0 vertical, 16 horizontal                                    |
+| Body height      | 100 (fixed; scrolls internally)                              |
+| Total height     | 24 collapsed, 124 expanded                                   |
+| Body padding     | 0 top, 16 horizontal, 6 bottom                               |
+| Entry line height | 1.4                                                         |
+| Stacking         | Above page content, below the header bar                     |
 
 ## Loading State
 

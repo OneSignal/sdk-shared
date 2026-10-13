@@ -123,6 +123,19 @@ OneSignal.LiveActivities.setupDefault({
 - InAppMessages: willDisplay, didDisplay, willDismiss, didDismiss, click
 - Notifications: click, foregroundWillDisplay
 
+Every listener in steps 2 and 3 writes one entry to the Log View (Prompt 2.0) and the console. Use these messages exactly; the shared Appium suite matches on them:
+
+| Event                           | Log message                                                                          |
+| ------------------------------- | ------------------------------------------------------------------------------------ |
+| Notification click              | `Notification click: {notificationId} {title}`                                       |
+| Notification foregroundWillDisplay | `Notification foregroundWillDisplay: {notificationId} {title}`                    |
+| IAM willDisplay / didDisplay / willDismiss / didDismiss / click | `IAM {event}: {messageId}` (e.g. `IAM didDisplay: {messageId}`)  |
+| Push subscription change        | `Push subscription changed: id={prev} → {curr}, optedIn={prev} → {curr}, token={prev8}… → {curr8}…` |
+| Notification permission change  | `Permission changed: {granted}`                                                      |
+| User state change               | `User changed: onesignalId={id}, externalId={externalId}`                            |
+
+Use `null` for missing ids and an empty string for a missing title. Truncate push tokens to their first 8 characters.
+
 **3. Register state-layer observers.** Wire these in the state container so they can mutate UI state:
 
 - Push subscription change
@@ -137,6 +150,7 @@ Clean up listeners on teardown if the platform requires it.
 
 ### Section Order (top to bottom)
 
+0. **Log View** (sticky under the app bar, outside the scroll view; see Prompt 2.0)
 1. **App Section** (App ID, Guidance Banner, Consent Toggle)
 2. **User Section** (Status, External ID, Login/Logout)
 3. **Push Section** (Push ID, Enabled Toggle, Auto-prompts on load)
@@ -153,6 +167,20 @@ Clean up listeners on teardown if the platform requires it.
 14. **Location Section** (Shared toggle, Prompt button, Check button)
 15. **Live Activities Section** (iOS only - Start, Update, End)
 16. **Next Screen Button**
+
+### Prompt 2.0 - Log View
+
+A logcat-style panel pinned directly below the app bar. It stays visible while the main scroll view scrolls underneath it.
+
+1. Header row: `LOGS ({count})` on the left; trash icon (clear) and chevron (collapse/expand) on the right.
+2. Body: fixed-height list of entries, oldest first, each `{HH:mm:ss} {message}` with the time de-emphasized. Auto-scroll to the newest entry when one is added or the panel is expanded. Long entries wrap.
+3. Empty state: `No logs yet`.
+4. Collapse hides the body only; the header row stays. Starts expanded on every launch. Entries stay in the view hierarchy while collapsed.
+5. Clear removes all entries.
+6. Keep at most 100 entries in memory (drop the oldest). Never persist them: every launch, including a cold start from a notification tap, starts empty so the suite can assert per-launch event counts.
+7. Expose a single `log(message)` helper that appends an entry and writes `[OneSignal] {message}` to the console. All SDK listeners (Prompt 1.5) go through it.
+
+Styling in styles.md (Log View).
 
 ### Prompt 2.1a - App Section
 
@@ -405,6 +433,7 @@ This ensures SDK is configured before init, and UI reflects SDK's actual state.
 
 ### Not Persisted (In-Memory Only)
 
+- **Log View entries**: session-only, cleared on restart
 - **triggersList**: session-only, cleared on restart
 - **aliasesList**: fetched from API on start/login, local adds are immediate (SDK syncs async)
 - **emailsList, smsNumbersList**: fetched from API each session
@@ -448,6 +477,15 @@ Use the platform's native accessibility/test ID mechanism. The ids MUST match ex
 **Section containers**: Each section has `{sectionKey}_section` wrapping it. Info icons have `{sectionKey}_info_icon`.
 
 Section keys: `app`, `user`, `push`, `send_push`, `iam`, `send_iam`, `aliases`, `emails`, `sms`, `tags`, `outcomes`, `triggers`, `custom_events`, `location`, `live_activities`
+
+**Log View**:
+
+| Identifier          | Element                                                     |
+| ------------------- | ----------------------------------------------------------- |
+| `log_view`          | Log View container                                          |
+| `log_entry_{index}` | Log entry text, 0-based, oldest first                       |
+| `log_clear_button`  | Trash (clear) button; accessibility label `Clear logs`      |
+| `log_toggle_button` | Collapse/expand chevron; label `Collapse logs` / `Expand logs` |
 
 **Value displays**:
 
