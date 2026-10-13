@@ -1,9 +1,9 @@
 import { loginUser, openModal, scrollToEl, waitForAppReady } from '../helpers/app.js';
-import { byTestId, getSdkType, getTestExternalId } from '../helpers/selectors.js';
+import { byTestId, getPlatform, getSdkType, getTestExternalId } from '../helpers/selectors.js';
 
-// Add an SDK here in the same change that ships login(externalId, profile) in its demo.
+// Add an SDK here once its demo ships the Login With Profile button. Android only until iOS native ships it.
 const SUPPORTED_SDKS: readonly ReturnType<typeof getSdkType>[] = ['android'];
-const isSupported = () => SUPPORTED_SDKS.includes(getSdkType());
+const isSupported = () => getPlatform() === 'android' && SUPPORTED_SDKS.includes(getSdkType());
 
 // Reserved for this spec so it never collides with the email/sms specs.
 const PROFILE_EMAIL = 'and-p@os.co';
