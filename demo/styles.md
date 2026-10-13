@@ -17,6 +17,8 @@ Design spec for OneSignal SDK demo/sample apps. Values use platform-independent 
 | osDivider           | `#E8EAED`            | Dividers                            |
 | osWarningBackground | `#FFF8E1`            | Guidance / warning banner card      |
 | osBackdrop          | `rgba(0,0,0,0.54)`   | Dialog / overlay backdrop           |
+| osLogBackground     | `#1E1E1E`            | Log View background                 |
+| osLogText           | `#D4D4D4`            | Log View entry text                 |
 
 ## Spacing
 
@@ -206,8 +208,8 @@ Sticky panel below the header bar (see build.md Prompt 2.0). Dark, logcat-style,
 
 | Property         | Value                                                        |
 | ---------------- | ------------------------------------------------------------ |
-| Background       | `#1E1E1E`                                                    |
-| Entry text       | `#D4D4D4`, monospace, 10                                     |
+| Background       | osLogBackground (`#1E1E1E`)                                  |
+| Entry text       | osLogText (`#D4D4D4`), monospace, 10                         |
 | Timestamp, empty state | osGrey600                                              |
 | Header text      | `LOGS ({count})`, osGrey500, monospace, 11, bold, 0.5 letter spacing |
 | Header icons     | osGrey500, 18; trash (filled) then chevron, 12 apart          |
