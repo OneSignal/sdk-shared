@@ -589,6 +589,10 @@ export async function waitForNotification(opts: {
 
 /** Wait for the push ID to be populated. */
 export async function waitForInitId(timeoutMs = 30_000): Promise<string> {
+  // Later specs start scrolled far down, and scrolling back up to read it is slow.
+  const cached = (await getValue('pushId')) as string | undefined;
+  if (cached) return cached;
+
   const pushIdEl = await scrollToEl('push_id_value', { direction: 'up' });
   await driver.waitUntil(
     async () => {
@@ -597,7 +601,9 @@ export async function waitForInitId(timeoutMs = 30_000): Promise<string> {
     },
     { timeout: timeoutMs, timeoutMsg: 'Notifications not ready.' },
   );
-  return (await pushIdEl.getText()).trim();
+  const pushId = (await pushIdEl.getText()).trim();
+  await setValue('pushId', pushId);
+  return pushId;
 }
 
 export async function checkNotification(opts: {
