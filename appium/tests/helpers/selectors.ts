@@ -170,7 +170,7 @@ export async function isPushSubscriptionReady(externalId: string, subscriptionId
   return Boolean(subscription?.enabled && subscription.token);
 }
 
-/** Send a push to one subscription through the REST API. Throws if OneSignal rejects it. */
+/** Send a push to one subscription through the REST API and return its notification id. Throws if OneSignal rejects it. */
 export async function sendPushNotification(opts: {
   subscriptionId: string;
   title: string;
@@ -199,6 +199,7 @@ export async function sendPushNotification(opts: {
       `Failed to send push: ${response.status} ${JSON.stringify(result.errors ?? result)}`,
     );
   }
+  return result.id;
 }
 
 export async function getToggleState(el: {

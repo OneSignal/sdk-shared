@@ -9,6 +9,8 @@ import {
   terminateApp,
   backgroundApp,
   getForegroundAppId,
+  hasLogView,
+  expectOneNewLog,
   AppState,
 } from '../helpers/app.js';
 import {
@@ -27,7 +29,12 @@ const BROWSERS: Record<'ios' | 'android', RegExp> = {
 };
 
 async function tapPushAndExpectLaunchUrl(subscriptionId: string, title: string) {
-  await sendPushNotification({ subscriptionId, title, body: 'Tap to open URL', url: LAUNCH_URL });
+  const notificationId = await sendPushNotification({
+    subscriptionId,
+    title,
+    body: 'Tap to open URL',
+    url: LAUNCH_URL,
+  });
   await tapNotification(title);
 
   const browser = BROWSERS[getPlatform()];
@@ -39,6 +46,16 @@ async function tapPushAndExpectLaunchUrl(subscriptionId: string, title: string) 
   expect([AppState.RunningInBackgroundSuspended, AppState.RunningInBackground]).toContain(
     await getAppState(),
   );
+
+  await expectSingleClickEvent(notificationId);
+}
+
+/** The JS click listener must fire exactly once for the tapped notification. */
+async function expectSingleClickEvent(notificationId: string) {
+  await returnToApp();
+  // Demos without the log view can't report JS events yet.
+  if (!(await hasLogView())) return;
+  await expectOneNewLog([`Notification click: ${notificationId}`]);
 }
 
 describe('Notification click', () => {
