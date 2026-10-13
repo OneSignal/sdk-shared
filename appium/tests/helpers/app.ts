@@ -353,6 +353,12 @@ export async function getForegroundAppId(): Promise<string> {
   return info.bundleId ?? '';
 }
 
+/** Android activity currently in the foreground; empty on iOS. */
+export async function getForegroundActivity(): Promise<string> {
+  if (getPlatform() !== 'android') return '';
+  return driver.getCurrentActivity();
+}
+
 /** Tap a notification from the iOS banner or the Android shade, whatever app is in front. */
 export async function tapNotification(title: string, timeoutMs = 30_000) {
   await switchToNativeContext();

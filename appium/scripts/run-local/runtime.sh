@@ -290,6 +290,16 @@ cleanup_android_automation() {
   adb -s "$ANDROID_UDID" shell am force-stop io.appium.uiautomator2.server.test >/dev/null 2>&1 || true
 }
 
+# Chrome's first-run screen would otherwise replace any URL the tests open.
+skip_chrome_first_run() {
+  [[ "$PLATFORM" == "android" ]] || return 0
+  adb -s "$ANDROID_UDID" shell \
+    'echo "_ --disable-fre --no-default-browser-check --no-first-run" > /data/local/tmp/chrome-command-line' \
+    >/dev/null 2>&1 || true
+  # Chrome only reads that file on non-rooted builds when it is the debug app.
+  adb -s "$ANDROID_UDID" shell am set-debug-app --persistent com.android.chrome >/dev/null 2>&1 || true
+}
+
 reset_app() {
   if [[ "$SKIP_RESET" == true ]]; then
     info "Skipping app reset (--skip-reset)"
@@ -350,5 +360,6 @@ prepare_runtime() {
   install_chromedriver_if_needed
   start_appium
   cleanup_android_automation
+  skip_chrome_first_run
   reset_app
 }

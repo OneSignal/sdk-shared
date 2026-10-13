@@ -9,6 +9,7 @@ import {
   terminateApp,
   backgroundApp,
   getForegroundAppId,
+  getForegroundActivity,
   hasLogView,
   expectOneNewLog,
   AppState,
@@ -38,16 +39,24 @@ async function tapPushAndExpectLaunchUrl(subscriptionId: string, title: string) 
   await tapNotification(title);
 
   const browser = BROWSERS[getPlatform()];
-  await driver.waitUntil(async () => browser.test(await getForegroundAppId()), {
-    timeout: 20_000,
-    timeoutMsg: `Launch URL never opened (foreground app: ${await getForegroundAppId()})`,
-  });
+  await driver.waitUntil(
+    async () => browser.test(await getForegroundAppId()) && !(await isBrowserFirstRun()),
+    {
+      timeout: 20_000,
+      timeoutMsg: `Launch URL never opened (foreground: ${await getForegroundAppId()} ${await getForegroundActivity()})`,
+    },
+  );
   // The tap launched (or resumed) the app before the URL took over the foreground.
   expect([AppState.RunningInBackgroundSuspended, AppState.RunningInBackground]).toContain(
     await getAppState(),
   );
 
   await expectSingleClickEvent(notificationId);
+}
+
+/** A browser setup screen (e.g. Chrome's FirstRunActivity) is showing instead of the URL. */
+async function isBrowserFirstRun() {
+  return getPlatform() === 'android' && /firstrun/i.test(await getForegroundActivity());
 }
 
 /** The JS click listener must fire exactly once for the tapped notification. */
