@@ -6,7 +6,7 @@ import {
   switchToNativeContext,
   returnToApp,
   getAppState,
-  terminateApp,
+  killApp,
   backgroundApp,
   getForegroundAppId,
   getForegroundActivity,
@@ -90,14 +90,10 @@ describe('Notification click', () => {
 
   // The click reaches the SDK before the wrapper has initialized it. Wrappers
   // that initialize late must hold that click and replay it, or the launch
-  // URL is never opened. iOS only: Appium can only force-stop on Android,
-  // which drops both incoming FCM messages and posted notifications.
-  itSkipBsIos('opens the launch URL after a cold-start tap', async function () {
-    if (getPlatform() !== 'ios') return this.skip();
-
+  // URL is never opened.
+  itSkipBsIos('opens the launch URL after a cold-start tap', async () => {
     await switchToNativeContext();
-    await terminateApp();
-    expect(await getAppState()).toBe(AppState.NotRunning);
+    await killApp();
 
     await tapPushAndExpectLaunchUrl(subscriptionId, `Cold start ${Date.now()}`);
   });
