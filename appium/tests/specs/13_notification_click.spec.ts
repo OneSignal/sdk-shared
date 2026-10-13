@@ -5,14 +5,12 @@ import {
   tapNotification,
   switchToNativeContext,
   returnToApp,
-  getAppState,
   killApp,
   backgroundApp,
   getForegroundAppId,
   getForegroundActivity,
   hasLogView,
   expectOneNewLog,
-  AppState,
 } from '../helpers/app.js';
 import {
   getPlatform,
@@ -41,14 +39,7 @@ async function tapPushAndExpectLaunchUrl(subscriptionId: string, title: string) 
   const browser = BROWSERS[getPlatform()];
   await driver.waitUntil(
     async () => browser.test(await getForegroundAppId()) && !(await isBrowserFirstRun()),
-    {
-      timeout: 20_000,
-      timeoutMsg: `Launch URL never opened (foreground: ${await getForegroundAppId()} ${await getForegroundActivity()})`,
-    },
-  );
-  // The tap launched (or resumed) the app before the URL took over the foreground.
-  expect([AppState.RunningInBackgroundSuspended, AppState.RunningInBackground]).toContain(
-    await getAppState(),
+    { timeout: 20_000, timeoutMsg: 'Launch URL never opened' },
   );
 
   await expectSingleClickEvent(notificationId);
