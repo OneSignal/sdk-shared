@@ -177,7 +177,11 @@ Separate SectionCard titled "User":
    - Logged out: Status = "Anonymous", External ID = "—"
    - Logged in: Status = "Logged In" (success/green), External ID = actual value
 2. LOGIN USER button ("SWITCH USER" when logged in) -> dialog with empty "External User Id" field
-3. LOGOUT USER button (only when logged in, outlined style)
+3. LOGIN WITH PROFILE button (outlined style, native Android only until the other SDKs ship `login(externalId, profile)`) -> dialog with "External User Id" (required), "Email (optional)", "SMS (optional)" and "JWT Token (optional)". Confirm calls `OneSignal.login(externalId, profile)` and awaits its result:
+   - Clear aliases/emails/sms/triggers and set `isLoading=true` before the call, as Login does.
+   - On success, set the external user id and call `fetchUserDataFromApi()` explicitly. The user-state observer does not fire when the external id is unchanged, so it cannot be relied on to refresh the lists.
+   - On failure, log the error and clear `isLoading`.
+4. LOGOUT USER button (only when logged in, outlined style)
 
 ### Prompt 2.2 - Push Section
 
@@ -463,6 +467,7 @@ Section keys: `app`, `user`, `push`, `send_push`, `iam`, `send_iam`, `aliases`, 
 | Identifier                                                                                                                  | Button                                                                     |
 | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | `login_user_button`                                                                                                         | Login / Switch User                                                        |
+| `composite_login_button`                                                                                                    | Login With Profile (native Android only)                                   |
 | `logout_user_button`                                                                                                        | Logout User                                                                |
 | `prompt_push_button`                                                                                                        | Prompt Push (only when permission not granted)                             |
 | `send_simple_button`                                                                                                        | Send Simple notification                                                   |
@@ -508,6 +513,11 @@ Confirm buttons on the shared SingleInput, SinglePair, MultiPair and MultiSelect
 | `remove_checkbox_{key}`            | Checkbox in MultiSelectRemove dialog (one per item)         |
 | `login_user_id_input`              | Login External User Id field                                |
 | `login_user_jwt_input`             | Login JWT field                                             |
+| `composite_login_user_id_input`    | Login With Profile External User Id field                   |
+| `composite_login_email_input`      | Login With Profile Email field                              |
+| `composite_login_sms_input`        | Login With Profile SMS field                                |
+| `composite_login_jwt_input`        | Login With Profile JWT field                                |
+| `composite_login_confirm_button`   | Confirm on the Login With Profile dialog                    |
 | `alias_label_input`                | Add Alias label field                                       |
 | `alias_id_input`                   | Add Alias ID field                                          |
 | `email_input`                      | Add Email field                                             |
