@@ -408,7 +408,12 @@ export async function tapNotification(title: string, timeoutMs = 30_000) {
   if (getPlatform() === 'android') {
     await driver.openNotifications();
     const titleEl = $(`//*[@text="${title}"]`);
-    await titleEl.waitForDisplayed({ timeout: timeoutMs });
+    try {
+      await titleEl.waitForDisplayed({ timeout: timeoutMs });
+    } catch (error) {
+      await driver.pressKeyCode(4); // KEYCODE_BACK, closes the shade
+      throw error;
+    }
     await titleEl.click();
     return;
   }
