@@ -20,7 +20,7 @@ source "$RUN_LOCAL_LIB_DIR/build.sh"
 source "$RUN_LOCAL_LIB_DIR/runtime.sh"
 
 restore_demo_files
-trap restore_demo_files EXIT
+trap 'restore_demo_files; restore_chrome_first_run' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 

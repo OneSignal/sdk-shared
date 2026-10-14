@@ -154,7 +154,7 @@ export async function ensureMainWebViewContext() {
   await driver.waitUntil(
     async () => {
       const contexts = (await driver.getContexts()).map(contextName).filter(isDefined);
-      const webview = contexts.find((c) => c !== 'NATIVE_APP');
+      const webview = contexts.find(isAppWebViewContext);
       if (!webview) return false;
       const current = contextName(await driver.getContext());
       if (current !== webview) {
@@ -164,6 +164,12 @@ export async function ensureMainWebViewContext() {
     },
     { timeout: 10_000, timeoutMsg: 'WebView context never became available' },
   );
+}
+
+/** Android also lists other apps' WebViews, e.g. Chrome after a launch URL opened it. */
+function isAppWebViewContext(context: string): boolean {
+  if (context === 'NATIVE_APP') return false;
+  return getPlatform() !== 'android' || context.includes(PACKAGE_ID);
 }
 
 function contextName(context: unknown): string | undefined {
@@ -311,8 +317,11 @@ export async function returnToApp() {
   const platform = getPlatform();
 
   if (platform === 'android') {
-    await driver.pressKeyCode(4);
-    await driver.execute('mobile: activateApp', { appId: PACKAGE_ID });
+    // Back would background the app itself if nothing is covering it.
+    if ((await getAppState()) !== AppState.RunningInForeground) {
+      await driver.pressKeyCode(4);
+      await driver.execute('mobile: activateApp', { appId: PACKAGE_ID });
+    }
   } else {
     await driver.updateSettings({ defaultActiveApplication: PACKAGE_ID });
     await driver.execute('mobile: activateApp', { bundleId: PACKAGE_ID });
@@ -322,13 +331,113 @@ export async function returnToApp() {
   await driver.pause(1_000);
 }
 
+/** Values returned by Appium's `mobile: queryAppState` on both platforms. */
+export const AppState = {
+  NotRunning: 1,
+  RunningInBackgroundSuspended: 2,
+  RunningInBackground: 3,
+  RunningInForeground: 4,
+} as const;
+
+const appIdArgs = () =>
+  getPlatform() === 'ios' ? { bundleId: PACKAGE_ID } : { appId: PACKAGE_ID };
+
+export async function getAppState(): Promise<number> {
+  return Number(await driver.execute('mobile: queryAppState', appIdArgs()));
+}
+
+export async function terminateApp() {
+  await driver.execute('mobile: terminateApp', appIdArgs());
+}
+
+/**
+ * End the app's process the way a user swiping it away from recents does.
+ * Android's terminateApp is a force-stop, which blocks FCM delivery and clears
+ * posted notifications until the next manual launch, and BrowserStack rejects
+ * the shell commands that could kill it otherwise.
+ */
+export async function killApp() {
+  if (getPlatform() === 'ios') {
+    await terminateApp();
+  } else {
+    await swipeAwayFromRecents();
+  }
+  await driver.waitUntil(async () => (await getAppState()) === AppState.NotRunning, {
+    timeout: 10_000,
+    interval: 200,
+    timeoutMsg: 'App process is still running after being killed',
+  });
+  if (getPlatform() === 'android') await driver.pressKeyCode(3); // KEYCODE_HOME
+}
+
+async function swipeAwayFromRecents() {
+  // UiAutomator2 otherwise blocks each action until the launcher's recents
+  // animations go idle, which takes seconds.
+  const { waitForIdleTimeout } = (await driver.getSettings()) as { waitForIdleTimeout?: number };
+  await driver.updateSettings({ waitForIdleTimeout: 0 });
+  try {
+    await driver.pressKeyCode(187); // KEYCODE_APP_SWITCH, with this app as the focused card
+    await driver.waitUntil(async () => (await driver.getCurrentPackage()) !== PACKAGE_ID, {
+      timeout: 5_000,
+      interval: 100,
+      timeoutMsg: 'Recents never opened',
+    });
+    // The launcher takes focus before the card finishes animating into place.
+    await driver.pause(500);
+    const { width, height } = await driver.getWindowSize();
+    const x = Math.round(width / 2);
+    await driver.swipe({
+      from: { x, y: Math.round(height * 0.55) },
+      to: { x, y: Math.round(height * 0.05) },
+      duration: 200,
+    });
+  } finally {
+    await driver.updateSettings({ waitForIdleTimeout: waitForIdleTimeout ?? 10_000 });
+  }
+}
+
+/** Send the app to the background until something else activates it. */
+export async function backgroundApp() {
+  await driver.execute('mobile: backgroundApp', { seconds: -1 });
+}
+
+/** Tap a notification from the iOS banner or the Android shade, whatever app is in front. */
+export async function tapNotification(title: string, timeoutMs = 30_000) {
+  await switchToNativeContext();
+
+  if (getPlatform() === 'android') {
+    await driver.openNotifications();
+    const titleEl = $(`//*[@text="${title}"]`);
+    try {
+      await titleEl.waitForDisplayed({ timeout: timeoutMs });
+    } catch (error) {
+      await driver.pressKeyCode(4); // KEYCODE_BACK, closes the shade
+      throw error;
+    }
+    await titleEl.click();
+    return;
+  }
+
+  await driver.updateSettings({ defaultActiveApplication: 'com.apple.springboard' });
+  try {
+    const banner = $(`-ios predicate string:label CONTAINS "${title}"`);
+    await banner.waitForDisplayed({ timeout: timeoutMs });
+    await banner.click();
+  } finally {
+    await driver.updateSettings({ defaultActiveApplication: PACKAGE_ID });
+  }
+}
+
 export async function hasLogView(): Promise<boolean> {
   return $(byTestIdSelector('log_view'))
     .isExisting()
     .catch(() => false);
 }
 
-/** Text of every entry in the demo's on-screen log view, oldest first. */
+/**
+ * Text of the demo's log entries, oldest first. Native Android only sees
+ * entries on screen, so counts can miss older matches that scrolled away.
+ */
 export async function getLogMessages(): Promise<string[]> {
   if (isWebViewSDK) {
     return driver.execute(() =>
@@ -480,6 +589,10 @@ export async function waitForNotification(opts: {
 
 /** Wait for the push ID to be populated. */
 export async function waitForInitId(timeoutMs = 30_000): Promise<string> {
+  // Later specs start scrolled far down, and scrolling back up to read it is slow.
+  const cached = (await getValue('pushId')) as string | undefined;
+  if (cached) return cached;
+
   const pushIdEl = await scrollToEl('push_id_value', { direction: 'up' });
   await driver.waitUntil(
     async () => {
@@ -488,7 +601,9 @@ export async function waitForInitId(timeoutMs = 30_000): Promise<string> {
     },
     { timeout: timeoutMs, timeoutMsg: 'Notifications not ready.' },
   );
-  return (await pushIdEl.getText()).trim();
+  const pushId = (await pushIdEl.getText()).trim();
+  await setValue('pushId', pushId);
+  return pushId;
 }
 
 export async function checkNotification(opts: {
