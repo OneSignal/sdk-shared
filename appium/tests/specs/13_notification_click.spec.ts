@@ -68,6 +68,8 @@ describe('Notification click', () => {
   let subscriptionId: string;
 
   before(async () => {
+    // Need enterprise signing cert for ios push tests
+    if (isBrowserStackIos()) return;
     await waitForAppReady();
     subscriptionId = await waitForInitId();
 
