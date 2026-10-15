@@ -25,9 +25,12 @@ const ADDRESS_BARS: Record<'ios' | 'android', string> = {
   ios: '-ios predicate string:name == "TabBarItemTitle"',
   android: 'android=new UiSelector().resourceId("com.android.chrome:id/url_bar")',
 };
-// Chrome asks for notification permission on its first launch, covering the address bar.
-const CHROME_DIALOG_DISMISS =
-  'android=new UiSelector().resourceId("com.android.chrome:id/negative_button")';
+// Chrome's first launch can show its sign-in screen and a notification permission dialog,
+// both covering the address bar.
+const CHROME_FIRST_RUN_DISMISS = [
+  'android=new UiSelector().resourceId("com.android.chrome:id/signin_fre_dismiss_button")',
+  'android=new UiSelector().resourceId("com.android.chrome:id/negative_button")',
+];
 
 async function tapPushAndExpectLaunchUrl(subscriptionId: string, title: string) {
   const notificationId = await sendPushNotification({
@@ -49,8 +52,10 @@ async function tapPushAndExpectLaunchUrl(subscriptionId: string, title: string) 
 /** Address shown by the foreground browser, or empty if no browser address bar is showing. */
 async function getBrowserAddress(): Promise<string> {
   if (getPlatform() === 'android') {
-    const dismiss = $(CHROME_DIALOG_DISMISS);
-    if (await dismiss.isExisting()) await dismiss.click();
+    for (const selector of CHROME_FIRST_RUN_DISMISS) {
+      const dismiss = $(selector);
+      if (await dismiss.isExisting()) await dismiss.click();
+    }
   }
   const addressBar = $(ADDRESS_BARS[getPlatform()]);
   return (await addressBar.isExisting()) ? addressBar.getText() : '';
