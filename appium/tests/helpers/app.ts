@@ -451,14 +451,16 @@ export async function getLogMessages(): Promise<string[]> {
     );
   }
 
-  const selector =
-    getPlatform() === 'android'
-      ? 'android=new UiSelector().resourceIdMatches(".*log_entry_.*")'
-      : '-ios predicate string:name BEGINSWITH "log_entry_"';
+  if (getPlatform() === 'ios') {
+    return $$('-ios predicate string:name BEGINSWITH "log_entry_"').map((el) => el.getText());
+  }
+
+  const entries = $$('android=new UiSelector().resourceIdMatches(".*log_entry_.*")');
   // Flutter Android exposes text labels as content-desc, not text.
-  return $$(selector).map(
-    async (el) => (await el.getText()) || ((await el.getAttribute('content-desc')) ?? ''),
-  );
+  if (sdkType === 'flutter') {
+    return entries.map(async (el) => (await el.getAttribute('content-desc')) ?? '');
+  }
+  return entries.map((el) => el.getText());
 }
 
 /** Number of log entries that contain every one of `parts`. */
