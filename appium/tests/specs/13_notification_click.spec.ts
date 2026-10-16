@@ -12,9 +12,8 @@ import {
 } from '../helpers/app.js';
 import {
   getPlatform,
-  getTestExternalId,
-  isPushSubscriptionReady,
   sendPushNotification,
+  waitForPushSubscriptionReady,
 } from '../helpers/selectors.js';
 
 const itSkipBsIos = isBrowserStackIos() ? it.skip : it;
@@ -80,12 +79,7 @@ describe('Notification click', () => {
 
     // The app is killed below, so the SDK must have already synced the push
     // token; otherwise the backend rejects the send as an invalid target.
-    const externalId = getTestExternalId();
-    await driver.waitUntil(() => isPushSubscriptionReady(externalId, subscriptionId), {
-      timeout: 60_000,
-      interval: 2_000,
-      timeoutMsg: `Push subscription ${subscriptionId} never became sendable`,
-    });
+    await waitForPushSubscriptionReady(subscriptionId);
   });
 
   afterEach(async () => {

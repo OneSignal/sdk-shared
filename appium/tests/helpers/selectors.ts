@@ -156,7 +156,7 @@ export async function deleteUser(externalId: string) {
 }
 
 /** Whether the backend has a push token for this subscription and considers it enabled. */
-export async function isPushSubscriptionReady(externalId: string, subscriptionId: string) {
+async function isPushSubscriptionReady(externalId: string, subscriptionId: string) {
   const response = await fetch(
     `https://api.onesignal.com/apps/${process.env.ONESIGNAL_APP_ID}/users/by/external_id/${externalId}`,
     { headers: { Authorization: `Key ${process.env.ONESIGNAL_API_KEY}` } },
@@ -168,6 +168,15 @@ export async function isPushSubscriptionReady(externalId: string, subscriptionId
   };
   const subscription = user.subscriptions?.find((s) => s.id === subscriptionId);
   return Boolean(subscription?.enabled && subscription.token);
+}
+
+export async function waitForPushSubscriptionReady(subscriptionId: string) {
+  const externalId = getTestExternalId();
+  await driver.waitUntil(() => isPushSubscriptionReady(externalId, subscriptionId), {
+    timeout: 60_000,
+    interval: 2_000,
+    timeoutMsg: `Push subscription ${subscriptionId} never became sendable`,
+  });
 }
 
 /** Send a push to one subscription through the REST API and return its notification id. Throws if OneSignal rejects it. */

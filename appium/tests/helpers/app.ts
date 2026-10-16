@@ -11,6 +11,7 @@ import {
   getPlatform,
   getSdkType,
   getTestExternalId,
+  waitForPushSubscriptionReady,
 } from './selectors.js';
 
 const PACKAGE_ID = 'com.onesignal.example';
@@ -612,7 +613,7 @@ export async function checkNotification(opts: {
   body?: string;
   expectImage?: boolean;
 }) {
-  await waitForInitId();
+  await waitForPushSubscriptionReady(await waitForInitId());
 
   const button = await scrollToEl(opts.buttonId);
   await driver.pause(2_000); // small wait to hopefully get image notif early
