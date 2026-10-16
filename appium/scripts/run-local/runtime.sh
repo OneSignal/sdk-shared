@@ -102,11 +102,19 @@ for ver, rt, avail in sorted(runtimes, reverse=True):
   info "Simulator ready"
 }
 
+# A wedged adbd keeps the device listed as "device" while `adb shell` blocks
+# forever, so every boot probe needs its own deadline. macOS has no `timeout`.
+adb_with_timeout() {
+  local seconds="$1"
+  shift
+  perl -e 'alarm shift; exec @ARGV' "$seconds" adb "$@"
+}
+
 find_android_emulator_udid() {
   local serial state avd_name
   while read -r serial state; do
     [[ "$serial" == emulator-* && "$state" == "device" ]] || continue
-    avd_name=$(adb -s "$serial" emu avd name 2>/dev/null | head -1 | tr -d '\r')
+    avd_name=$(adb_with_timeout 10 -s "$serial" emu avd name 2>/dev/null | head -1 | tr -d '\r')
     if [[ "$avd_name" == "$AVD_NAME" ]]; then
       echo "$serial"
       return 0
@@ -124,25 +132,25 @@ pin_android_emulator() {
 
 wait_for_android_emulator() {
   info "Waiting for emulator to boot..."
-  local emulator_udid="" boot="" elapsed=0
+  local emulator_udid="" boot="" deadline=$((SECONDS + 240))
   while true; do
     emulator_udid=$(find_android_emulator_udid || true)
     if [[ -n "$emulator_udid" ]]; then
       pin_android_emulator "$emulator_udid"
-      boot=$(adb -s "$ANDROID_UDID" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
+      boot=$(adb_with_timeout 10 -s "$ANDROID_UDID" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
       if [[ "$boot" == "1" ]] \
-        && adb -s "$ANDROID_UDID" shell service check settings 2>/dev/null | grep -q "Service settings: found" \
-        && adb -s "$ANDROID_UDID" shell service check package 2>/dev/null | grep -q "Service package: found"; then
+        && adb_with_timeout 10 -s "$ANDROID_UDID" shell service check settings 2>/dev/null | grep -q "Service settings: found" \
+        && adb_with_timeout 10 -s "$ANDROID_UDID" shell service check package 2>/dev/null | grep -q "Service package: found"; then
         info "Emulator '$AVD_NAME' ready ($ANDROID_UDID)"
         return
       fi
     fi
     sleep 2
-    elapsed=$((elapsed + 2))
-    if [[ $elapsed -ge 240 ]]; then
-      error "Emulator failed to become ready after 240s. The default_boot snapshot may be corrupt; try:"
+    if (( SECONDS >= deadline )); then
+      warn "Emulator failed to become ready after 240s. If adb shell is unresponsive, kill it and cold boot:"
+      warn "  adb -s ${ANDROID_UDID:-<serial>} emu kill"
+      warn "If it hangs again after a cold boot, the default_boot snapshot may be corrupt; try:"
       error "  rm -rf ~/.android/avd/${AVD_NAME}.avd/snapshots/default_boot"
-      return 1
     fi
   done
 }
