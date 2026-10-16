@@ -195,7 +195,10 @@ async function switchToMainWebViewWindow(): Promise<boolean> {
     return true;
   }
 
-  for (const handle of handles) {
+  // Probing a stale window blocks for the atom timeout, so try the current one first.
+  const current = await driver.getWindowHandle().catch(() => undefined);
+  const ordered = current ? [current, ...handles.filter((h) => h !== current)] : handles;
+  for (const handle of ordered) {
     try {
       await driver.switchToWindow(handle);
       const main = $('[data-testid="main_scroll_view"]');
