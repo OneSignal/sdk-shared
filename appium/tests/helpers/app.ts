@@ -455,7 +455,10 @@ export async function getLogMessages(): Promise<string[]> {
     getPlatform() === 'android'
       ? 'android=new UiSelector().resourceIdMatches(".*log_entry_.*")'
       : '-ios predicate string:name BEGINSWITH "log_entry_"';
-  return $$(selector).map((el) => el.getText());
+  // Flutter Android exposes text labels as content-desc, not text.
+  return $$(selector).map(
+    async (el) => (await el.getText()) || ((await el.getAttribute('content-desc')) ?? ''),
+  );
 }
 
 /** Number of log entries that contain every one of `parts`. */
