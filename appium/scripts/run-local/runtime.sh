@@ -29,7 +29,7 @@ for runtime, devices in data['devices'].items():
 " 2>/dev/null || true)
 
   # Requested device/runtime isn't installed on this machine (e.g. defaults
-  # assume iOS 26.2 but only 26.5 is installed). Fall back to the booted
+  # assume iOS 26.5 but only an older runtime is installed). Fall back to the booted
   # simulator if there is one, else the newest installed iOS runtime, and
   # align DEVICE/OS_VERSION so the Appium session targets what actually runs.
   if [[ -z "$udid" ]]; then

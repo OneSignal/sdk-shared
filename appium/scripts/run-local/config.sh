@@ -107,9 +107,9 @@ Env vars (set in .env or export):
   IOS_NATIVE_PROJECT Xcode project filename under examples/demo for the native
                      iOS demo (default: App.xcodeproj). The scheme is derived
                      from the basename (XcodeGen convention).
-  OS_VERSION         Platform version (default: 26.2 / 16)
+  OS_VERSION         Platform version (default: 26.5 / 16)
   IOS_SIMULATOR      iOS simulator name (default: iPhone 17)
-  IOS_RUNTIME        simctl runtime id (default: iOS-26-2)
+  IOS_RUNTIME        simctl runtime id (default: iOS-26-5)
   APPIUM_PORT        Appium port (default: 4723; same as --appium-port)
   WDA_LOCAL_PORT     WebDriverAgent local port for iOS parallel runs
   SYSTEM_PORT        UiAutomator2 systemPort (same as --system-port)
@@ -420,9 +420,9 @@ USAGE
   # ── Platform defaults ────────────────────────────────────────────────────────
   if [[ "$PLATFORM" == "ios" ]]; then
     DEVICE="${DEVICE:-iPhone 17}"
-    OS_VERSION="${OS_VERSION:-26.2}"
+    OS_VERSION="${OS_VERSION:-26.5}"
     IOS_SIMULATOR="${IOS_SIMULATOR:-$DEVICE}"
-    IOS_RUNTIME="${IOS_RUNTIME:-iOS-26-2}"
+    IOS_RUNTIME="${IOS_RUNTIME:-iOS-26-5}"
   else
     DEVICE="${DEVICE:-Android 16}"
     OS_VERSION="${OS_VERSION:-16}"
