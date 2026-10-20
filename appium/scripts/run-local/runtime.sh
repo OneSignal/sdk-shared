@@ -136,11 +136,13 @@ stop_android_emulator() {
   local serial="$1" pattern waited=0
   pattern=$(android_emulator_process_pattern)
   [[ -n "$serial" ]] && adb_with_timeout 10 -s "$serial" emu kill >/dev/null 2>&1
+  # `emu kill` saves the quickboot snapshot (~4GB of RAM) before exiting, and
+  # force-killing mid-save leaves a corrupt default_boot, so give it time.
   while pgrep -f "$pattern" >/dev/null; do
     sleep 1
     waited=$((waited + 1))
-    (( waited == 15 )) && pkill -f "$pattern"
-    (( waited >= 30 )) && error "Emulator '$AVD_NAME' did not stop after 30s; stop it manually and retry"
+    (( waited == 45 )) && pkill -f "$pattern"
+    (( waited >= 60 )) && error "Emulator '$AVD_NAME' did not stop after 60s; stop it manually and retry"
   done
   return 0
 }
