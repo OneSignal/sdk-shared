@@ -156,6 +156,13 @@ Skip only the build (simulator + reset still happen):
 
 All env vars can be set in `.env` or exported in your shell. See [`.env.example`](.env.example) for the full list.
 
+SDK repo paths (`*_DIR`) resolve in this order:
+
+1. The variable, if set.
+2. The current checkout, when you run the script from inside that SDK's repo or one of its git worktrees.
+3. A prompt listing the repo's worktrees, when it has more than one and the run is interactive. Enter keeps the default. `run-all.sh` asks once per SDK and reuses the answer for every platform.
+4. The default next to `sdk-shared`.
+
 Credential files the runner writes into demo repos (`.env`, Unity's `StreamingAssets/.env`, iOS `Secrets.plist`) are backed up to `appium/.demo-backups/` and restored when the run exits, pass or fail. If a run is killed hard, the next run restores them first.
 
 | Variable            | Default                            | Description                                   |

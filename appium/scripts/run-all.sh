@@ -2,6 +2,15 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SDK_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+
+if [[ -f "$SCRIPT_DIR/.env" ]]; then
+  set -a
+  source "$SCRIPT_DIR/.env"
+  set +a
+fi
+
+source "$SCRIPT_DIR/run-local/repo-dir.sh"
 
 # ── Colors / logging ─────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -131,6 +140,12 @@ if (( PODS_REQUESTED )); then
     warn "--pods only applies to flutter, cordova, and capacitor; ignoring it for: ${PODS_IGNORED[*]}"
   fi
 fi
+
+# Resolve each SDK's checkout once so both platforms (and --release/--main)
+# use the same one.
+for sdk in "${SDKS[@]}"; do
+  resolve_sdk_dir "$sdk"
+done
 
 if (( RELEASE )); then
   echo -e "${BOLD}━━━ Checking out latest releases ━━━${NC}"

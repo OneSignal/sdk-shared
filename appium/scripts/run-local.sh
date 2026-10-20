@@ -14,6 +14,7 @@ fi
 
 RUN_LOCAL_LIB_DIR="$SCRIPT_DIR/run-local"
 source "$RUN_LOCAL_LIB_DIR/common.sh"
+source "$RUN_LOCAL_LIB_DIR/repo-dir.sh"
 source "$RUN_LOCAL_LIB_DIR/config.sh"
 source "$RUN_LOCAL_LIB_DIR/sdk-artifacts.sh"
 source "$RUN_LOCAL_LIB_DIR/build.sh"

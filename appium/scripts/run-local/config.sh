@@ -175,6 +175,8 @@ USAGE
     error "--release and --main are mutually exclusive"
   fi
 
+  resolve_sdk_dir "$SDK_TYPE"
+
   if [[ "$RELEASE" == true ]]; then
     "$SCRIPT_DIR/checkout-releases.sh" "$SDK_TYPE"
   elif [[ "$MAIN" == true ]]; then
@@ -283,7 +285,6 @@ USAGE
   BUNDLE_ID="${BUNDLE_ID:-com.onesignal.example}"
 
   if [[ "$SDK_TYPE" == "flutter" ]]; then
-    FLUTTER_DIR="${FLUTTER_DIR:-$SDK_ROOT/OneSignal-Flutter-SDK}"
     [[ -d "$FLUTTER_DIR" ]] || error "Flutter SDK not found at $FLUTTER_DIR — set FLUTTER_DIR in .env"
     if [[ "$PODS_DEMO" == true ]]; then
       DEMO_DIR="$FLUTTER_DIR/examples/demo-pods"
@@ -296,7 +297,6 @@ USAGE
       APP_PATH="${APP_PATH:-$DEMO_DIR/build/app/outputs/flutter-apk/app-debug.apk}"
     fi
   elif [[ "$SDK_TYPE" == "react-native" ]]; then
-    RN_DIR="${RN_DIR:-$SDK_ROOT/react-native-onesignal}"
     [[ -d "$RN_DIR" ]] || error "React Native SDK not found at $RN_DIR — set RN_DIR in .env"
     DEMO_DIR="$RN_DIR/examples/demo"
     if [[ "$PLATFORM" == "ios" ]]; then
@@ -305,7 +305,6 @@ USAGE
       APP_PATH="${APP_PATH:-$DEMO_DIR/android/app/build/outputs/apk/release/app-release.apk}"
     fi
   elif [[ "$SDK_TYPE" == "cordova" ]]; then
-    CORDOVA_DIR="${CORDOVA_DIR:-$SDK_ROOT/OneSignal-Cordova-SDK}"
     [[ -d "$CORDOVA_DIR" ]] || error "Cordova SDK not found at $CORDOVA_DIR — set CORDOVA_DIR in .env"
     if [[ "$PODS_DEMO" == true ]]; then
       DEMO_DIR="$CORDOVA_DIR/examples/demo-pods"
@@ -318,7 +317,6 @@ USAGE
       APP_PATH="${APP_PATH:-$DEMO_DIR/android/app/build/outputs/apk/debug/app-debug.apk}"
     fi
   elif [[ "$SDK_TYPE" == "capacitor" ]]; then
-    CAPACITOR_DIR="${CAPACITOR_DIR:-$SDK_ROOT/OneSignal-Capacitor-SDK}"
     [[ -d "$CAPACITOR_DIR" ]] || error "Capacitor SDK not found at $CAPACITOR_DIR — set CAPACITOR_DIR in .env"
     if [[ "$PODS_DEMO" == true ]]; then
       DEMO_DIR="$CAPACITOR_DIR/examples/demo-pods"
@@ -331,7 +329,6 @@ USAGE
       APP_PATH="${APP_PATH:-$DEMO_DIR/android/app/build/outputs/apk/debug/app-debug.apk}"
     fi
   elif [[ "$SDK_TYPE" == "expo" ]]; then
-    EXPO_DIR="${EXPO_DIR:-$SDK_ROOT/onesignal-expo-plugin}"
     [[ -d "$EXPO_DIR" ]] || error "Expo plugin not found at $EXPO_DIR — set EXPO_DIR in .env"
     DEMO_DIR="$EXPO_DIR/examples/demo"
     if [[ "$PLATFORM" == "ios" ]]; then
@@ -340,7 +337,6 @@ USAGE
       APP_PATH="${APP_PATH:-$DEMO_DIR/android/app/build/outputs/apk/release/app-release.apk}"
     fi
   elif [[ "$SDK_TYPE" == "dotnet" ]]; then
-    DOTNET_DIR="${DOTNET_DIR:-$SDK_ROOT/DotNet/OneSignal-DotNet-SDK}"
     [[ -d "$DOTNET_DIR" ]] || error ".NET MAUI SDK not found at $DOTNET_DIR — set DOTNET_DIR in .env"
     DEMO_DIR="$DOTNET_DIR/examples/demo"
     DOTNET_TFM="${DOTNET_TFM:-net10.0}"
@@ -376,7 +372,6 @@ USAGE
       APP_PATH="${APP_PATH:-$DEMO_DIR/bin/Debug/${DOTNET_TFM}-android/${DOTNET_ANDROID_RID}/com.onesignal.example-Signed.apk}"
     fi
   elif [[ "$SDK_TYPE" == "unity" ]]; then
-    UNITY_DIR="${UNITY_DIR:-$SDK_ROOT/OneSignal-Unity-SDK}"
     [[ -d "$UNITY_DIR" ]] || error "Unity SDK not found at $UNITY_DIR — set UNITY_DIR in .env"
     DEMO_DIR="$UNITY_DIR/examples/demo"
     UNITY_PATH="${UNITY_PATH:-/Applications/Unity/Hub/Editor/6000.4.11f1/Unity.app/Contents/MacOS/Unity}"
@@ -398,7 +393,6 @@ USAGE
       APP_PATH="${APP_PATH:-$DEMO_DIR/Build/Android/onesignal-demo.apk}"
     fi
   elif [[ "$SDK_TYPE" == "android" ]]; then
-    ANDROID_DIR="${ANDROID_DIR:-$SDK_ROOT/OneSignal-Android-SDK}"
     [[ -d "$ANDROID_DIR" ]] || error "Native Android SDK not found at $ANDROID_DIR — set ANDROID_DIR in .env"
     DEMO_DIR="$ANDROID_DIR/examples/demo"
     ANDROID_FLAVOR="${ANDROID_FLAVOR:-gms}"
@@ -414,7 +408,6 @@ USAGE
     # Gradle emits per-flavor/type APKs under app/build/outputs/apk/<flavor>/<buildType>/.
     APP_PATH="${APP_PATH:-$DEMO_DIR/app/build/outputs/apk/${ANDROID_FLAVOR}/${ANDROID_BUILD_TYPE}/app-${ANDROID_FLAVOR}-${ANDROID_BUILD_TYPE}.apk}"
   elif [[ "$SDK_TYPE" == "ios" ]]; then
-    IOS_DIR="${IOS_DIR:-$SDK_ROOT/OneSignal-iOS-SDK}"
     [[ -d "$IOS_DIR" ]] || error "Native iOS SDK not found at $IOS_DIR — set IOS_DIR in .env"
     DEMO_DIR="$IOS_DIR/examples/demo"
     # XcodeGen names the scheme after the project, so we derive both the scheme
@@ -422,6 +415,7 @@ USAGE
     IOS_NATIVE_PROJECT="${IOS_NATIVE_PROJECT:-App.xcodeproj}"
     APP_PATH="${APP_PATH:-$DEMO_DIR/build/Build/Products/${IOS_BUILD_DIR}/${IOS_NATIVE_PROJECT%.xcodeproj}.app}"
   fi
+  info "Demo: $DEMO_DIR"
 
   # ── Platform defaults ────────────────────────────────────────────────────────
   if [[ "$PLATFORM" == "ios" ]]; then

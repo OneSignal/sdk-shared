@@ -5,8 +5,7 @@
 #     rel/X.Y.Z branch is newer (pending release), in which case that branch
 # With --main, every repo instead checks out main and fast-forwards to origin/main.
 # Pass SDK names as arguments; omitting them checks out every SDK.
-# Repo paths honor the same *_DIR overrides as run-local.sh (loaded from .env),
-# falling back to the config.sh defaults under $SDK_ROOT.
+# Repo paths resolve like run-local.sh (see resolve_sdk_dir in run-local/repo-dir.sh).
 # Uncommitted changes, including untracked files, are stashed before checkout.
 set -uo pipefail
 
@@ -20,6 +19,8 @@ if [[ -f "$SCRIPT_DIR/.env" ]]; then
   source "$SCRIPT_DIR/.env"
   set +a
 fi
+
+source "$SCRIPT_DIR/run-local/repo-dir.sh"
 
 # sdk|var|default-subpath|kind  (kind: rel = latest rel/* branch, tag = latest semver tag)
 # Defaults mirror run-local/config.sh; override any via *_DIR in .env.
@@ -71,10 +72,11 @@ for entry in "${REPOS[@]}"; do
     [[ "$selected_sdk" == true ]] || continue
   fi
 
-  p="${!var:-$SDK_ROOT/$subpath}"   # .env override wins, else default
+  resolve_sdk_dir "$sdk"
+  p="${!var}"
   name="$(basename "$p")"
 
-  if [[ ! -d "$p/.git" ]]; then
+  if [[ ! -e "$p/.git" ]]; then
     echo -e "${RED}SKIP${NC}  $name (not a git repo: $p — set $var in .env)"; continue
   fi
   git -C "$p" fetch --prune --tags origin >/dev/null 2>&1
