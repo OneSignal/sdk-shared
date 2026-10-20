@@ -130,14 +130,46 @@ pin_android_emulator() {
   export ANDROID_UDID ANDROID_SERIAL APPIUM_UDID
 }
 
+android_emulator_process_pattern() { echo "qemu-system.*-avd ${AVD_NAME}( |$)"; }
+
+stop_android_emulator() {
+  local serial="$1" pattern waited=0
+  pattern=$(android_emulator_process_pattern)
+  [[ -n "$serial" ]] && adb_with_timeout 10 -s "$serial" emu kill >/dev/null 2>&1
+  while pgrep -f "$pattern" >/dev/null; do
+    sleep 1
+    waited=$((waited + 1))
+    (( waited == 15 )) && pkill -f "$pattern"
+    (( waited >= 30 )) && error "Emulator '$AVD_NAME' did not stop after 30s; stop it manually and retry"
+  done
+  return 0
+}
+
+launch_android_emulator() {
+  local emulator_log="/tmp/emulator-${AVD_NAME}.log"
+  info "Starting emulator '$AVD_NAME' (logs: $emulator_log)..."
+  # Detach (`set -m` + `disown`) so Ctrl-C on the script doesn't SIGINT the
+  # emulator, and so subsequent `--skip-device` runs can reuse the booted AVD.
+  set -m
+  emulator -avd "$AVD_NAME" -no-audio -no-boot-anim "$@" \
+    </dev/null >"$emulator_log" 2>&1 &
+  disown %% 2>/dev/null || true
+  set +m
+}
+
 wait_for_android_emulator() {
   info "Waiting for emulator to boot..."
-  local emulator_udid="" boot="" deadline=$((SECONDS + 240))
+  local emulator_udid="" boot="" status timeouts=0 cold_booted=false
+  local deadline=$((SECONDS + 240)) recover_at=$((SECONDS + 180))
   while true; do
     emulator_udid=$(find_android_emulator_udid || true)
     if [[ -n "$emulator_udid" ]]; then
       pin_android_emulator "$emulator_udid"
-      boot=$(adb_with_timeout 10 -s "$ANDROID_UDID" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
+      status=0
+      boot=$(adb_with_timeout 10 -s "$ANDROID_UDID" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r') || status=$?
+      # A booting adbd answers right away; repeated alarm timeouts (142) mean
+      # it is wedged, which usually follows a bad snapshot boot.
+      if (( status == 142 )); then timeouts=$((timeouts + 1)); else timeouts=0; fi
       if [[ "$boot" == "1" ]] \
         && adb_with_timeout 10 -s "$ANDROID_UDID" shell service check settings 2>/dev/null | grep -q "Service settings: found" \
         && adb_with_timeout 10 -s "$ANDROID_UDID" shell service check package 2>/dev/null | grep -q "Service package: found"; then
@@ -145,11 +177,19 @@ wait_for_android_emulator() {
         return
       fi
     fi
+    if [[ "$cold_booted" == false ]] && (( timeouts >= 3 || SECONDS >= recover_at )); then
+      warn "Emulator '$AVD_NAME' is not responding to adb; restarting it with a cold boot..."
+      stop_android_emulator "${ANDROID_UDID:-}"
+      launch_android_emulator -no-snapshot-load
+      cold_booted=true
+      timeouts=0
+      deadline=$((SECONDS + 240))
+    fi
     sleep 2
     if (( SECONDS >= deadline )); then
-      warn "Emulator failed to become ready after 240s. If adb shell is unresponsive, kill it and cold boot:"
+      warn "Emulator failed to become ready after a cold boot. Kill it and try again:"
       warn "  adb -s ${ANDROID_UDID:-<serial>} emu kill"
-      warn "If it hangs again after a cold boot, the default_boot snapshot may be corrupt; try:"
+      warn "If it keeps hanging, the default_boot snapshot may be corrupt; try:"
       error "  rm -rf ~/.android/avd/${AVD_NAME}.avd/snapshots/default_boot"
     fi
   done
@@ -161,15 +201,7 @@ start_android_emulator() {
 
   if [[ "$WIPE_EMULATOR" == true && -n "$emulator_udid" ]]; then
     info "Stopping the running emulator '$AVD_NAME' ($emulator_udid) before wiping..."
-    adb -s "$emulator_udid" emu kill >/dev/null 2>&1 || true
-    local stop_elapsed=0
-    while adb devices 2>/dev/null | awk 'NR > 1 {print $1}' | grep -q "^${emulator_udid}$"; do
-      sleep 1
-      stop_elapsed=$((stop_elapsed + 1))
-      if [[ $stop_elapsed -ge 30 ]]; then
-        error "Emulator did not stop after 30s; stop it manually and retry --wipe-emulator"
-      fi
-    done
+    stop_android_emulator "$emulator_udid"
     emulator_udid=""
   fi
 
@@ -180,20 +212,19 @@ start_android_emulator() {
     return
   fi
 
-  local emulator_log="/tmp/emulator-${AVD_NAME}.log"
-  info "Starting emulator '$AVD_NAME' (logs: $emulator_log)..."
-  # Detach (`set -m` + `disown`) so Ctrl-C on the script doesn't SIGINT the
-  # emulator, and so subsequent `--skip-device` runs can reuse the booted AVD.
-  local -a emulator_args=(-avd "$AVD_NAME" -no-audio -no-boot-anim)
+  local -a emulator_args=()
   if [[ "$WIPE_EMULATOR" == true ]]; then
     info "Wiping emulator data before launch..."
     emulator_args+=(-wipe-data)
   fi
-  set -m
-  emulator "${emulator_args[@]}" \
-    </dev/null >"$emulator_log" 2>&1 &
-  disown %% 2>/dev/null || true
-  set +m
+  # Launching a second instance of a running AVD fails, so an emulator that is
+  # up but offline to adb has to be stopped and cold booted instead.
+  if pgrep -f "$(android_emulator_process_pattern)" >/dev/null; then
+    warn "Emulator '$AVD_NAME' is running but offline to adb; restarting it with a cold boot..."
+    stop_android_emulator ""
+    emulator_args+=(-no-snapshot-load)
+  fi
+  launch_android_emulator ${emulator_args[@]+"${emulator_args[@]}"}
 
   wait_for_android_emulator
 }
