@@ -261,6 +261,7 @@ type ElementWithInteractionMethods = {
   getAttribute(name: string): Promise<string | null>;
   getText(): Promise<string>;
   setValue(value: string): Promise<void>;
+  waitForDisplayed(options?: { timeout?: number }): Promise<unknown>;
 };
 
 // Centralized SDK-specific element shims.

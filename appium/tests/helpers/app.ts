@@ -707,7 +707,7 @@ async function hasVisibleIamContent(expectedTitle?: string): Promise<boolean> {
     .execute((titleText?: string) => {
       const title = document.querySelector('h1');
       const isVisible = Boolean(title?.getClientRects().length);
-      return isVisible && (!titleText || title.textContent === titleText);
+      return isVisible && (!titleText || title?.textContent === titleText);
     }, expectedTitle)
     .catch(() => false);
 }
