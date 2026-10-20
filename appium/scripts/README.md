@@ -181,8 +181,8 @@ Credential files the runner writes into demo repos (`.env`, Unity's `StreamingAs
 | `UNITY_PATH`        | Unity Hub editor path             | Unity Editor binary (unity builds)           |
 | `APP_PATH`          | auto-detected from build           | Path to `.app` or `.apk`                      |
 | `BUNDLE_ID`         | `com.onesignal.example`            | App bundle/package ID                         |
-| `DEVICE`            | `iPhone 17` / `Samsung Galaxy S26` | Device name for WebdriverIO                   |
-| `OS_VERSION`        | `26.5` / `16`                      | Platform version                              |
+| `DEVICE`            | `iPhone 17` / `Android 17`         | Device name for WebdriverIO                   |
+| `OS_VERSION`        | `26.5` / `17`                      | Platform version                              |
 | `IOS_SIMULATOR`     | same as `DEVICE`                   | Simulator name for `simctl`                   |
 | `IOS_RUNTIME`       | `iOS-26-5`                         | simctl runtime identifier                     |
 | `AVD_NAME`          | `Samsung_Galaxy_S26`               | Android AVD name                              |

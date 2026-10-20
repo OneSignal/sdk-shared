@@ -56,7 +56,7 @@ Options:
                       skips with exit 0 when --platform=ios.
                       ios = native iOS (OneSignal-iOS-SDK/examples/demo);
                       skips with exit 0 when --platform=android.
-  --device=NAME       Device/simulator/AVD name (default: iPhone 17 / Samsung Galaxy S26)
+  --device=NAME       Device/simulator/AVD name (default: iPhone 17 / Android 17)
   --appium-port=N     Appium server port (default: 4723). Use unique values when
                       running multiple sessions in parallel on the same host.
   --system-port=N     UiAutomator2 systemPort (Android only). Required when
@@ -107,7 +107,7 @@ Env vars (set in .env or export):
   IOS_NATIVE_PROJECT Xcode project filename under examples/demo for the native
                      iOS demo (default: App.xcodeproj). The scheme is derived
                      from the basename (XcodeGen convention).
-  OS_VERSION         Platform version (default: 26.5 / 16)
+  OS_VERSION         Platform version (default: 26.5 / 17)
   IOS_SIMULATOR      iOS simulator name (default: iPhone 17)
   IOS_RUNTIME        simctl runtime id (default: iOS-26-5)
   APPIUM_PORT        Appium port (default: 4723; same as --appium-port)
@@ -424,8 +424,8 @@ USAGE
     IOS_SIMULATOR="${IOS_SIMULATOR:-$DEVICE}"
     IOS_RUNTIME="${IOS_RUNTIME:-iOS-26-5}"
   else
-    DEVICE="${DEVICE:-Android 16}"
-    OS_VERSION="${OS_VERSION:-16}"
+    DEVICE="${DEVICE:-Android 17}"
+    OS_VERSION="${OS_VERSION:-17}"
     AVD_NAME="${AVD_NAME:-${DEVICE// /_}}"
   fi
 }
