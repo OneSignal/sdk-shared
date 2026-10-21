@@ -179,6 +179,40 @@ export async function waitForPushSubscriptionReady(subscriptionId: string) {
   });
 }
 
+export type BackendUser = {
+  identity: Record<string, string> & { onesignal_id: string; external_id?: string };
+  subscriptions?: { id: string; type: string; token?: string; enabled?: boolean }[];
+};
+
+/**
+ * The backend user with this onesignal_id, or undefined if it doesn't exist (yet).
+ * Uses View User rather than Fetch Aliases, which 404s for anonymous users since they have no aliases.
+ */
+export async function viewUser(onesignalId: string) {
+  const response = await fetch(
+    `https://api.onesignal.com/apps/${process.env.ONESIGNAL_APP_ID}/users/by/onesignal_id/${onesignalId}`,
+    { headers: { Authorization: `Key ${process.env.ONESIGNAL_API_KEY}` } },
+  ).catch(() => null);
+  if (!response?.ok) return undefined;
+  return (await response.json()) as BackendUser;
+}
+
+/** Wait until the backend user with this onesignal_id exists with `externalId` (null = anonymous). */
+export async function waitForBackendUser(onesignalId: string, externalId: string | null) {
+  await driver.waitUntil(
+    async () => {
+      const user = await viewUser(onesignalId);
+      return user !== undefined && (user.identity.external_id ?? null) === externalId;
+    },
+    {
+      timeout: 30_000,
+      // View endpoints allow ~1 req/sec per app, shared with the demo's own user fetches.
+      interval: 3_000,
+      timeoutMsg: `Backend user ${onesignalId} never had external_id ${externalId ?? 'null'}`,
+    },
+  );
+}
+
 /** Send a push to one subscription through the REST API and return its notification id. Throws if OneSignal rejects it. */
 export async function sendPushNotification(opts: {
   subscriptionId: string;

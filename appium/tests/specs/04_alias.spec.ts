@@ -2,11 +2,12 @@ import {
   checkTooltip,
   confirmModal,
   expectPairInSection,
+  fillInput,
   openModal,
   scrollToEl,
   waitForAppReady,
 } from '../helpers/app';
-import { byTestId, getTestData, TEST_DATA } from '../helpers/selectors.js';
+import { getTestData, TEST_DATA } from '../helpers/selectors.js';
 
 describe('Aliases', () => {
   before(async () => {
@@ -34,12 +35,11 @@ describe('Aliases', () => {
   it('can add an alias', async () => {
     const { alias } = getTestData();
     const labelValue = `${alias}1`;
-    const labelInput = await openModal('add_alias_button', 'alias_label_input');
-    await labelInput.setValue(labelValue);
+    await openModal('add_alias_button', 'alias_label_input');
+    await fillInput('alias_label_input', labelValue);
 
     const idValue = 'id1';
-    const idInput = await byTestId('alias_id_input');
-    await idInput.setValue(idValue);
+    await fillInput('alias_id_input', idValue);
 
     await confirmModal('singlepair_confirm_button');
 
@@ -51,20 +51,10 @@ describe('Aliases', () => {
     const addRowButton = await openModal('add_multiple_aliases_button', 'multipair_add_row_button');
     await addRowButton.click();
 
-    const label0 = await byTestId('multipair_key_0');
-    await label0.setValue(`${alias}2`);
-
-    const id0 = await byTestId('multipair_value_0');
-    await id0.waitForDisplayed({ timeout: 5_000 });
-    await id0.setValue('id2');
-
-    const label1 = await byTestId('multipair_key_1');
-    await label1.waitForDisplayed({ timeout: 5_000 });
-    await label1.setValue(`${alias}3`);
-
-    const id1 = await byTestId('multipair_value_1');
-    await id1.waitForDisplayed({ timeout: 5_000 });
-    await id1.setValue('id3');
+    await fillInput('multipair_key_0', `${alias}2`);
+    await fillInput('multipair_value_0', 'id2');
+    await fillInput('multipair_key_1', `${alias}3`);
+    await fillInput('multipair_value_1', 'id3');
 
     await confirmModal('multipair_confirm_button');
 

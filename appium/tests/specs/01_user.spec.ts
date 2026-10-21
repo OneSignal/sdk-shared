@@ -1,4 +1,10 @@
-import { waitForAppReady, loginUser, logoutUser, scrollToEl } from '../helpers/app.js';
+import {
+  waitForAppReady,
+  loginUser,
+  logoutUser,
+  scrollToEl,
+  waitForIdentityChange,
+} from '../helpers/app.js';
 import { getTestExternalId } from '../helpers/selectors.js';
 
 describe('User', () => {
@@ -20,6 +26,7 @@ describe('User', () => {
   it('can login and logout', async () => {
     const userId = getTestExternalId();
     await loginUser(userId);
+    await waitForIdentityChange({ externalId: userId });
 
     let statusEl = await scrollToEl('user_status_value');
     const status = await statusEl.getText();
@@ -30,6 +37,7 @@ describe('User', () => {
     expect(externalId).toBe(getTestExternalId());
 
     await logoutUser();
+    await waitForIdentityChange({ externalId: null });
 
     statusEl = await scrollToEl('user_status_value');
     await statusEl.waitUntil(async () => (await statusEl.getText()) === 'Anonymous', {

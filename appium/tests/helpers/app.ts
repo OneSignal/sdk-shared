@@ -11,6 +11,7 @@ import {
   getPlatform,
   getSdkType,
   getTestExternalId,
+  waitForBackendUser,
   waitForPushSubscriptionReady,
 } from './selectors.js';
 
@@ -261,6 +262,19 @@ export async function logoutUser() {
   await logoutButton.click();
 }
 
+/** Type into an input and confirm it stuck; typing right after a modal opens can be dropped. */
+export async function fillInput(testId: string, value: string) {
+  const input = await byTestId(testId);
+  await input.waitForDisplayed({ timeout: 5_000 });
+  await driver.waitUntil(
+    async () => {
+      await input.setValue(value);
+      return (await input.getValue()) === value;
+    },
+    { timeout: 10_000, interval: 500, timeoutMsg: `Input "${testId}" did not keep "${value}"` },
+  );
+}
+
 /** Tap a modal confirm button. */
 export async function confirmModal(buttonTestId: string) {
   const btn = await byTestId(buttonTestId);
@@ -467,6 +481,44 @@ export async function getLogMessages(): Promise<string[]> {
 export async function countLogMessages(...parts: string[]): Promise<number> {
   const messages = await getLogMessages();
   return messages.filter((message) => parts.every((part) => message.includes(part))).length;
+}
+
+const USER_CHANGED_LOG = /User changed: onesignalId=([^,\s]+), externalId=(\S+)/;
+
+/** onesignalId from the newest "User changed" log if it's for `externalId` (null = anonymous). */
+async function latestUserChange(externalId: string | null) {
+  const messages = await getLogMessages().catch(() => []);
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const match = USER_CHANGED_LOG.exec(messages[i]);
+    if (!match) continue;
+    return match[1] !== 'null' && match[2] === (externalId ?? 'null') ? match[1] : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Wait for a login/logout to settle: the demo logs a "User changed" for `externalId` (null = anonymous),
+ * then the backend has that user. Settling first avoids racing the SDK's user switch on the next call
+ * (e.g. a fast logout then login on iOS never fires the user observer). Demos without that log
+ * just get `timeoutMs` as a grace period.
+ */
+export async function waitForIdentityChange(
+  { externalId }: { externalId: string | null },
+  timeoutMs = 10_000,
+) {
+  let onesignalId: string | undefined;
+  await driver
+    .waitUntil(async () => Boolean((onesignalId = await latestUserChange(externalId))), {
+      timeout: timeoutMs,
+      interval: 500,
+    })
+    .catch(() => undefined);
+  if (!onesignalId) {
+    console.info(`No "User changed" log for external_id ${externalId ?? 'null'}`);
+    return undefined;
+  }
+  await waitForBackendUser(onesignalId, externalId);
+  return onesignalId;
 }
 
 /** Expect exactly one new log entry containing every one of `parts` beyond `baseline`. */
