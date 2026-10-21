@@ -266,10 +266,13 @@ export async function logoutUser() {
 export async function fillInput(testId: string, value: string) {
   const input = await byTestId(testId);
   await input.waitForDisplayed({ timeout: 5_000 });
+  // UiAutomator2 has no `value` attribute; native Android exposes input text via getText.
+  const readsText = getPlatform() === 'android' && !isWebViewSDK;
   await driver.waitUntil(
     async () => {
       await input.setValue(value);
-      return (await input.getValue()) === value;
+      const typed = readsText ? await input.getText() : await input.getValue();
+      return typed === value;
     },
     { timeout: 10_000, interval: 500, timeoutMsg: `Input "${testId}" did not keep "${value}"` },
   );
