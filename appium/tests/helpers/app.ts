@@ -657,7 +657,10 @@ export async function waitForInitId(timeoutMs = 30_000): Promise<string> {
   const cached = (await getValue('pushId')) as string | undefined;
   if (cached) return cached;
 
-  const pushIdEl = await scrollToEl('push_id_value', { direction: 'up' });
+  // Uncached means push hasn't been read this session, so the screen can be above or below it.
+  const pushIdEl = await scrollToEl('push_id_value', { direction: 'up' }).catch(() =>
+    scrollToEl('push_id_value', { direction: 'down' }),
+  );
   await driver.waitUntil(
     async () => {
       const pushId = (await pushIdEl.getText().catch(() => '')).trim();
