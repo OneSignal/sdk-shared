@@ -15,7 +15,7 @@ import {
   waitForPushSubscriptionReady,
 } from './selectors.js';
 
-const PACKAGE_ID = 'com.onesignal.example';
+const PACKAGE_ID = process.env.BUNDLE_ID || 'com.onesignal.sdkdemo';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const tooltipContent = JSON.parse(

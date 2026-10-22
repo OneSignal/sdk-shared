@@ -21,7 +21,7 @@ Create a new {{PLATFORM}} project at `examples/demo/` (relative to the SDK repo 
   - `AppViewModel` for .NET MAUI (C#) and Flutter
 - App name: "OneSignal Demo"
 - Top app bar: centered title with OneSignal logo SVG + "{{PLATFORM}}" text
-- Android package name / iOS bundle identifier: `com.onesignal.example`
+- Android package name / iOS bundle identifier: `com.onesignal.sdkdemo`
 - All dialogs should have EMPTY input fields (for Appium testing)
 - Separate widget/component files per section
 
@@ -683,7 +683,7 @@ See each SDK's `examples/build.md` for the platform-specific helper APIs, the ex
 
 ### Identifiers
 
-Android package name / iOS bundle identifier MUST be `com.onesignal.example` so the checked-in `google-services.json` and `agconnect-services.json` keep working without regeneration.
+Android package name / iOS bundle identifier MUST be `com.onesignal.sdkdemo` to match the registered Apple App IDs, provisioning profiles, and Appium config. iOS extensions use `com.onesignal.sdkdemo.NSE` and `com.onesignal.sdkdemo.LA`, and the App Group is `group.com.onesignal.sdkdemo.onesignal`. Any checked-in `google-services.json` or `agconnect-services.json` must include a client for this package.
 
 ### REST API authentication
 
