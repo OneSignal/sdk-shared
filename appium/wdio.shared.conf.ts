@@ -104,6 +104,10 @@ export const sharedConfig: WebdriverIO.Config = {
   ...(isLocal ? localConnection : browserstackConnection),
   maxInstances: 1,
   logLevel: 'warn',
+  // Mobile sessions need no local display. Ubuntu 26.04's xvfb-run also closes
+  // fd 3, which is where Node puts the worker IPC channel, so wrapping workers
+  // in it crashes them on the first process.send with EINVAL.
+  autoXvfb: false,
 
   // Pre-expand the glob so WDIO groups all specs into one runner and reuses a single Appium session (a raw glob or `--spec` flag spawns one runner per file, costing ~10-30s of iOS session setup each).
   specs: [globSync('tests/specs/**/*.spec.ts', { cwd: SHARED_CONF_DIR, absolute: true }).sort()],
