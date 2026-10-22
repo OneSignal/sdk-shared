@@ -2,7 +2,7 @@ import { sharedConfig, bstackOptions } from './wdio.shared.conf.js';
 
 const isLocal = !process.env.BROWSERSTACK_USERNAME;
 const isDotNet = process.env.SDK_TYPE === 'dotnet';
-const appPackage = process.env.BUNDLE_ID || 'com.onesignal.example';
+const appPackage = process.env.BUNDLE_ID || 'com.onesignal.sdkdemo';
 const appWaitPackages = [
   appPackage,
   'com.android.permissioncontroller',
