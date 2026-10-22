@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# Xcode 27 replaced Simulator.app with DeviceHub.app. The window is only for
+# watching the run; simctl boot is what matters, so never fail on it.
+open_simulator_ui() {
+  open -a Simulator 2>/dev/null || open -a DeviceHub 2>/dev/null || true
+}
+
 start_ios_simulator() {
   if [[ -n "$UDID" ]]; then
     if xcrun simctl list devices booted 2>/dev/null | grep -q "$UDID"; then
@@ -9,7 +15,7 @@ start_ios_simulator() {
 
     info "Booting simulator '${IOS_SIMULATOR}' ($UDID)..."
     xcrun simctl boot "$UDID" 2>/dev/null || true
-    open -a Simulator
+    open_simulator_ui
     info "Waiting for simulator..."
     xcrun simctl bootstatus "$UDID" -b >/dev/null
     info "Simulator ready"
@@ -95,7 +101,7 @@ for ver, rt, avail in sorted(runtimes, reverse=True):
 
   info "Booting simulator '$IOS_SIMULATOR' ($UDID)..."
   xcrun simctl boot "$UDID" 2>/dev/null || true
-  open -a Simulator
+  open_simulator_ui
 
   info "Waiting for simulator..."
   xcrun simctl bootstatus "$UDID" -b >/dev/null
