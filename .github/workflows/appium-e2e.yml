@@ -46,6 +46,7 @@ jobs:
         with:
           repository: OneSignal/sdk-shared
           path: _sdk-shared
+          ref: fadi/tmp-e2e-deps
 
       - name: Set up Vite+
         uses: voidzero-dev/setup-vp@v1
