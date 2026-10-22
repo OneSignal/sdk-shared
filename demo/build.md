@@ -21,8 +21,7 @@ Create a new {{PLATFORM}} project at `examples/demo/` (relative to the SDK repo 
   - `AppViewModel` for .NET MAUI (C#) and Flutter
 - App name: "OneSignal Demo"
 - Top app bar: centered title with OneSignal logo SVG + "{{PLATFORM}}" text
-- Android package name: `com.onesignal.sdkdemo`
-- iOS bundle identifier: `com.onesignal.example`
+- Android package name / iOS bundle identifier: `com.onesignal.sdkdemo`
 - All dialogs should have EMPTY input fields (for Appium testing)
 - Separate widget/component files per section
 
