@@ -24,6 +24,10 @@ describe('User', () => {
   });
 
   it('can login and logout', async () => {
+    // Logging in before the anonymous user reaches the backend folds both into one create,
+    // and Android may not fire the user observer for that login.
+    await waitForIdentityChange({ externalId: null });
+
     const userId = getTestExternalId();
     await loginUser(userId);
     await waitForIdentityChange({ externalId: userId });

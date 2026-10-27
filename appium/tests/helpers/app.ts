@@ -500,7 +500,7 @@ async function latestUserChange(externalId: string | null) {
  */
 export async function waitForIdentityChange(
   { externalId }: { externalId: string | null },
-  timeoutMs = 10_000,
+  timeoutMs = 30_000,
 ) {
   let onesignalId = '';
   await driver.waitUntil(
