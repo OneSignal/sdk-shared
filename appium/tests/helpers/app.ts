@@ -449,12 +449,6 @@ export async function tapNotification(title: string, timeoutMs = 30_000) {
   }
 }
 
-export async function hasLogView(): Promise<boolean> {
-  return $(byTestIdSelector('log_view'))
-    .isExisting()
-    .catch(() => false);
-}
-
 /**
  * Text of the demo's log entries, oldest first. Native Android only sees
  * entries on screen, so counts can miss older matches that scrolled away.
@@ -502,24 +496,21 @@ async function latestUserChange(externalId: string | null) {
 /**
  * Wait for a login/logout to settle: the demo logs a "User changed" for `externalId` (null = anonymous),
  * then the backend has that user. Settling first avoids racing the SDK's user switch on the next call
- * (e.g. a fast logout then login on iOS never fires the user observer). Demos without that log
- * just get `timeoutMs` as a grace period.
+ * (e.g. a fast logout then login on iOS never fires the user observer).
  */
 export async function waitForIdentityChange(
   { externalId }: { externalId: string | null },
   timeoutMs = 10_000,
 ) {
-  let onesignalId: string | undefined;
-  await driver
-    .waitUntil(async () => Boolean((onesignalId = await latestUserChange(externalId))), {
+  let onesignalId = '';
+  await driver.waitUntil(
+    async () => Boolean((onesignalId = (await latestUserChange(externalId)) ?? '')),
+    {
       timeout: timeoutMs,
       interval: 500,
-    })
-    .catch(() => undefined);
-  if (!onesignalId) {
-    console.info(`No "User changed" log for external_id ${externalId ?? 'null'}`);
-    return undefined;
-  }
+      timeoutMsg: `No "User changed" log for external_id ${externalId ?? 'null'}`,
+    },
+  );
   await waitForBackendUser(onesignalId, externalId);
   return onesignalId;
 }
@@ -686,10 +677,10 @@ export async function checkNotification(opts: {
 
   const displayLog = ['Notification foregroundWillDisplay:', opts.title];
   const clickLog = ['Notification click:', opts.title];
-  const logged = await hasLogView();
-  const [displaysBefore, clicksBefore] = logged
-    ? await Promise.all([countLogMessages(...displayLog), countLogMessages(...clickLog)])
-    : [0, 0];
+  const [displaysBefore, clicksBefore] = await Promise.all([
+    countLogMessages(...displayLog),
+    countLogMessages(...clickLog),
+  ]);
 
   await button.click();
   await waitForNotification({
@@ -698,8 +689,6 @@ export async function checkNotification(opts: {
     expectImage: opts.expectImage,
   });
 
-  // Demos without the log view can't report JS events yet.
-  if (!logged) return;
   await expectOneNewLog(displayLog, displaysBefore);
   await expectOneNewLog(clickLog, clicksBefore);
 }

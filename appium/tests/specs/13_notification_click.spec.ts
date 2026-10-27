@@ -7,7 +7,6 @@ import {
   returnToApp,
   killApp,
   backgroundApp,
-  hasLogView,
   expectOneNewLog,
 } from '../helpers/app.js';
 import {
@@ -63,8 +62,6 @@ async function getBrowserAddress(): Promise<string> {
 /** The JS click listener must fire exactly once for the tapped notification. */
 async function expectSingleClickEvent(notificationId: string) {
   await returnToApp();
-  // Demos without the log view can't report JS events yet.
-  if (!(await hasLogView())) return;
   await expectOneNewLog([`Notification click: ${notificationId}`]);
 }
 
