@@ -47,7 +47,7 @@ Reference the OneSignal SDK from the parent repo using a local path/file depende
 
 The state container (see Prompt 1.1) calls the OneSignal SDK directly and exposes the operations below as actions/methods:
 
-- **User**: loginUser(externalUserId) -> async, logoutUser() -> async
+- **User**: loginUser(externalUserId) -> async, logoutUser() -> async, setLanguage(code)
 - **Aliases**: addAlias(label, id), addAliases(map)
 - **Email**: addEmail(email), removeEmail(email)
 - **SMS**: addSms(number), removeSms(number)
@@ -55,7 +55,7 @@ The state container (see Prompt 1.1) calls the OneSignal SDK directly and expose
 - **Triggers** (via OneSignal.InAppMessages): addTrigger(key, value), addTriggers(map), removeTrigger(key) if SDK supports, removeTriggers(keys), clearTriggers()
 - **Outcomes** (via OneSignal.Session): sendOutcome(name), sendUniqueOutcome(name), sendOutcomeWithValue(name, value)
 - **Track Event**: trackEvent(name, properties?: map)
-- **Push subscription**: getPushSubscriptionId() -> nullable, isPushOptedIn() -> nullable bool, optInPush(), optOutPush()
+- **Push subscription**: getPushSubscriptionId() -> nullable, getPushSubscriptionToken() -> nullable, isPushOptedIn() -> nullable bool, optInPush(), optOutPush()
 - **Notifications**: hasPermission() -> bool, requestPermission(fallbackToSettings) -> async bool, clearAll()
 - **In-App Messages**: setPaused(bool)
 - **Location**: setLocationShared(bool), isLocationShared() -> async bool, requestLocationPermission()
@@ -152,8 +152,8 @@ Clean up listeners on teardown if the platform requires it.
 
 0. **Log View** (sticky under the app bar, outside the scroll view; see Prompt 2.0)
 1. **App Section** (App ID, Guidance Banner, Consent Toggle)
-2. **User Section** (Status, External ID, Login/Logout)
-3. **Push Section** (Push ID, Enabled Toggle, Auto-prompts on load)
+2. **User Section** (Status, External ID, Language, Login/Logout)
+3. **Push Section** (Push ID, Status, Opted In Toggle, Auto-prompts on load)
 4. **Send Push Notification Section** (Simple, With Image, With Sound, Custom, Clear All)
 5. **In-App Messaging Section** (Pause toggle)
 6. **Send In-App Message Section** (Top Banner, Bottom Banner, Center Modal, Full Screen)
@@ -201,17 +201,22 @@ Styling in styles.md (Log View).
 Separate SectionCard titled "User":
 
 1. Status card (always visible, ABOVE buttons):
-   - Two rows separated by a divider: "Status" and "External ID"
+   - Three rows separated by dividers: "Status", "External ID" and "Language"
    - Logged out: Status = "Anonymous", External ID = "—"
    - Logged in: Status = "Logged In" (success/green), External ID = actual value
-2. LOGIN USER button ("SWITCH USER" when logged in) -> dialog with empty "External User Id" field
-3. LOGOUT USER button (only when logged in, outlined style)
+   - Language: picker showing the selected language name. Options are "Device Default" (code `""`) followed by the language list below, in this order. Selecting an option calls `OneSignal.User.setLanguage(code)`. `""` tells the native SDK to use the device language.
+   - Use the platform's dropdown/picker where it is Appium-friendly; otherwise a single-select list dialog. Cap the open list's height at 320 so it doesn't cover the screen. Right-align the selected value so it sits next to the dropdown arrow, like the other value rows.
+2. LOGIN USER button ("SWITCH USER" when logged in) -> dialog with empty "External User Id" field. Login resets the Language picker to Device Default locally (clear the cached value only). Do NOT call `setLanguage` on login: `""` resolves to the device language and would overwrite the new user's language on the backend.
+3. LOGOUT USER button (only when logged in, outlined style). Logout also resets the Language picker to Device Default locally, without calling `setLanguage`. The SDK starts the new anonymous user with no language override, and `logout()` isn't awaited, so a `setLanguage('')` could land on the logged-out user.
+
+Language list, after Device Default, in this order: English (`en`), Arabic (`ar`), Azerbaijani (`az`), Bosnian (`bs`), Catalan (`ca`), Chinese (Simplified) (`zh-Hans`), Chinese (Traditional) (`zh-Hant`), Croatian (`hr`), Czech (`cs`), Danish (`da`), Dutch (`nl`), Estonian (`et`), Finnish (`fi`), French (`fr`), Georgian (`ka`), Bulgarian (`bg`), German (`de`), Greek (`el`), Hindi (`hi`), Hebrew (`he`), Hungarian (`hu`), Indonesian (`id`), Italian (`it`), Japanese (`ja`), Korean (`ko`), Latvian (`lv`), Lithuanian (`lt`), Malay (`ms`), Norwegian (`nb`), Persian (`fa`), Polish (`pl`), Portuguese (`pt`), Punjabi (`pa`), Romanian (`ro`), Russian (`ru`), Serbian (`sr`), Slovak (`sk`), Spanish (`es`), Swedish (`sv`), Thai (`th`), Turkish (`tr`), Ukrainian (`uk`), Vietnamese (`vi`).
 
 ### Prompt 2.2 - Push Section
 
 - Title: "Push" with info icon
 - Push Subscription ID (readonly).
-- Enabled toggle (optIn/optOut), disabled when permission NOT granted
+- Status (readonly), directly above the toggle: "Subscribed" when opted in AND notification permission is granted AND the push token is non-empty; otherwise "Unsubscribed". Recompute on push subscription and permission changes.
+- "Opted In" toggle (optIn/optOut), disabled when permission NOT granted
 - Auto-request permission when home screen loads
 - PROMPT PUSH button: only visible when permission NOT granted, hidden once granted
 
@@ -372,8 +377,8 @@ This keeps the UI stable: rows don't flicker/re-order when the fetch completes, 
 State transitions:
 
 - **Cold start**: if `onesignalId` exists, await `fetchUserDataFromApi()` (which manages its own `isLoading`). If `onesignalId` is null, leave `isLoading=false`; sections show their normal empty state. The `OneSignal.login(storedExternalUserId)` call inside cold start may also trigger the user-state observer, which fires its own fetch; the request-sequence guard collapses the race.
-- **Login**: clear aliases/tags/emails/sms/triggers lists immediately, set the optimistic external user id, and set `isLoading=true` so the four sections show the spinner without delay. Then call `OneSignal.login()` and persist the external user id. Do NOT call `fetchUserDataFromApi` from `loginUser` — the user-state observer drives it once the SDK assigns a new `onesignalId`, and the fetch's finally block clears `isLoading`. If `OneSignal.login()` itself throws synchronously, clear `isLoading` in the catch so the UI doesn't get stuck.
-- **Logout**: clear aliases/tags/emails/sms/triggers lists synchronously -> `OneSignal.logout()` -> clear persisted external user id. Do NOT toggle `isLoading`; logout is local-only. The user-state observer will fire with `onesignalId=null` and is a no-op in that case.
+- **Login**: clear aliases/tags/emails/sms/triggers lists immediately, set the optimistic external user id, and set `isLoading=true` so the four sections show the spinner without delay. Then call `OneSignal.login()`, persist the external user id, and clear the cached language (no `setLanguage` call). Do NOT call `fetchUserDataFromApi` from `loginUser` — the user-state observer drives it once the SDK assigns a new `onesignalId`, and the fetch's finally block clears `isLoading`. If `OneSignal.login()` itself throws synchronously, clear `isLoading` in the catch so the UI doesn't get stuck.
+- **Logout**: clear aliases/tags/emails/sms/triggers lists synchronously -> `OneSignal.logout()` -> clear persisted external user id -> clear the cached language (no `setLanguage` call). Do NOT toggle `isLoading`; logout is local-only. The user-state observer will fire with `onesignalId=null` and is a no-op in that case.
 - **onUserStateChange**: log the new `onesignalId`/`externalId`. When `onesignalId` is non-null, call `fetchUserDataFromApi()` — this is what drives the post-login refresh (the SDK only assigns the new `onesignalId` after `OneSignal.login()` queues its identify operation, so a synchronous fetch right after `login()` would race the assignment and return null). When `onesignalId` is null (logout), do not fetch — `logoutUser` has already cleared local lists.
 
 Caveat: if `OneSignal.login(sameExternalId)` does not emit a change event (e.g., logging in with the already-active external id), `isLoading` will stay true. Acceptable for the demo; per-action handlers still work via optimistic updates.
@@ -419,7 +424,7 @@ SectionCard has optional info icon -> onInfoTap callback -> shows TooltipDialog 
 
 ### Persisted (local storage)
 
-PreferencesService: consent required, privacy consent, external user ID, location shared, IAM paused. App ID is read from `.env` (not persisted in preferences).
+PreferencesService: consent required, privacy consent, external user ID, location shared, IAM paused, language. The language is cached only so the picker shows the selection after a restart; don't re-send it on launch, since the native SDK persists its own value and there is no SDK getter. App ID is read from `.env` (not persisted in preferences).
 
 ### Initialization Flow
 
@@ -489,12 +494,14 @@ Section keys: `app`, `user`, `push`, `send_push`, `iam`, `send_iam`, `aliases`, 
 
 **Value displays**:
 
-| Identifier               | Element                           |
-| ------------------------ | --------------------------------- |
-| `app_id_value`           | App ID text                       |
-| `push_id_value`          | Push Subscription ID text         |
-| `user_status_value`      | User status (Anonymous/Logged In) |
-| `user_external_id_value` | External ID text                  |
+| Identifier                 | Element                               |
+| -------------------------- | ------------------------------------- |
+| `app_id_value`             | App ID text                           |
+| `push_id_value`            | Push Subscription ID text             |
+| `push_subscription_status` | Push Status (Subscribed/Unsubscribed) |
+| `user_language_dropdown`   | Language picker (User section)        |
+| `user_status_value`        | User status (Anonymous/Logged In)     |
+| `user_external_id_value`   | External ID text                      |
 
 **Buttons**:
 
@@ -526,7 +533,7 @@ Section keys: `app`, `user`, `push`, `send_push`, `iam`, `send_iam`, `aliases`, 
 | ------------------------- | ------------------------------------------------------- |
 | `consent_required_toggle` | Consent Required (App section)                          |
 | `privacy_consent_toggle`  | Privacy Consent (only visible when consent required on) |
-| `push_enabled_toggle`     | Push Enabled (Push section)                             |
+| `push_enabled_toggle`     | Opted In (Push section)                                 |
 | `pause_iam_toggle`        | Pause In-App Messages                                   |
 | `location_shared_toggle`  | Location Shared                                         |
 
