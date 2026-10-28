@@ -90,7 +90,8 @@ Options forwarded to run-local.sh:
   --pods           Use examples/demo-pods for flutter, cordova, capacitor
                    (ignored for other SDKs)
   --spec=GLOB      Spec glob to run (default: full suite, grouped into one session)
-  -q, --quiet      Hide run-local [INFO] log lines
+  -q, --quiet      Show only test output; build/setup output goes to a
+                   log file printed if setup fails
   -h, --help       Show this help
 
 Exits non-zero if any combo fails. Prints a summary at the end.

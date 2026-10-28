@@ -79,7 +79,8 @@ Options:
   --udid=ID           Physical device UDID (xcrun devicectl list devices).
                       Required by --device-real; also accepted via UDID env.
   --spec=GLOB         Spec glob (default: all specs grouped into one session)
-  -q, --quiet         Hide [INFO] log lines
+  -q, --quiet         Show only test output; build/setup output goes to a
+                      log file printed if setup fails
   -h, --help          Show this help
 
 Env vars (set in .env or export):

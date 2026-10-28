@@ -7,8 +7,40 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 info()  { [[ "${QUIET:-false}" == true ]] || echo -e "${GREEN}[INFO]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
+warn()  {
+  echo -e "${YELLOW}[WARN]${NC} $*"
+  [[ -z "${SETUP_LOG:-}" ]] || echo -e "${YELLOW}[WARN]${NC} $*" >&3
+}
 error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
+
+# ── Quiet setup ──────────────────────────────────────────────────────────────
+# With --quiet, setup output (builds, installs, device boot) goes to a log file
+# that is printed only if setup fails. fd 3/4 keep the real stdout/stderr.
+SETUP_LOG=""
+
+begin_quiet_setup() {
+  [[ "${QUIET:-false}" == true ]] || return 0
+  local tmp="${TMPDIR:-/tmp}"
+  SETUP_LOG=$(mktemp "${tmp%/}/appium-${SDK_TYPE}-${PLATFORM}.XXXXXX")
+  echo "Building and preparing ${SDK_TYPE} / ${PLATFORM} (log: $SETUP_LOG)..."
+  exec 3>&1 4>&2 >>"$SETUP_LOG" 2>&1
+}
+
+end_quiet_setup() {
+  [[ -n "$SETUP_LOG" ]] || return 0
+  exec 1>&3 2>&4 3>&- 4>&-
+  rm -f "$SETUP_LOG"
+  SETUP_LOG=""
+}
+
+# EXIT trap: restores output and shows the log when setup didn't finish.
+dump_quiet_setup_log() {
+  [[ -n "$SETUP_LOG" ]] || return 0
+  exec 1>&3 2>&4 3>&- 4>&-
+  echo -e "${RED}[ERROR]${NC} Setup failed; last 50 lines of $SETUP_LOG:"
+  tail -n 50 "$SETUP_LOG"
+  SETUP_LOG=""
+}
 
 # ── Demo file backups ────────────────────────────────────────────────────────
 # Files the runner writes into demo repos (.env, Secrets.plist) are backed up

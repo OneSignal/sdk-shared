@@ -21,18 +21,21 @@ source "$RUN_LOCAL_LIB_DIR/build.sh"
 source "$RUN_LOCAL_LIB_DIR/runtime.sh"
 
 restore_demo_files
-trap restore_demo_files EXIT
+trap 'dump_quiet_setup_log; restore_demo_files' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
 configure_runner "$@"
 
 # ── 4. Run tests ─────────────────────────────────────────────────────────────
-run_tests() {
+install_test_deps() {
   cd "$APPIUM_DIR"
   info "Installing test dependencies..."
   vp install
+}
 
+run_tests() {
+  cd "$APPIUM_DIR"
   local conf="wdio.${PLATFORM}.conf.ts"
   # Only forward --spec when the user explicitly overrode it. Passing --spec
   # to wdio re-expands the glob into one runner per file (~10-30s of session
@@ -79,8 +82,11 @@ main() {
   info "=== OneSignal E2E — $SDK_TYPE / $PLATFORM ==="
   echo ""
 
+  begin_quiet_setup
   build_app
   prepare_runtime
+  install_test_deps
+  end_quiet_setup
   run_tests
 
   echo ""
