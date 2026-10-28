@@ -22,6 +22,10 @@ fi
 
 source "$SCRIPT_DIR/run-local/repo-dir.sh"
 
+# The target ref replaces whatever is checked out, so use the default checkout
+# instead of asking which worktree to switch.
+SDK_DIR_NO_PROMPT=1
+
 # sdk|var|default-subpath|kind  (kind: rel = latest rel/* branch, tag = latest semver tag)
 # Defaults mirror run-local/config.sh; override any via *_DIR in .env.
 REPOS=(

@@ -141,24 +141,42 @@ if (( PODS_REQUESTED )); then
   fi
 fi
 
+# Native SDKs only run on their own platform; drop them up front so
+# --release/--main don't touch or prompt for repos that won't run.
+if [[ -n "$PLATFORM_FILTER" ]]; then
+  RUN_SDKS=()
+  for sdk in "${SDKS[@]}"; do
+    [[ ( "$sdk" == android && "$PLATFORM_FILTER" == ios ) \
+      || ( "$sdk" == ios && "$PLATFORM_FILTER" == android ) ]] || RUN_SDKS+=("$sdk")
+  done
+else
+  RUN_SDKS=("${SDKS[@]}")
+fi
+
+# --release/--main switch the default checkout to a fixed ref, so there is no
+# worktree to choose.
+if (( RELEASE || MAIN )); then
+  export SDK_DIR_NO_PROMPT=1
+fi
+
 # Resolve each SDK's checkout once so both platforms (and --release/--main)
 # use the same one.
-for sdk in "${SDKS[@]}"; do
+for sdk in ${RUN_SDKS[@]+"${RUN_SDKS[@]}"}; do
   resolve_sdk_dir "$sdk"
 done
 
-if (( RELEASE )); then
+if (( RELEASE && ${#RUN_SDKS[@]} > 0 )); then
   echo -e "${BOLD}━━━ Checking out latest releases ━━━${NC}"
-  if ! "$SCRIPT_DIR/checkout-releases.sh" "${SDKS[@]}"; then
+  if ! "$SCRIPT_DIR/checkout-releases.sh" "${RUN_SDKS[@]}"; then
     error "checkout-releases.sh failed; aborting before running combos"
     exit 1
   fi
   echo ""
 fi
 
-if (( MAIN )); then
+if (( MAIN && ${#RUN_SDKS[@]} > 0 )); then
   echo -e "${BOLD}━━━ Checking out latest main ━━━${NC}"
-  if ! "$SCRIPT_DIR/checkout-releases.sh" --main "${SDKS[@]}"; then
+  if ! "$SCRIPT_DIR/checkout-releases.sh" --main "${RUN_SDKS[@]}"; then
     error "checkout-releases.sh --main failed; aborting before running combos"
     exit 1
   fi

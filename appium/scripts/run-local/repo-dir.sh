@@ -67,7 +67,8 @@ prompt_worktree() {
 
 # Sets the SDK's *_DIR var to, in order: its existing value, the current
 # checkout when it is that SDK's repo, a worktree picked at the prompt, or
-# the default under $SDK_ROOT. Exported so child scripts reuse the choice.
+# the default under $SDK_ROOT. SDK_DIR_NO_PROMPT=1 skips the prompt.
+# Exported so child scripts reuse the choice.
 resolve_sdk_dir() {
   local spec var subpath detected
   spec=$(sdk_dir_spec "$1") || return 1
@@ -76,7 +77,7 @@ resolve_sdk_dir() {
   if [[ -z "${!var:-}" ]]; then
     if detected=$(cwd_repo_dir "$(basename "$subpath")"); then
       printf -v "$var" '%s' "$detected"
-    elif ! prompt_worktree "$var" "$SDK_ROOT/$subpath"; then
+    elif [[ -n "${SDK_DIR_NO_PROMPT:-}" ]] || ! prompt_worktree "$var" "$SDK_ROOT/$subpath"; then
       printf -v "$var" '%s' "$SDK_ROOT/$subpath"
     fi
   fi
