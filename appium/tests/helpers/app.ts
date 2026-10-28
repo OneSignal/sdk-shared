@@ -466,6 +466,19 @@ export async function getLogMessages(): Promise<string[]> {
     return $$('-ios predicate string:name BEGINSWITH "log_entry_"').map((el) => el.getText());
   }
 
+  // The demo's auto-scroll can run before a new entry is laid out, hiding it from UiAutomator.
+  const logScroll = $(
+    'android=new UiSelector().resourceIdMatches(".*log_view").childSelector(new UiSelector().scrollable(true))',
+  );
+  if (await logScroll.isExisting()) {
+    await driver
+      .execute('mobile: scrollGesture', {
+        elementId: await logScroll.elementId,
+        direction: 'down',
+        percent: 1,
+      })
+      .catch(() => {});
+  }
   const entries = $$('android=new UiSelector().resourceIdMatches(".*log_entry_.*")');
   // Flutter Android exposes text labels as content-desc, not text.
   if (sdkType === 'flutter') {
