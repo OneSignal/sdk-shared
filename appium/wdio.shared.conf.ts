@@ -95,7 +95,8 @@ const bstackOptions = {
   buildName: process.env.BUILD_NAME || 'local',
   sessionName: process.env.SDK_TYPE || 'unknown',
   debug: true,
-  networkLogs: true,
+  // Network logs proxy device traffic, which can block Google Play services from getting an FCM token.
+  networkLogs: false,
   appiumVersion: '3.2.0',
   idleTimeout: 300,
 };
