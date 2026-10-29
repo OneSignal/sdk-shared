@@ -66,20 +66,36 @@
     "description": "Test in-app message display formats. These trigger local IAMs for testing UI layouts.",
     "options": [
       {
-        "name": "Top Banner",
+        "name": "Top",
         "description": "Slides in from the top of the screen. Best for non-intrusive alerts and quick info."
       },
       {
-        "name": "Bottom Banner",
+        "name": "Bottom",
         "description": "Slides in from the bottom of the screen. Great for prompts and soft CTAs."
       },
       {
-        "name": "Center Modal",
+        "name": "Center",
         "description": "Centered popup dialog. Ideal for important announcements requiring user attention."
       },
       {
-        "name": "Full Screen",
+        "name": "HTML",
+        "description": "Custom HTML message. Use to test fully custom layouts and JavaScript bridge actions."
+      },
+      {
+        "name": "Full",
         "description": "Takes over the entire screen. Best for onboarding, promotions, or rich media content."
+      },
+      {
+        "name": "Full Bleed",
+        "description": "Full screen with no margins, extending edge to edge."
+      },
+      {
+        "name": "Carousel",
+        "description": "Swipeable multi-page message. Great for feature tours and step-by-step content."
+      },
+      {
+        "name": "Carousel Bleed",
+        "description": "Carousel with no margins, extending edge to edge."
       }
     ]
   },
