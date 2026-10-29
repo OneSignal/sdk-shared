@@ -11,6 +11,7 @@ if [[ -f "$SCRIPT_DIR/.env" ]]; then
 fi
 
 source "$SCRIPT_DIR/run-local/repo-dir.sh"
+source "$SCRIPT_DIR/run-local/device-picker.sh"
 
 # ── Colors / logging ─────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -34,6 +35,7 @@ PODS_REQUESTED=0
 RELEASE=0
 MAIN=0
 WIPE_EMULATOR=0
+PICK_DEVICE=0
 for arg in "$@"; do
   case "$arg" in
     --skip-build|--skip-device|--skip-reset|--skip|--quiet|-q)
@@ -57,6 +59,8 @@ for arg in "$@"; do
       SDKS_FILTER="${arg#*=}" ;;
     --bail)
       BAIL=1 ;;
+    --pick-device)
+      PICK_DEVICE=1 ;;
     --help|-h)
       cat <<USAGE
 Usage: $0 [OPTIONS]
@@ -74,6 +78,8 @@ Options:
                            Note: 'android' (native) skips --platform=ios and
                                  'ios' (native) skips --platform=android.
   --bail                   Stop after the first failing combo
+  --pick-device            Prompt up front for which iOS simulator and/or
+                           Android emulator to use (one per platform run)
   --release                Check out the latest release point for the selected
                            SDK repos first (honors *_DIR from .env). Stashes
                            uncommitted changes, including untracked files.
@@ -166,6 +172,28 @@ for sdk in ${RUN_SDKS[@]+"${RUN_SDKS[@]}"}; do
   resolve_sdk_dir "$sdk"
 done
 
+IOS_DEVICE_ARGS=()
+ANDROID_DEVICE_ARGS=()
+if (( PICK_DEVICE )); then
+  for platform in "${PLATFORMS[@]}"; do
+    has_combo=0
+    for sdk in ${RUN_SDKS[@]+"${RUN_SDKS[@]}"}; do
+      [[ ( "$sdk" == android && "$platform" == ios ) \
+        || ( "$sdk" == ios && "$platform" == android ) ]] || { has_combo=1; break; }
+    done
+    (( has_combo )) || continue
+    if ! pick_device "$platform"; then
+      error "No $platform device to pick from"
+      exit 2
+    fi
+    if [[ "$platform" == "ios" ]]; then
+      IOS_DEVICE_ARGS=(--device="$PICKED_DEVICE" --udid="$PICKED_UDID")
+    else
+      ANDROID_DEVICE_ARGS=(--device="$PICKED_DEVICE")
+    fi
+  done
+fi
+
 if (( RELEASE && ${#RUN_SDKS[@]} > 0 )); then
   echo -e "${BOLD}━━━ Checking out latest releases ━━━${NC}"
   if ! "$SCRIPT_DIR/checkout-releases.sh" "${RUN_SDKS[@]}"; then
@@ -228,6 +256,11 @@ for platform in "${PLATFORMS[@]}"; do
       case "$sdk" in
         flutter|cordova|capacitor) combo_args+=(--pods) ;;
       esac
+    fi
+    if [[ "$platform" == "ios" ]]; then
+      combo_args+=(${IOS_DEVICE_ARGS[@]+"${IOS_DEVICE_ARGS[@]}"})
+    else
+      combo_args+=(${ANDROID_DEVICE_ARGS[@]+"${ANDROID_DEVICE_ARGS[@]}"})
     fi
     if [[ "$platform" == "android" ]] && (( WIPE_EMULATOR )) && (( ! ANDROID_EMULATOR_WIPED )); then
       combo_args+=(--wipe-emulator)

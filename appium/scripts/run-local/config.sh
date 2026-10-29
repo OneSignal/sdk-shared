@@ -9,6 +9,7 @@ configure_runner() {
   SKIP_DEVICE=false
   SKIP_RESET=false
   INSTALL_ONLY=false
+  PICK_DEVICE=false
   SPEC=""
   QUIET=false
   PODS_DEMO=false
@@ -24,7 +25,8 @@ configure_runner() {
     case "$arg" in
       --platform=*)     PLATFORM="${arg#--platform=}" ;;
       --sdk=*)          SDK_TYPE="${arg#--sdk=}" ;;
-      --device=*)       DEVICE="${arg#--device=}" ;;
+      --device=*)       DEVICE="${arg#--device=}"; AVD_NAME=""; IOS_SIMULATOR="" ;;
+      --pick-device)    PICK_DEVICE=true ;;
       --device-real)    IOS_REAL_DEVICE=true; SKIP_DEVICE=true ;;
       --udid=*)         UDID="${arg#--udid=}" ;;
       --appium-port=*)  APPIUM_PORT="${arg#--appium-port=}" ;;
@@ -59,6 +61,7 @@ Options:
                       ios = native iOS (OneSignal-iOS-SDK/examples/demo);
                       skips with exit 0 when --platform=android.
   --device=NAME       Device/simulator/AVD name (default: iPhone 17 / Android 17)
+  --pick-device       Prompt for which iOS simulator or Android emulator to use
   --appium-port=N     Appium server port (default: 4723). Use unique values when
                       running multiple sessions in parallel on the same host.
   --system-port=N     UiAutomator2 systemPort (Android only). Required when
@@ -178,6 +181,15 @@ USAGE
 
   if [[ "$RELEASE" == true && "$MAIN" == true ]]; then
     error "--release and --main are mutually exclusive"
+  fi
+
+  if [[ "$PICK_DEVICE" == true ]]; then
+    [[ "$IOS_REAL_DEVICE" == false ]] || error "--pick-device cannot be combined with --device-real"
+    pick_device "$PLATFORM" || error "No $PLATFORM device to pick from"
+    DEVICE="$PICKED_DEVICE"
+    AVD_NAME=""
+    IOS_SIMULATOR=""
+    [[ "$PLATFORM" == "ios" ]] && UDID="$PICKED_UDID"
   fi
 
   resolve_sdk_dir "$SDK_TYPE"

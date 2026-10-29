@@ -390,9 +390,31 @@ validate_existing_app() {
   fi
 }
 
+# Appium matches platformVersion against the running device, so a picked or
+# --device/--udid target must not keep the default OS_VERSION.
+sync_device_os_version() {
+  local version=""
+  if [[ "$PLATFORM" == "android" ]]; then
+    [[ -n "${ANDROID_UDID:-}" ]] || return 0
+    version=$(adb_with_timeout 10 -s "$ANDROID_UDID" shell getprop ro.build.version.release 2>/dev/null | tr -d '\r' || true)
+  else
+    [[ "$IOS_REAL_DEVICE" == false && -n "$UDID" ]] || return 0
+    version=$(xcrun simctl list devices -j 2>/dev/null | python3 -c "
+import json, sys
+for runtime, devices in json.load(sys.stdin)['devices'].items():
+    if any(d['udid'] == '$UDID' for d in devices):
+        print(runtime.rsplit('.', 1)[-1].replace('iOS-', '').replace('-', '.'))
+" 2>/dev/null || true)
+  fi
+  [[ "$version" =~ ^[0-9]+(\.[0-9]+)*$ && "$version" != "$OS_VERSION" ]] || return 0
+  info "Using OS_VERSION=$version to match the running device (was $OS_VERSION)"
+  OS_VERSION="$version"
+}
+
 prepare_runtime() {
   validate_existing_app
   start_device
+  sync_device_os_version
   check_android_storage
   install_chromedriver_if_needed
   start_appium
@@ -420,6 +442,7 @@ install_app() {
 prepare_install_only() {
   validate_existing_app
   start_device
+  sync_device_os_version
   check_android_storage
   reset_app
   install_app
