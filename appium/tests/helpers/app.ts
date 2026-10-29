@@ -99,7 +99,11 @@ async function clickAndroidPermissionButton(
         const el = await $(selector);
         if (await el.isDisplayed().catch(() => false)) {
           await el.click();
-          return true;
+          // A tap during the dialog's enter animation is dropped; retry until it closes.
+          const closed = await el
+            .waitForDisplayed({ reverse: true, timeout: 2_000 })
+            .catch(() => false);
+          if (closed) return true;
         }
       } catch {
         /* try next selector */
@@ -479,13 +483,17 @@ export async function getLogMessages(): Promise<string[]> {
       })
       .catch(() => {});
   }
-  const entries = $$('android=new UiSelector().resourceIdMatches(".*log_entry_.*")');
+  // One page-source read; per-element getText goes stale when a log arrives mid-read.
   // Flutter Android exposes text labels as content-desc, not text.
-  if (sdkType === 'flutter') {
-    return entries.map(async (el) => (await el.getAttribute('content-desc')) ?? '');
-  }
-  return entries.map((el) => el.getText());
+  const attr = sdkType === 'flutter' ? 'content-desc' : 'text';
+  const entry = new RegExp(`<(?=[^>]*resource-id="[^"]*log_entry_)[^>]* ${attr}="([^"]*)"`, 'g');
+  const source = await driver.getPageSource();
+  return Array.from(source.matchAll(entry), ([, text]) =>
+    text.replace(/&(quot|amp|lt|gt|apos);/g, (_, e: string) => XML_ENTITIES[e]),
+  );
 }
+
+const XML_ENTITIES: Record<string, string> = { quot: '"', amp: '&', lt: '<', gt: '>', apos: "'" };
 
 /** Number of log entries that contain every one of `parts`. */
 export async function countLogMessages(...parts: string[]): Promise<number> {
