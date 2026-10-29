@@ -299,6 +299,28 @@ EOF
 }
 
 
+# xcodebuild never auto-creates schemes (only the Xcode GUI does), and some
+# Capacitor releases ship without a shared App.xcscheme.
+ensure_capacitor_app_scheme() {
+  local project="$1"
+  local scheme="$project/xcshareddata/xcschemes/App.xcscheme"
+  [[ -f "$scheme" ]] && return 0
+  compgen -G "$project/xcuserdata/*/xcschemes/App.xcscheme" >/dev/null && return 0
+
+  command -v ruby >/dev/null && ruby -rxcodeproj -e '' 2>/dev/null \
+    || error "Missing App scheme in $project and the xcodeproj gem is unavailable (gem install xcodeproj)"
+
+  info "Generating missing App scheme..."
+  stage_demo_file "$scheme"
+  ruby -rxcodeproj -e '
+    project = Xcodeproj::Project.open(ARGV[0])
+    target = project.targets.find { |t| t.name == "App" } or abort "No App target in #{ARGV[0]}"
+    scheme = Xcodeproj::XCScheme.new
+    scheme.configure_with_targets(target, nil, launch_target: true)
+    scheme.save_as(project.path, "App", true)
+  ' "$project"
+}
+
 build_capacitor_ios() {
   write_capacitor_demo_env
   setup_capacitor_sdk
@@ -324,8 +346,8 @@ build_capacitor_ios() {
   fi
 
   # Capacitor 7 uses Swift Package Manager (no Pods/.xcworkspace), so we
-  # build the .xcodeproj directly. Xcode auto-generates the "App" scheme
-  # from the App target on first build.
+  # build the .xcodeproj directly.
+  ensure_capacitor_app_scheme "$DEMO_DIR/ios/App/App.xcodeproj"
   info "Building release .app for ${IOS_SDK}..."
   (cd "$DEMO_DIR/ios/App" && xcodebuild \
     -project App.xcodeproj \
