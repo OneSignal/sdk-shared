@@ -47,20 +47,17 @@ export async function scrollToEl(
     return el;
   }
 
-  const scrollable = await getScrollContainer();
-  // Chainable selector — lets WDIO re-resolve on each scroll step instead of validating a stale snapshot.
-  const scroll = (swipeDirection: 'up' | 'down') =>
-    $(byTestIdSelector(identifier)).scrollIntoView({
-      direction: swipeDirection,
-      duration: SCROLL_DURATION,
-      maxScrolls,
-      percent: 0.25,
-      scrollableElement: scrollable, // needed for android
-    });
-
-  // WDIO counts a stale isDisplayed as not visible and keeps swiping, so it can overshoot the target.
   const swipeDirection = direction === 'down' ? 'up' : 'down';
-  await scroll(swipeDirection).catch(() => scroll(swipeDirection === 'up' ? 'down' : 'up'));
+  const scrollable = await getScrollContainer();
+
+  // Chainable selector — lets WDIO re-resolve on each scroll step instead of validating a stale snapshot.
+  await $(byTestIdSelector(identifier)).scrollIntoView({
+    direction: swipeDirection,
+    duration: SCROLL_DURATION,
+    maxScrolls,
+    percent: 0.2,
+    scrollableElement: scrollable, // needed for android
+  });
 
   const el = await byTestId(identifier);
   return nudgeAboveBottomOverlay(identifier, el);
@@ -672,7 +669,10 @@ export async function waitForInitId(timeoutMs = 30_000): Promise<string> {
   const cached = (await getValue('pushId')) as string | undefined;
   if (cached) return cached;
 
-  const pushIdEl = await scrollToEl('push_id_value', { direction: 'up' });
+  // Uncached means push hasn't been read this session, so the screen can be above or below it.
+  const pushIdEl = await scrollToEl('push_id_value', { direction: 'up' }).catch(() =>
+    scrollToEl('push_id_value', { direction: 'down' }),
+  );
   await driver.waitUntil(
     async () => {
       const pushId = (await pushIdEl.getText().catch(() => '')).trim();
