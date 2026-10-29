@@ -36,9 +36,13 @@ RELEASE=0
 MAIN=0
 WIPE_EMULATOR=0
 PICK_DEVICE=0
+INSTALL_ONLY=0
 for arg in "$@"; do
   case "$arg" in
     --skip-build|--skip-device|--skip-reset|--skip|--quiet|-q)
+      EXTRA_ARGS+=("$arg") ;;
+    --install-only)
+      INSTALL_ONLY=1
       EXTRA_ARGS+=("$arg") ;;
     --wipe-emulator)
       WIPE_EMULATOR=1 ;;
@@ -92,6 +96,8 @@ Options forwarded to run-local.sh:
   --skip-device    Skip simulator/emulator launch
   --skip-reset     Keep existing app data
   --skip           Shortcut for --skip-build --skip-device --skip-reset
+  --install-only   Build and install without running tests. Allows one SDK
+                   per platform, since every demo shares one bundle id.
   --wipe-emulator  Wipe the Android AVD before the first Android combo
   --pods           Use examples/demo-pods for flutter, cordova, capacitor
                    (ignored for other SDKs)
@@ -148,16 +154,35 @@ if (( PODS_REQUESTED )); then
   fi
 fi
 
-# Native SDKs only run on their own platform; drop them up front so
-# --release/--main don't touch or prompt for repos that won't run.
+# Native SDKs only run on their own platform.
+combo_runs() {
+  local sdk="$1" platform="$2"
+  [[ ! ( "$sdk" == android && "$platform" == ios ) \
+    && ! ( "$sdk" == ios && "$platform" == android ) ]]
+}
+
+# Drop native SDKs up front so --release/--main don't touch or prompt for
+# repos that won't run.
 if [[ -n "$PLATFORM_FILTER" ]]; then
   RUN_SDKS=()
   for sdk in "${SDKS[@]}"; do
-    [[ ( "$sdk" == android && "$PLATFORM_FILTER" == ios ) \
-      || ( "$sdk" == ios && "$PLATFORM_FILTER" == android ) ]] || RUN_SDKS+=("$sdk")
+    combo_runs "$sdk" "$PLATFORM_FILTER" && RUN_SDKS+=("$sdk")
   done
 else
   RUN_SDKS=("${SDKS[@]}")
+fi
+
+if (( INSTALL_ONLY )); then
+  for platform in "${PLATFORMS[@]}"; do
+    platform_sdks=()
+    for sdk in ${RUN_SDKS[@]+"${RUN_SDKS[@]}"}; do
+      combo_runs "$sdk" "$platform" && platform_sdks+=("$sdk")
+    done
+    if (( ${#platform_sdks[@]} > 1 )); then
+      error "--install-only would install ${platform_sdks[*]} on $platform, but every demo shares one bundle id so only the last would remain. Narrow with --sdks= or --platform=."
+      exit 2
+    fi
+  done
 fi
 
 # --release/--main switch the default checkout to a fixed ref, so there is no
@@ -178,14 +203,10 @@ if (( PICK_DEVICE )); then
   for platform in "${PLATFORMS[@]}"; do
     has_combo=0
     for sdk in ${RUN_SDKS[@]+"${RUN_SDKS[@]}"}; do
-      [[ ( "$sdk" == android && "$platform" == ios ) \
-        || ( "$sdk" == ios && "$platform" == android ) ]] || { has_combo=1; break; }
+      combo_runs "$sdk" "$platform" && { has_combo=1; break; }
     done
     (( has_combo )) || continue
-    if ! pick_device "$platform"; then
-      error "No $platform device to pick from"
-      exit 2
-    fi
+    pick_device "$platform" || exit 2
     if [[ "$platform" == "ios" ]]; then
       IOS_DEVICE_ARGS=(--device="$PICKED_DEVICE" --udid="$PICKED_UDID")
     else
@@ -229,17 +250,9 @@ for platform in "${PLATFORMS[@]}"; do
     else
       label="${sdk} / ${platform}"
     fi
-    if [[ "$sdk" == "android" && "$platform" == "ios" ]]; then
+    if ! combo_runs "$sdk" "$platform"; then
       if [[ -n "$PLATFORM_FILTER" ]]; then
-        warn "--sdk=android only runs on --platform=android; skipping --platform=ios"
-        RESULTS+=("SKIP  ${label}")
-        SKIPPED=$((SKIPPED + 1))
-      fi
-      continue
-    fi
-    if [[ "$sdk" == "ios" && "$platform" == "android" ]]; then
-      if [[ -n "$PLATFORM_FILTER" ]]; then
-        warn "--sdk=ios only runs on --platform=ios; skipping --platform=android"
+        warn "--sdk=$sdk only runs on --platform=$sdk; skipping --platform=$platform"
         RESULTS+=("SKIP  ${label}")
         SKIPPED=$((SKIPPED + 1))
       fi

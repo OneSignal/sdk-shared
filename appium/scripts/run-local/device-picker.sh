@@ -70,7 +70,11 @@ for ver, name, udid, label in sorted(rows, key=lambda r: (tuple(-v for v in r[0]
 
   local choice
   while true; do
-    read -rp "> " choice
+    if ! read -rp "> " choice; then
+      echo "" >&2
+      echo "No input available; cannot pick a device" >&2
+      return 1
+    fi
     if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#names[@]} )); then
       PICKED_DEVICE="${names[$((choice - 1))]}"
       [[ "$platform" == "ios" ]] && PICKED_UDID="${udids[$((choice - 1))]}"

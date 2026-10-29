@@ -10,6 +10,8 @@ configure_runner() {
   SKIP_RESET=false
   INSTALL_ONLY=false
   PICK_DEVICE=false
+  DEVICE_FLAG=false
+  UDID_FLAG=false
   SPEC=""
   QUIET=false
   PODS_DEMO=false
@@ -25,10 +27,10 @@ configure_runner() {
     case "$arg" in
       --platform=*)     PLATFORM="${arg#--platform=}" ;;
       --sdk=*)          SDK_TYPE="${arg#--sdk=}" ;;
-      --device=*)       DEVICE="${arg#--device=}"; AVD_NAME=""; IOS_SIMULATOR="" ;;
+      --device=*)       DEVICE="${arg#--device=}"; DEVICE_FLAG=true ;;
       --pick-device)    PICK_DEVICE=true ;;
       --device-real)    IOS_REAL_DEVICE=true; SKIP_DEVICE=true ;;
-      --udid=*)         UDID="${arg#--udid=}" ;;
+      --udid=*)         UDID="${arg#--udid=}"; UDID_FLAG=true ;;
       --appium-port=*)  APPIUM_PORT="${arg#--appium-port=}" ;;
       --wda-local-port=*) WDA_LOCAL_PORT="${arg#--wda-local-port=}" ;;
       --system-port=*)  SYSTEM_PORT="${arg#--system-port=}" ;;
@@ -135,6 +137,16 @@ USAGE
     esac
   done
 
+  # A CLI device beats device settings from .env/env. Without a pinned runtime,
+  # start_ios_simulator matches the name on the newest runtime that has it.
+  if [[ "$DEVICE_FLAG" == true ]]; then
+    AVD_NAME=""
+    IOS_SIMULATOR=""
+    IOS_RUNTIME=""
+    IOS_RUNTIME_ANY=true
+    [[ "$UDID_FLAG" == true ]] || UDID=""
+  fi
+
   # Ensure values set via CLI flags propagate to wdio (which reads them as env).
   export APPIUM_PORT
   [[ -n "$WDA_LOCAL_PORT" ]] && export WDA_LOCAL_PORT
@@ -185,7 +197,7 @@ USAGE
 
   if [[ "$PICK_DEVICE" == true ]]; then
     [[ "$IOS_REAL_DEVICE" == false ]] || error "--pick-device cannot be combined with --device-real"
-    pick_device "$PLATFORM" || error "No $PLATFORM device to pick from"
+    pick_device "$PLATFORM" || exit 1
     DEVICE="$PICKED_DEVICE"
     AVD_NAME=""
     IOS_SIMULATOR=""
@@ -445,7 +457,7 @@ USAGE
     DEVICE="${DEVICE:-iPhone 17}"
     OS_VERSION="${OS_VERSION:-26.5}"
     IOS_SIMULATOR="${IOS_SIMULATOR:-$DEVICE}"
-    IOS_RUNTIME="${IOS_RUNTIME:-iOS-26-5}"
+    [[ "${IOS_RUNTIME_ANY:-false}" == true ]] || IOS_RUNTIME="${IOS_RUNTIME:-iOS-26-5}"
   else
     DEVICE="${DEVICE:-Android 17}"
     OS_VERSION="${OS_VERSION:-17}"

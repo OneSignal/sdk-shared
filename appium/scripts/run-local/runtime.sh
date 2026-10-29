@@ -23,23 +23,30 @@ start_ios_simulator() {
   fi
 
   local udid
+  # An empty IOS_RUNTIME matches any runtime; newest wins.
   udid=$(xcrun simctl list devices available -j \
-    | python3 -c "
+    | python3 -c '
 import json, sys
+runtime_filter, name = sys.argv[1], sys.argv[2]
 data = json.load(sys.stdin)
-for runtime, devices in data['devices'].items():
-    if '$IOS_RUNTIME' in runtime:
-        for d in devices:
-            if d['name'] == '$IOS_SIMULATOR' and d['isAvailable']:
-                print(d['udid']); sys.exit(0)
-" 2>/dev/null || true)
+def version(runtime):
+    try:
+        return tuple(int(p) for p in runtime.rsplit(".", 1)[-1].replace("iOS-", "").split("-"))
+    except ValueError:
+        return ()
+for runtime in sorted(data["devices"], key=version, reverse=True):
+    if runtime_filter in runtime:
+        for d in data["devices"][runtime]:
+            if d["name"] == name and d["isAvailable"]:
+                print(d["udid"]); sys.exit(0)
+' "$IOS_RUNTIME" "$IOS_SIMULATOR" 2>/dev/null || true)
 
   # Requested device/runtime isn't installed on this machine (e.g. defaults
   # assume iOS 26.5 but only an older runtime is installed). Fall back to the booted
   # simulator if there is one, else the newest installed iOS runtime, and
   # align DEVICE/OS_VERSION so the Appium session targets what actually runs.
   if [[ -z "$udid" ]]; then
-    warn "Simulator '$IOS_SIMULATOR' ($IOS_RUNTIME) not found on this machine."
+    warn "Simulator '$IOS_SIMULATOR' (${IOS_RUNTIME:-any runtime}) not found on this machine."
     local fallback
     fallback=$(xcrun simctl list devices -j \
       | python3 -c "
@@ -263,6 +270,7 @@ start_device() {
         || error "Android emulator '$AVD_NAME' is not running; remove --skip-device or start it first"
       pin_android_emulator "$emulator_udid"
     fi
+    [[ "$PLATFORM" == "ios" ]] && resolve_booted_simulator
     info "Skipping device launch (--skip-device)"
     return
   fi
@@ -390,6 +398,42 @@ validate_existing_app() {
   fi
 }
 
+ios_sim_version() {
+  xcrun simctl list devices -j 2>/dev/null | python3 -c '
+import json, sys
+for runtime, devices in json.load(sys.stdin)["devices"].items():
+    if any(d["udid"] == sys.argv[1] for d in devices):
+        print(runtime.rsplit(".", 1)[-1].replace("iOS-", "").replace("-", "."))
+' "$1" 2>/dev/null || true
+}
+
+# With --skip-device, pin the already-booted simulator so reset and install
+# don't hit simctl's ambiguous `booted` target. Prefers a name match.
+resolve_booted_simulator() {
+  [[ "$IOS_REAL_DEVICE" == false && -z "$UDID" ]] || return 0
+  local -a booted=()
+  local udid
+  while read -r udid; do
+    [[ -n "$udid" ]] && booted+=("$udid")
+  done < <(xcrun simctl list devices booted -j 2>/dev/null | python3 -c '
+import json, sys
+booted = [d for ds in json.load(sys.stdin)["devices"].values() for d in ds if d["state"] == "Booted"]
+named = [d for d in booted if d["name"] == sys.argv[1]]
+for d in named or booted:
+    print(d["udid"])
+' "${IOS_SIMULATOR:-$DEVICE}" 2>/dev/null)
+
+  if (( ${#booted[@]} == 1 )); then
+    UDID="${booted[0]}"
+    info "Using booted simulator $UDID"
+  elif [[ "$INSTALL_ONLY" == true ]]; then
+    if (( ${#booted[@]} == 0 )); then
+      error "No booted simulator; remove --skip-device or boot one first"
+    fi
+    error "Multiple simulators booted; pass --udid or --pick-device to choose one"
+  fi
+}
+
 # Appium matches platformVersion against the running device, so a picked or
 # --device/--udid target must not keep the default OS_VERSION.
 sync_device_os_version() {
@@ -399,14 +443,13 @@ sync_device_os_version() {
     version=$(adb_with_timeout 10 -s "$ANDROID_UDID" shell getprop ro.build.version.release 2>/dev/null | tr -d '\r' || true)
   else
     [[ "$IOS_REAL_DEVICE" == false && -n "$UDID" ]] || return 0
-    version=$(xcrun simctl list devices -j 2>/dev/null | python3 -c "
-import json, sys
-for runtime, devices in json.load(sys.stdin)['devices'].items():
-    if any(d['udid'] == '$UDID' for d in devices):
-        print(runtime.rsplit('.', 1)[-1].replace('iOS-', '').replace('-', '.'))
-" 2>/dev/null || true)
+    version=$(ios_sim_version "$UDID")
   fi
-  [[ "$version" =~ ^[0-9]+(\.[0-9]+)*$ && "$version" != "$OS_VERSION" ]] || return 0
+  if [[ ! "$version" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
+    warn "Could not read the device OS version; keeping OS_VERSION=$OS_VERSION (Appium may reject a mismatched platformVersion)"
+    return 0
+  fi
+  [[ "$version" != "$OS_VERSION" ]] || return 0
   info "Using OS_VERSION=$version to match the running device (was $OS_VERSION)"
   OS_VERSION="$version"
 }
@@ -433,8 +476,9 @@ install_app() {
     xcrun devicectl device install app --device "$UDID" "$APP_PATH" >/dev/null \
       || error "Failed to install $APP_PATH on device $UDID"
   else
-    xcrun simctl install "${UDID:-booted}" "$APP_PATH" \
-      || error "Failed to install $APP_PATH on simulator ${UDID:-booted}"
+    [[ -n "$UDID" ]] || error "No simulator selected for install; pass --udid or --pick-device"
+    xcrun simctl install "$UDID" "$APP_PATH" \
+      || error "Failed to install $APP_PATH on simulator $UDID"
   fi
   info "Installed $BUNDLE_ID"
 }
@@ -442,7 +486,6 @@ install_app() {
 prepare_install_only() {
   validate_existing_app
   start_device
-  sync_device_os_version
   check_android_storage
   reset_app
   install_app
