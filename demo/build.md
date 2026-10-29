@@ -156,7 +156,7 @@ Clean up listeners on teardown if the platform requires it.
 3. **Push Section** (Push ID, Status, Opted In Toggle, Auto-prompts on load)
 4. **Send Push Notification Section** (Simple, With Image, With Sound, Custom, Clear All)
 5. **In-App Messaging Section** (Pause toggle)
-6. **Send In-App Message Section** (Top Banner, Bottom Banner, Center Modal, Full Screen)
+6. **Send In-App Message Section** (Top, Bottom, Center, HTML, Full, Full Bleed, Carousel, Carousel Bleed)
 7. **Aliases Section** (Add/Add Multiple, read-only list)
 8. **Emails Section** (Collapsible list >5)
 9. **SMS Section** (Collapsible list >5)
@@ -241,12 +241,17 @@ Language list, after Device Default, in this order: English (`en`), Arabic (`ar`
 ### Prompt 2.5 - Send In-App Message Section
 
 - Title: "Send In-App Message" with info icon
-- Four FULL-WIDTH buttons (not a grid):
-  1. TOP BANNER - trigger: "iam_type" = "top_banner"
-  2. BOTTOM BANNER - trigger: "iam_type" = "bottom_banner"
-  3. CENTER MODAL - trigger: "iam_type" = "center_modal"
-  4. FULL SCREEN - trigger: "iam_type" = "full_screen"
-- Styling: primary (red) background, white text, centered, no icons, full width, UPPERCASE (same as other primary buttons)
+- Eight buttons in a 2-column grid (4 rows), in this order (left, right):
+  1. TOP - trigger: "iam_type" = "top_banner"
+  2. BOTTOM - trigger: "iam_type" = "bottom_banner"
+  3. CENTER - trigger: "iam_type" = "center_modal"
+  4. HTML - trigger: "iam_type" = "html"
+  5. FULL - trigger: "iam_type" = "full_screen"
+  6. FULL BLEED - trigger: "iam_type" = "full_bleed"
+  7. CAROUSEL - trigger: "iam_type" = "carousel"
+  8. CAROUSEL BLEED - trigger: "iam_type" = "carousel_bleed"
+- Grid spacing matches the vertical gap between other section elements
+- Styling: primary (red) background, white text, centered, no icons, UPPERCASE (same as other primary buttons). Each button fills its column; labels stay on one line and scale down if needed instead of truncating
 - On tap: upserts `iam_type` in Triggers list. No snackbar (silent action — see Prompt 7.6)
 
 ### Prompt 2.6 - Aliases Section
@@ -515,7 +520,7 @@ Section keys: `app`, `user`, `push`, `send_push`, `iam`, `send_iam`, `aliases`, 
 | `send_sound_button`                                                                                                         | Send Sound notification                                                    |
 | `send_custom_button`                                                                                                        | Send Custom notification (opens dialog)                                    |
 | `clear_all_button`                                                                                                          | Clear all notifications                                                    |
-| `send_iam_top_banner_button`, `send_iam_bottom_banner_button`, `send_iam_center_modal_button`, `send_iam_full_screen_button` | Send In-App Message (one per IAM type — pattern: `send_iam_{type}_button`) |
+| `send_iam_top_banner_button`, `send_iam_bottom_banner_button`, `send_iam_center_modal_button`, `send_iam_html_button`, `send_iam_full_screen_button`, `send_iam_full_bleed_button`, `send_iam_carousel_button`, `send_iam_carousel_bleed_button` | Send In-App Message (one per IAM type — pattern: `send_iam_{type}_button`) |
 | `add_alias_button`, `add_multiple_aliases_button`                                                                           | Aliases section actions                                                    |
 | `add_email_button`                                                                                                          | Add Email (opens dialog)                                                   |
 | `add_sms_button`                                                                                                            | Add SMS (opens dialog)                                                     |
