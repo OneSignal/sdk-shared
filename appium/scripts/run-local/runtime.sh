@@ -79,12 +79,12 @@ for runtime, devices in data['devices'].items():
     if avail:
         runtimes.append((ver, rt, avail))
 for ver, rt, avail in sorted(runtimes, reverse=True):
-    exact = [d for d in avail if d['name'] == '$IOS_SIMULATOR']
+    exact = [d for d in avail if d['name'] == sys.argv[1]]
     iphones = sorted((d for d in avail if d['name'].startswith('iPhone')), key=lambda d: d['name'])
     pick = exact[0] if exact else (iphones[-1] if iphones else avail[0])
     print(pick['udid'] + '|' + pick['name'] + '|' + rt + '|' + '.'.join(str(p) for p in ver))
     sys.exit(0)
-" 2>/dev/null || true)
+" "$IOS_SIMULATOR" 2>/dev/null || true)
     fi
     if [[ -z "$fallback" ]]; then
       error "No usable iOS simulator found. Run: xcrun simctl list devices available, then set DEVICE / OS_VERSION / IOS_RUNTIME in $SCRIPT_DIR/.env"
