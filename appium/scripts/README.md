@@ -1,6 +1,6 @@
 # Local Test Runner
 
-`run-local.sh` builds the app, boots a simulator/emulator, starts Appium, resets app state, and runs the E2E test suite.
+`run-local.sh` builds the app, boots a simulator/emulator, starts Appium, resets app state, and runs the E2E test suite. With `--install-only` it stops after installing the app.
 
 ## Setup
 
@@ -75,19 +75,21 @@ If `--platform` or `--sdk` are not provided, the script prompts interactively.
 
 ### Options
 
-| Flag            | Description                                                                                    |
-| --------------- | ---------------------------------------------------------------------------------------------- |
-| `--platform=P`  | `ios` or `android`                                                                             |
-| `--sdk=S`       | `flutter`, `react-native`, `cordova`, `capacitor`, `expo`, `dotnet`, `unity`, `android`, `ios` |
-| `--spec=GLOB`   | Spec file glob (default: `tests/specs/**/*.spec.ts`)                                           |
-| `--skip`        | Skip build, device launch, and app reset (rerun tests only)                                    |
-| `--skip-build`  | Skip app build (reuse existing `.app`/`.apk`)                                                  |
-| `--skip-device` | Skip simulator/emulator launch                                                                 |
-| `--skip-reset`  | Keep existing app data between runs                                                            |
-| `--pods`        | Use `examples/demo-pods` for Flutter, Cordova, and Capacitor                                   |
-| `--release`     | Check out the latest release point in each SDK repo first                                      |
-| `--main`        | Check out the latest `main` in each SDK repo first                                             |
-| `-h, --help`    | Show help                                                                                      |
+| Flag             | Description                                                                                    |
+| ---------------- | ---------------------------------------------------------------------------------------------- |
+| `--platform=P`   | `ios` or `android`                                                                             |
+| `--sdk=S`        | `flutter`, `react-native`, `cordova`, `capacitor`, `expo`, `dotnet`, `unity`, `android`, `ios` |
+| `--spec=GLOB`    | Spec file glob (default: `tests/specs/**/*.spec.ts`)                                           |
+| `--skip`         | Skip build, device launch, and app reset (rerun tests only)                                    |
+| `--skip-build`   | Skip app build (reuse existing `.app`/`.apk`)                                                  |
+| `--skip-device`  | Skip simulator/emulator launch                                                                 |
+| `--skip-reset`   | Keep existing app data between runs                                                            |
+| `--install-only` | Build, launch the device, reset, and install the app; skip Appium and tests                    |
+| `--pick-device`  | Prompt for which iOS simulator or Android emulator to use                                      |
+| `--pods`         | Use `examples/demo-pods` for Flutter, Cordova, and Capacitor                                   |
+| `--release`      | Check out the latest release point in each SDK repo first                                      |
+| `--main`         | Check out the latest `main` in each SDK repo first                                             |
+| `-h, --help`     | Show help                                                                                      |
 
 ### Examples
 
@@ -144,6 +146,8 @@ Skip only the build (simulator + reset still happen):
 ./run-all.sh --release                    # check out the latest release point per repo first
 ./run-all.sh --main                       # check out the latest main per repo first
 ./run-all.sh --bail                       # stop after the first failing combo
+./run-all.sh --pick-device                # prompt for a simulator and/or emulator up front
+./run-all.sh --sdks=flutter --install-only  # build and install on both platforms, no tests
 ```
 
 `--release` is available on both `run-all.sh` and `run-local.sh`. It runs `checkout-releases.sh`, which checks out the newest stable `rel/X.Y.Z` branch (for expo/ios, the newest semver tag unless a newer stable `rel/X.Y.Z` branch exists for a pending release) in each SDK repo, honoring the `*_DIR` overrides from `.env`. Uncommitted changes, including untracked files, are stashed before checkout and can be restored later with `git stash pop`.

@@ -16,6 +16,7 @@ RUN_LOCAL_LIB_DIR="$SCRIPT_DIR/run-local"
 source "$RUN_LOCAL_LIB_DIR/common.sh"
 source "$RUN_LOCAL_LIB_DIR/repo-dir.sh"
 source "$RUN_LOCAL_LIB_DIR/config.sh"
+source "$RUN_LOCAL_LIB_DIR/device-picker.sh"
 source "$RUN_LOCAL_LIB_DIR/sdk-artifacts.sh"
 source "$RUN_LOCAL_LIB_DIR/build.sh"
 source "$RUN_LOCAL_LIB_DIR/runtime.sh"
@@ -84,6 +85,13 @@ main() {
 
   begin_quiet_setup
   build_app
+  if [[ "$INSTALL_ONLY" == true ]]; then
+    prepare_install_only
+    end_quiet_setup
+    echo ""
+    info "=== Installed (--install-only, tests skipped) ==="
+    return
+  fi
   prepare_runtime
   install_test_deps
   end_quiet_setup
