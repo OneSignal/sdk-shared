@@ -75,19 +75,20 @@ If `--platform` or `--sdk` are not provided, the script prompts interactively.
 
 ### Options
 
-| Flag            | Description                                                                                    |
-| --------------- | ---------------------------------------------------------------------------------------------- |
-| `--platform=P`  | `ios` or `android`                                                                             |
-| `--sdk=S`       | `flutter`, `react-native`, `cordova`, `capacitor`, `expo`, `dotnet`, `unity`, `android`, `ios` |
-| `--spec=GLOB`   | Spec file glob (default: `tests/specs/**/*.spec.ts`)                                           |
-| `--skip`        | Skip build, device launch, and app reset (rerun tests only)                                    |
-| `--skip-build`  | Skip app build (reuse existing `.app`/`.apk`)                                                  |
-| `--skip-device` | Skip simulator/emulator launch                                                                 |
-| `--skip-reset`  | Keep existing app data between runs                                                            |
-| `--pods`        | Use `examples/demo-pods` for Flutter, Cordova, and Capacitor                                   |
-| `--release`     | Check out the latest release point in each SDK repo first                                      |
-| `--main`        | Check out the latest `main` in each SDK repo first                                             |
-| `-h, --help`    | Show help                                                                                      |
+| Flag             | Description                                                                                    |
+| ---------------- | ---------------------------------------------------------------------------------------------- |
+| `--platform=P`   | `ios` or `android`                                                                             |
+| `--sdk=S`        | `flutter`, `react-native`, `cordova`, `capacitor`, `expo`, `dotnet`, `unity`, `android`, `ios` |
+| `--spec=GLOB`    | Spec file glob (default: `tests/specs/**/*.spec.ts`)                                           |
+| `--skip`         | Skip build, device launch, and app reset (rerun tests only)                                    |
+| `--skip-build`   | Skip app build (reuse existing `.app`/`.apk`)                                                  |
+| `--skip-device`  | Skip simulator/emulator launch                                                                 |
+| `--skip-reset`   | Keep existing app data between runs                                                            |
+| `--install-only` | Build, launch the device, reset, and install the app; skip Appium and tests                    |
+| `--pods`         | Use `examples/demo-pods` for Flutter, Cordova, and Capacitor                                   |
+| `--release`      | Check out the latest release point in each SDK repo first                                      |
+| `--main`         | Check out the latest `main` in each SDK repo first                                             |
+| `-h, --help`     | Show help                                                                                      |
 
 ### Examples
 

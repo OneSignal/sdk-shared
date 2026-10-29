@@ -8,6 +8,7 @@ configure_runner() {
   SKIP_BUILD=false
   SKIP_DEVICE=false
   SKIP_RESET=false
+  INSTALL_ONLY=false
   SPEC=""
   QUIET=false
   PODS_DEMO=false
@@ -33,6 +34,7 @@ configure_runner() {
       --skip-build)     SKIP_BUILD=true ;;
       --skip-device)    SKIP_DEVICE=true ;;
       --skip-reset)     SKIP_RESET=true ;;
+      --install-only)   INSTALL_ONLY=true ;;
       --wipe-emulator)  WIPE_EMULATOR=true ;;
       --pods)           PODS_DEMO=true ;;
       --release)        RELEASE=true ;;
@@ -66,6 +68,8 @@ Options:
   --skip-build        Skip app build (reuse existing)
   --skip-device       Skip simulator/emulator launch
   --skip-reset        Keep existing app data
+  --install-only      Build, launch the device, reset, and install the app,
+                      then exit without starting Appium or running tests
   --wipe-emulator     Wipe the Android AVD before launch. Deletes all emulator
                       apps and data; incompatible with --skip-device.
   --pods              Use examples/demo-pods instead of examples/demo for
@@ -198,6 +202,19 @@ USAGE
   # calls `vpx wdio run` directly on BrowserStack — so these checks are
   # local-only by construction.
   preflight() {
+    if [[ "$INSTALL_ONLY" != true ]]; then
+      preflight_test_tooling
+    fi
+
+    if [[ -z "${ONESIGNAL_APP_ID:-}" || -z "${ONESIGNAL_API_KEY:-}" ]]; then
+      error "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set. Use the OneSignal app
+        dedicated to Appium tests (not a general/shared app — its live in-app
+        marketing campaigns can cover the UI and cause misleading 'element not
+        displayed' failures). Set both in $SCRIPT_DIR/.env (cp .env.example .env)."
+    fi
+  }
+
+  preflight_test_tooling() {
     command -v appium >/dev/null 2>&1 \
       || error "appium not found on PATH. Install it with: npm i -g appium"
 
@@ -238,13 +255,6 @@ USAGE
     if [[ "${node_major:-0}" =~ ^[0-9]+$ ]] && (( ${node_major:-0} >= 26 )) && [[ -z "${WDIO_USE_NATIVE_FETCH:-}" ]]; then
       export WDIO_USE_NATIVE_FETCH=1
       info "Node $node_major detected — setting WDIO_USE_NATIVE_FETCH=1 (works around webdriverio's undici dispatcher being rejected by Node 26+ fetch)."
-    fi
-
-    if [[ -z "${ONESIGNAL_APP_ID:-}" || -z "${ONESIGNAL_API_KEY:-}" ]]; then
-      error "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set. Use the OneSignal app
-        dedicated to Appium tests (not a general/shared app — its live in-app
-        marketing campaigns can cover the UI and cause misleading 'element not
-        displayed' failures). Set both in $SCRIPT_DIR/.env (cp .env.example .env)."
     fi
   }
   preflight

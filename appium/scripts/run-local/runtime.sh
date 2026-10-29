@@ -399,3 +399,28 @@ prepare_runtime() {
   cleanup_android_automation
   reset_app
 }
+
+# Appium installs the app at session start during test runs, so install-only
+# has to do it explicitly. No -g on adb: tests expect the permission prompt.
+install_app() {
+  info "Installing $APP_PATH..."
+  if [[ "$PLATFORM" == "android" ]]; then
+    adb -s "$ANDROID_UDID" install -r "$APP_PATH" >/dev/null \
+      || error "Failed to install $APP_PATH on $ANDROID_UDID"
+  elif [[ "$IOS_REAL_DEVICE" == true ]]; then
+    xcrun devicectl device install app --device "$UDID" "$APP_PATH" >/dev/null \
+      || error "Failed to install $APP_PATH on device $UDID"
+  else
+    xcrun simctl install "${UDID:-booted}" "$APP_PATH" \
+      || error "Failed to install $APP_PATH on simulator ${UDID:-booted}"
+  fi
+  info "Installed $BUNDLE_ID"
+}
+
+prepare_install_only() {
+  validate_existing_app
+  start_device
+  check_android_storage
+  reset_app
+  install_app
+}

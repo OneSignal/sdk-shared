@@ -84,6 +84,13 @@ main() {
 
   begin_quiet_setup
   build_app
+  if [[ "$INSTALL_ONLY" == true ]]; then
+    prepare_install_only
+    end_quiet_setup
+    echo ""
+    info "=== Installed (--install-only, tests skipped) ==="
+    return
+  fi
   prepare_runtime
   install_test_deps
   end_quiet_setup
