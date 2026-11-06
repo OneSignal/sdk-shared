@@ -3,6 +3,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { getValue, setValue } from '@wdio/shared-store-service';
+import type { ChainablePromiseElement } from 'webdriverio';
 
 import {
   byTestId,
@@ -589,18 +590,25 @@ function isIpad(): boolean {
   return /ipad/i.test(name);
 }
 
-async function openNotificationCenter() {
-  const { width, height } = await driver.getWindowSize();
-  // Left of center, since the top-right edge opens Control Center on iPad.
-  const x = Math.round(width * 0.3);
+/** Expand a banner to reveal its attachment. */
+async function expandBanner(banner: ChainablePromiseElement) {
+  const elementId = await banner.elementId;
+  if (!isIpad()) {
+    await driver.execute('mobile: touchAndHold', { elementId, duration: 1.0 });
+    return;
+  }
+
+  // iPad banners ignore touch-and-hold, and top-edge swipes hit the menu bar or drag the app window.
+  const { x, y, width, height } = await driver.getElementRect(elementId);
+  const fromX = Math.round(x + width / 2);
+  const fromY = Math.round(y + height / 2);
   await driver.execute('mobile: dragFromToForDuration', {
-    fromX: x,
-    fromY: 2,
-    toX: x,
-    toY: Math.round(height * 0.6),
+    fromX,
+    fromY,
+    toX: fromX,
+    toY: fromY + 300,
     duration: 0.1,
   });
-  await driver.pause(500);
 }
 
 /** Wait for a notification in Android shade or iOS foreground banner. */
@@ -660,19 +668,9 @@ export async function waitForNotification(opts: {
     await banner.waitForDisplayed({ timeout: timeoutMs });
 
     if (expectImage) {
-      // iPad banners ignore touch-and-hold, but Notification Center rows still expand.
-      if (isIpad()) {
-        await openNotificationCenter();
-        banner = await $(`-ios predicate string:${predicate}`);
-        await banner.waitForDisplayed({ timeout: 5_000 });
-      }
-
       // Attachment appears as an extra image after expanding.
       const before = await driver.findElements('-ios class chain', '**/XCUIElementTypeImage');
-      await driver.execute('mobile: touchAndHold', {
-        elementId: banner.elementId,
-        duration: 1.0,
-      });
+      await expandBanner(banner);
       await driver.waitUntil(
         async () => {
           const after = await driver.findElements('-ios class chain', '**/XCUIElementTypeImage');
@@ -680,6 +678,12 @@ export async function waitForNotification(opts: {
         },
         { timeout: 5_000, interval: 250 },
       );
+
+      // The collapsed banner stays in the tree behind the expanded view and swallows taps.
+      const expanded = await $(
+        `-ios class chain:**/XCUIElementTypeOther[\`name == "notification-expanded-view"\`]/**/XCUIElementTypeButton[\`label CONTAINS "${title}"\`]`,
+      );
+      if (await expanded.isExisting()) banner = expanded;
     }
 
     // Dismiss the banner.
