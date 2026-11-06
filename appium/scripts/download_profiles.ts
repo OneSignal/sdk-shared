@@ -24,7 +24,7 @@
  * Usage
  * -----
  *   ASC_KEY_ID=... ASC_ISSUER_ID=... ASC_KEY_FILE=~/keys/AuthKey_XXX.p8 \
- *     bun appium/scripts/download_profiles.ts com.onesignal.example com.onesignal.example.NSE
+ *     bun appium/scripts/download_profiles.ts com.onesignal.sdkdemo com.onesignal.sdkdemo.NSE
  */
 
 import { createPrivateKey, sign } from 'node:crypto';
