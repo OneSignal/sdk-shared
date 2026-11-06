@@ -583,6 +583,26 @@ async function expandNotificationRow(title: string): Promise<void> {
     .catch(() => {});
 }
 
+function isIpad(): boolean {
+  const caps = driver.capabilities as Record<string, unknown>;
+  const name = String(caps['appium:deviceName'] ?? caps.deviceName ?? process.env.DEVICE ?? '');
+  return /ipad/i.test(name);
+}
+
+async function openNotificationCenter() {
+  const { width, height } = await driver.getWindowSize();
+  // Left of center, since the top-right edge opens Control Center on iPad.
+  const x = Math.round(width * 0.3);
+  await driver.execute('mobile: dragFromToForDuration', {
+    fromX: x,
+    fromY: 2,
+    toX: x,
+    toY: Math.round(height * 0.6),
+    duration: 0.1,
+  });
+  await driver.pause(500);
+}
+
 /** Wait for a notification in Android shade or iOS foreground banner. */
 export async function waitForNotification(opts: {
   title: string;
@@ -636,10 +656,17 @@ export async function waitForNotification(opts: {
     const predicate = body
       ? `label CONTAINS "${title}" AND label CONTAINS "${body}"`
       : `label CONTAINS "${title}"`;
-    const banner = await $(`-ios predicate string:${predicate}`);
+    let banner = await $(`-ios predicate string:${predicate}`);
     await banner.waitForDisplayed({ timeout: timeoutMs });
 
     if (expectImage) {
+      // iPad banners ignore touch-and-hold, but Notification Center rows still expand.
+      if (isIpad()) {
+        await openNotificationCenter();
+        banner = await $(`-ios predicate string:${predicate}`);
+        await banner.waitForDisplayed({ timeout: 5_000 });
+      }
+
       // Attachment appears as an extra image after expanding.
       const before = await driver.findElements('-ios class chain', '**/XCUIElementTypeImage');
       await driver.execute('mobile: touchAndHold', {
