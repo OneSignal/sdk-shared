@@ -15,9 +15,35 @@ runs:
         VERSION: ${{ inputs.version }}
       run: |
         set -euo pipefail
-        SPEC_URL="https://cdn.cocoapods.org/Specs/d/f/3/OneSignalXCFramework/${VERSION}/OneSignalXCFramework.podspec.json"
-        echo "Waiting for OneSignalXCFramework:${VERSION}"
-        echo "URL: ${SPEC_URL}"
-        curl "${SPEC_URL}" \
-             --output /dev/null --silent \
-             --fail --retry 50 --retry-delay 60 --retry-all-errors
+        POD="OneSignalXCFramework"
+        # CocoaPods resolves versions from the shard index, then fetches the
+        # podspec. Both are cached separately on the CDN, so wait for both.
+        # The podspec URL 301-redirects to jsDelivr; without --location, curl
+        # --fail treats the redirect as success even for unpublished versions.
+        INDEX_URL="https://cdn.cocoapods.org/all_pods_versions_d_f_3.txt"
+        SPEC_URL="https://cdn.cocoapods.org/Specs/d/f/3/${POD}/${VERSION}/${POD}.podspec.json"
+        echo "Waiting for ${POD}:${VERSION}"
+        echo "Index: ${INDEX_URL}"
+        echo "Spec:  ${SPEC_URL}"
+
+        in_index() {
+          curl --fail --silent --location "${INDEX_URL}" |
+            awk -F/ -v pod="${POD}" -v v="${VERSION}" \
+              '$1 == pod { for (i = 2; i <= NF; i++) if ($i == v) found = 1 } END { exit !found }'
+        }
+
+        spec_available() {
+          curl --fail --silent --location --output /dev/null "${SPEC_URL}"
+        }
+
+        for attempt in $(seq 1 50); do
+          if in_index && spec_available; then
+            echo "✓ ${POD}:${VERSION} is in the CDN index and its podspec is available"
+            exit 0
+          fi
+          echo "Attempt ${attempt}/50: not available yet, retrying in 60s"
+          sleep 60
+        done
+
+        echo "::error::${POD}:${VERSION} did not appear on the CocoaPods CDN"
+        exit 1
