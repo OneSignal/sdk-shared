@@ -51,12 +51,11 @@ export async function scrollToEl(
   const swipeDirection = direction === 'down' ? 'up' : 'down';
   const selector = byTestIdSelector(identifier);
 
-  // WDIO's scrollIntoView resolves the element once and treats any error as "not visible". When the
-  // app re-renders mid-scroll (e.g. new log lines), that reference goes stale and it swipes past a
-  // visible element. Re-query on every step instead.
-  let swiped = false;
-  for (let scrolls = 0; !(await isElementVisible(selector)); scrolls++) {
-    if (scrolls >= maxScrolls) {
+  // Re-query every step: WDIO's scrollIntoView holds one element reference, which goes stale when
+  // the app re-renders mid-scroll, so it swipes right past a visible element.
+  let scrolls = 0;
+  while (!(await isOnScreen(selector))) {
+    if (scrolls++ >= maxScrolls) {
       throw new Error(
         `Element "${identifier}" not found within ${maxScrolls} scrolls ${direction}`,
       );
@@ -67,63 +66,46 @@ export async function scrollToEl(
       percent: 0.2,
       scrollableElement: await getScrollContainer(), // needed for android
     });
-    swiped = true;
   }
+  if (scrolls) await waitForScrollToSettle(selector);
 
-  if (swiped) await waitForScrollToSettle(selector);
   const el = await byTestId(identifier);
   return nudgeAboveBottomOverlay(identifier, el);
 }
 
 type Element = Awaited<ReturnType<typeof byTestId>>;
 
-async function isElementVisible(selector: string): Promise<boolean> {
+/** Falls back to the rect because WDA's visible flag can go stale on Flutter (e.g. after a dialog). */
+async function isOnScreen(selector: string): Promise<boolean> {
   try {
-    return (await $(selector).isDisplayed()) || (await isFullyInScrollView(selector));
+    const el = $(selector);
+    if (await el.isDisplayed()) return true;
+    const [r, view] = await Promise.all([
+      browser.getElementRect(await el.elementId),
+      getScrollContainer().then(async (c) => browser.getElementRect(await c.elementId)),
+    ]);
+    return r.height > 0 && r.y >= view.y && r.y + r.height <= view.y + view.height;
   } catch {
     return false;
   }
 }
 
-/**
- * Rect-based visibility fallback. WDA's `visible` flag goes stale for some Flutter elements (seen
- * after a dialog closes): the element reports a correct on-screen rect but visible=false forever.
- */
-async function isFullyInScrollView(selector: string): Promise<boolean> {
-  const el = $(selector);
-  if (!(await el.isExisting())) return false;
-  const [rect, container] = await Promise.all([
-    browser.getElementRect(await el.elementId),
-    getScrollContainer().then(async (c) => browser.getElementRect(await c.elementId)),
-  ]);
-  return (
-    rect.width > 0 &&
-    rect.height > 0 &&
-    rect.y >= container.y &&
-    rect.y + rect.height <= container.y + container.height
-  );
-}
-
-/**
- * Wait until the element stops moving after a swipe. Flutter keeps flinging after the gesture ends,
- * and a tap during the fling only stops the scroll instead of pressing the button.
- */
-async function waitForScrollToSettle(selector: string, timeoutMs = 2_000) {
-  const readY = async () => {
-    try {
-      return (await $(selector).getLocation()).y;
-    } catch {
-      return null;
-    }
-  };
-  const deadline = Date.now() + timeoutMs;
-  let previous = await readY();
-  while (Date.now() < deadline) {
-    await driver.pause(150);
-    const current = await readY();
-    if (current !== null && current === previous) return;
-    previous = current;
-  }
+/** Flutter keeps flinging after a swipe, and a tap mid-fling only stops the scroll. */
+async function waitForScrollToSettle(selector: string) {
+  let lastY: number | undefined;
+  await driver
+    .waitUntil(
+      async () => {
+        const y = await $(selector)
+          .getLocation('y')
+          .catch(() => undefined);
+        const settled = y !== undefined && y === lastY;
+        lastY = y;
+        return settled;
+      },
+      { timeout: 2_000, interval: 150 },
+    )
+    .catch(() => undefined);
 }
 
 async function nudgeAboveBottomOverlay(identifier: string, el: Element): Promise<Element> {
@@ -899,20 +881,16 @@ export async function checkInAppMessage(opts: {
  */
 async function waitForIamDismissed(timeoutMs = 8_000) {
   if (isWebViewSDK) return;
-  if (getPlatform() === 'ios') {
-    // Best effort: the dismissed IAM WebView can linger in the iOS hierarchy, so don't fail on it.
-    await driver
-      .waitUntil(async () => !(await isWebViewVisible()), { timeout: timeoutMs, interval: 250 })
-      .catch(() => undefined);
-    return;
-  }
-  await driver.waitUntil(
-    async () => {
-      const src = await driver.getPageSource().catch(() => '');
-      return !/<android\.webkit\.WebView/.test(src);
-    },
+  const isIos = getPlatform() === 'ios';
+  const dismissed = driver.waitUntil(
+    async () =>
+      isIos
+        ? !(await isWebViewVisible())
+        : !/<android\.webkit\.WebView/.test(await driver.getPageSource().catch(() => '')),
     { timeout: timeoutMs, interval: 250, timeoutMsg: 'IAM dismiss did not complete' },
   );
+  // A dismissed IAM WebView can linger in the iOS hierarchy, so iOS only waits best-effort.
+  await (isIos ? dismissed.catch(() => undefined) : dismissed);
 }
 
 /** Assert a snackbar/toast appears with the expected text. */
