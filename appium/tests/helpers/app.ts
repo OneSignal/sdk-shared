@@ -49,22 +49,82 @@ export async function scrollToEl(
   }
 
   const swipeDirection = direction === 'down' ? 'up' : 'down';
-  const scrollable = await getScrollContainer();
+  const selector = byTestIdSelector(identifier);
 
-  // Chainable selector — lets WDIO re-resolve on each scroll step instead of validating a stale snapshot.
-  await $(byTestIdSelector(identifier)).scrollIntoView({
-    direction: swipeDirection,
-    duration: SCROLL_DURATION,
-    maxScrolls,
-    percent: 0.2,
-    scrollableElement: scrollable, // needed for android
-  });
+  // WDIO's scrollIntoView resolves the element once and treats any error as "not visible". When the
+  // app re-renders mid-scroll (e.g. new log lines), that reference goes stale and it swipes past a
+  // visible element. Re-query on every step instead.
+  let swiped = false;
+  for (let scrolls = 0; !(await isElementVisible(selector)); scrolls++) {
+    if (scrolls >= maxScrolls) {
+      throw new Error(
+        `Element "${identifier}" not found within ${maxScrolls} scrolls ${direction}`,
+      );
+    }
+    await browser.swipe({
+      direction: swipeDirection,
+      duration: SCROLL_DURATION,
+      percent: 0.2,
+      scrollableElement: await getScrollContainer(), // needed for android
+    });
+    swiped = true;
+  }
 
+  if (swiped) await waitForScrollToSettle(selector);
   const el = await byTestId(identifier);
   return nudgeAboveBottomOverlay(identifier, el);
 }
 
 type Element = Awaited<ReturnType<typeof byTestId>>;
+
+async function isElementVisible(selector: string): Promise<boolean> {
+  try {
+    return (await $(selector).isDisplayed()) || (await isFullyInScrollView(selector));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Rect-based visibility fallback. WDA's `visible` flag goes stale for some Flutter elements (seen
+ * after a dialog closes): the element reports a correct on-screen rect but visible=false forever.
+ */
+async function isFullyInScrollView(selector: string): Promise<boolean> {
+  const el = $(selector);
+  if (!(await el.isExisting())) return false;
+  const [rect, container] = await Promise.all([
+    browser.getElementRect(await el.elementId),
+    getScrollContainer().then(async (c) => browser.getElementRect(await c.elementId)),
+  ]);
+  return (
+    rect.width > 0 &&
+    rect.height > 0 &&
+    rect.y >= container.y &&
+    rect.y + rect.height <= container.y + container.height
+  );
+}
+
+/**
+ * Wait until the element stops moving after a swipe. Flutter keeps flinging after the gesture ends,
+ * and a tap during the fling only stops the scroll instead of pressing the button.
+ */
+async function waitForScrollToSettle(selector: string, timeoutMs = 2_000) {
+  const readY = async () => {
+    try {
+      return (await $(selector).getLocation()).y;
+    } catch {
+      return null;
+    }
+  };
+  const deadline = Date.now() + timeoutMs;
+  let previous = await readY();
+  while (Date.now() < deadline) {
+    await driver.pause(150);
+    const current = await readY();
+    if (current !== null && current === previous) return;
+    previous = current;
+  }
+}
 
 async function nudgeAboveBottomOverlay(identifier: string, el: Element): Promise<Element> {
   // Skip the rect probe when the snapshot has no id (RN re-rendered after scroll); WDIO would throw past our .catch.
@@ -85,7 +145,7 @@ async function nudgeAboveBottomOverlay(identifier: string, el: Element): Promise
     percent: 0.12,
     scrollableElement: await getScrollContainer(),
   });
-  await driver.pause(250);
+  await waitForScrollToSettle(byTestIdSelector(identifier));
   return byTestId(identifier);
 }
 
@@ -838,7 +898,14 @@ export async function checkInAppMessage(opts: {
  * the next trigger fires, causing the SDK to silently drop the trigger.
  */
 async function waitForIamDismissed(timeoutMs = 8_000) {
-  if (getPlatform() !== 'android' || isWebViewSDK) return;
+  if (isWebViewSDK) return;
+  if (getPlatform() === 'ios') {
+    // Best effort: the dismissed IAM WebView can linger in the iOS hierarchy, so don't fail on it.
+    await driver
+      .waitUntil(async () => !(await isWebViewVisible()), { timeout: timeoutMs, interval: 250 })
+      .catch(() => undefined);
+    return;
+  }
   await driver.waitUntil(
     async () => {
       const src = await driver.getPageSource().catch(() => '');
