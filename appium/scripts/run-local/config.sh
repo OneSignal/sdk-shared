@@ -94,7 +94,7 @@ Options:
 
 Env vars (set in .env or export):
   APP_PATH           Path to .app/.apk (auto-detected if not set)
-  BUNDLE_ID          Bundle/package id (default: com.onesignal.sdkdemo)
+  BUNDLE_ID          Bundle/package id (default: com.onesignal.sdkdemo on Android, com.onesignal.example on iOS)
   ONESIGNAL_APP_ID   OneSignal app ID (written to demo app .env)
   ONESIGNAL_API_KEY  OneSignal REST API key (written to demo app .env)
   FLUTTER_DIR        Flutter SDK repo root (default: ../../OneSignal-Flutter-SDK)
@@ -317,7 +317,11 @@ USAGE
     IOS_XCODE_EXTRA_ARGS=""
   fi
 
-  BUNDLE_ID="${BUNDLE_ID:-com.onesignal.sdkdemo}"
+  if [[ "$PLATFORM" == "ios" ]]; then
+    BUNDLE_ID="${BUNDLE_ID:-com.onesignal.example}"
+  else
+    BUNDLE_ID="${BUNDLE_ID:-com.onesignal.sdkdemo}"
+  fi
 
   if [[ "$SDK_TYPE" == "flutter" ]]; then
     [[ -d "$FLUTTER_DIR" ]] || error "Flutter SDK not found at $FLUTTER_DIR — set FLUTTER_DIR in .env"

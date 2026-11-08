@@ -169,28 +169,28 @@ SDK repo paths (`*_DIR`) resolve in this order:
 
 Credential files the runner writes into demo repos (`.env`, Unity's `StreamingAssets/.env`, iOS `Secrets.plist`) are backed up to `appium/.demo-backups/` and restored when the run exits, pass or fail. If a run is killed hard, the next run restores them first.
 
-| Variable            | Default                             | Description                                   |
-| ------------------- | ----------------------------------- | --------------------------------------------- |
-| `ONESIGNAL_APP_ID`  | --                                  | OneSignal app ID (written to demo app `.env`) |
-| `ONESIGNAL_API_KEY` | --                                  | OneSignal REST API key                        |
-| `FLUTTER_DIR`       | `../../OneSignal-Flutter-SDK`       | Path to the Flutter SDK repo                  |
-| `RN_DIR`            | `../../react-native-onesignal`      | React Native SDK repo                         |
-| `CORDOVA_DIR`       | `../../OneSignal-Cordova-SDK`       | Cordova SDK repo                              |
-| `CAPACITOR_DIR`     | `../../OneSignal-Capacitor-SDK`     | Capacitor SDK repo                            |
-| `EXPO_DIR`          | `../../onesignal-expo-plugin`       | Expo plugin repo                              |
-| `DOTNET_DIR`        | `../../DotNet/OneSignal-DotNet-SDK` | .NET MAUI SDK repo                            |
-| `UNITY_DIR`         | `../../OneSignal-Unity-SDK`         | Unity SDK repo                                |
-| `ANDROID_DIR`       | `../../OneSignal-Android-SDK`       | Native Android SDK repo                       |
-| `IOS_DIR`           | `../../OneSignal-iOS-SDK`           | Native iOS SDK repo                           |
-| `UNITY_PATH`        | Unity Hub editor path               | Unity Editor binary (unity builds)            |
-| `APP_PATH`          | auto-detected from build            | Path to `.app` or `.apk`                      |
-| `BUNDLE_ID`         | `com.onesignal.sdkdemo`             | App bundle/package ID                         |
-| `DEVICE`            | `iPhone 17` / `Android 17`          | Device name for WebdriverIO                   |
-| `OS_VERSION`        | `26.5` / `17`                       | Platform version                              |
-| `IOS_SIMULATOR`     | same as `DEVICE`                    | Simulator name for `simctl`                   |
-| `IOS_RUNTIME`       | `iOS-26-5`                          | simctl runtime identifier                     |
-| `AVD_NAME`          | `Samsung_Galaxy_S26`                | Android AVD name                              |
-| `APPIUM_PORT`       | `4723`                              | Appium server port                            |
+| Variable            | Default                                           | Description                                   |
+| ------------------- | ------------------------------------------------- | --------------------------------------------- |
+| `ONESIGNAL_APP_ID`  | --                                                | OneSignal app ID (written to demo app `.env`) |
+| `ONESIGNAL_API_KEY` | --                                                | OneSignal REST API key                        |
+| `FLUTTER_DIR`       | `../../OneSignal-Flutter-SDK`                     | Path to the Flutter SDK repo                  |
+| `RN_DIR`            | `../../react-native-onesignal`                    | React Native SDK repo                         |
+| `CORDOVA_DIR`       | `../../OneSignal-Cordova-SDK`                     | Cordova SDK repo                              |
+| `CAPACITOR_DIR`     | `../../OneSignal-Capacitor-SDK`                   | Capacitor SDK repo                            |
+| `EXPO_DIR`          | `../../onesignal-expo-plugin`                     | Expo plugin repo                              |
+| `DOTNET_DIR`        | `../../DotNet/OneSignal-DotNet-SDK`               | .NET MAUI SDK repo                            |
+| `UNITY_DIR`         | `../../OneSignal-Unity-SDK`                       | Unity SDK repo                                |
+| `ANDROID_DIR`       | `../../OneSignal-Android-SDK`                     | Native Android SDK repo                       |
+| `IOS_DIR`           | `../../OneSignal-iOS-SDK`                         | Native iOS SDK repo                           |
+| `UNITY_PATH`        | Unity Hub editor path                             | Unity Editor binary (unity builds)            |
+| `APP_PATH`          | auto-detected from build                          | Path to `.app` or `.apk`                      |
+| `BUNDLE_ID`         | `com.onesignal.sdkdemo` / `com.onesignal.example` | App bundle/package ID                         |
+| `DEVICE`            | `iPhone 17` / `Android 17`                        | Device name for WebdriverIO                   |
+| `OS_VERSION`        | `26.5` / `17`                                     | Platform version                              |
+| `IOS_SIMULATOR`     | same as `DEVICE`                                  | Simulator name for `simctl`                   |
+| `IOS_RUNTIME`       | `iOS-26-5`                                        | simctl runtime identifier                     |
+| `AVD_NAME`          | `Samsung_Galaxy_S26`                              | Android AVD name                              |
+| `APPIUM_PORT`       | `4723`                                            | Appium server port                            |
 
 ## Troubleshooting
 

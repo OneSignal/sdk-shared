@@ -16,7 +16,12 @@ import {
   waitForPushSubscriptionReady,
 } from './selectors.js';
 
-const PACKAGE_ID = process.env.BUNDLE_ID || 'com.onesignal.sdkdemo';
+function getPackageId(): string {
+  return (
+    process.env.BUNDLE_ID ||
+    (getPlatform() === 'ios' ? 'com.onesignal.example' : 'com.onesignal.sdkdemo')
+  );
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const tooltipContent = JSON.parse(
@@ -218,7 +223,7 @@ export async function ensureMainWebViewContext() {
 /** Android also lists other apps' WebViews, e.g. Chrome after a launch URL opened it. */
 function isAppWebViewContext(context: string): boolean {
   if (context === 'NATIVE_APP') return false;
-  return getPlatform() !== 'android' || context.includes(PACKAGE_ID);
+  return getPlatform() !== 'android' || context.includes(getPackageId());
 }
 
 function contextName(context: unknown): string | undefined {
@@ -388,11 +393,11 @@ export async function returnToApp() {
     // Back would background the app itself if nothing is covering it.
     if ((await getAppState()) !== AppState.RunningInForeground) {
       await driver.pressKeyCode(4);
-      await driver.execute('mobile: activateApp', { appId: PACKAGE_ID });
+      await driver.execute('mobile: activateApp', { appId: getPackageId() });
     }
   } else {
-    await driver.updateSettings({ defaultActiveApplication: PACKAGE_ID });
-    await driver.execute('mobile: activateApp', { bundleId: PACKAGE_ID });
+    await driver.updateSettings({ defaultActiveApplication: getPackageId() });
+    await driver.execute('mobile: activateApp', { bundleId: getPackageId() });
   }
 
   await ensureMainWebViewContext();
@@ -408,7 +413,7 @@ export const AppState = {
 } as const;
 
 const appIdArgs = () =>
-  getPlatform() === 'ios' ? { bundleId: PACKAGE_ID } : { appId: PACKAGE_ID };
+  getPlatform() === 'ios' ? { bundleId: getPackageId() } : { appId: getPackageId() };
 
 export async function getAppState(): Promise<number> {
   return Number(await driver.execute('mobile: queryAppState', appIdArgs()));
@@ -445,7 +450,7 @@ async function swipeAwayFromRecents() {
   await driver.updateSettings({ waitForIdleTimeout: 0 });
   try {
     await driver.pressKeyCode(187); // KEYCODE_APP_SWITCH, with this app as the focused card
-    await driver.waitUntil(async () => (await driver.getCurrentPackage()) !== PACKAGE_ID, {
+    await driver.waitUntil(async () => (await driver.getCurrentPackage()) !== getPackageId(), {
       timeout: 5_000,
       interval: 100,
       timeoutMsg: 'Recents never opened',
@@ -492,7 +497,7 @@ export async function tapNotification(title: string, timeoutMs = 30_000) {
     await banner.waitForDisplayed({ timeout: timeoutMs });
     await banner.click();
   } finally {
-    await driver.updateSettings({ defaultActiveApplication: PACKAGE_ID });
+    await driver.updateSettings({ defaultActiveApplication: getPackageId() });
   }
 }
 
@@ -731,7 +736,7 @@ export async function waitForNotification(opts: {
     // Dismiss the banner.
     await banner.click();
   } finally {
-    await driver.updateSettings({ defaultActiveApplication: PACKAGE_ID });
+    await driver.updateSettings({ defaultActiveApplication: getPackageId() });
     await ensureMainWebViewContext();
   }
 }
@@ -801,7 +806,7 @@ const closedIamWindowHandles = new Set<string>();
 function isIamCandidateContext(context: string): boolean {
   if (context === 'NATIVE_APP') return false;
   if (getPlatform() !== 'android' || isWebViewSDK) return true;
-  return context.includes(PACKAGE_ID);
+  return context.includes(getPackageId());
 }
 
 /** Race a driver call against a deadline; iOS WebKit can hang forever on a stale handle. */
