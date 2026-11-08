@@ -32,7 +32,7 @@ on:
         required: false
         type: string
       bundle-id:
-        description: 'App bundle/package ID (default: com.onesignal.example)'
+        description: 'App bundle/package ID (default: com.onesignal.sdkdemo)'
         required: false
         type: string
 

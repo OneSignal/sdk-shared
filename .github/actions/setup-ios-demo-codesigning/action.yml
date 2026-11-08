@@ -20,15 +20,15 @@ inputs:
   main-bundle-id:
     description: 'Main app bundle identifier'
     required: false
-    default: 'com.onesignal.example'
+    default: 'com.onesignal.sdkdemo'
   nse-bundle-id:
     description: 'Notification Service Extension bundle identifier. Leave empty to skip.'
     required: false
-    default: 'com.onesignal.example.NSE'
+    default: 'com.onesignal.sdkdemo.NSE'
   widget-bundle-id:
     description: 'Live Activity / Widget Extension bundle identifier. Leave empty to skip.'
     required: false
-    default: 'com.onesignal.example.LA'
+    default: 'com.onesignal.sdkdemo.LA'
   profile-type:
     description: 'Provisioning profile type (IOS_APP_DEVELOPMENT, IOS_APP_ADHOC, IOS_APP_STORE)'
     required: false

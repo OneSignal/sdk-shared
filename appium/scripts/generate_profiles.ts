@@ -40,9 +40,9 @@ interface ProfileTarget {
 }
 
 const TARGETS: ProfileTarget[] = [
-  { bundleId: 'com.onesignal.example', profileName: 'Appium Demo - Main' },
-  { bundleId: 'com.onesignal.example.NSE', profileName: 'Appium Demo - NSE' },
-  { bundleId: 'com.onesignal.example.LA', profileName: 'Appium Demo - Live Activity' },
+  { bundleId: 'com.onesignal.sdkdemo', profileName: 'Appium Demo - Main' },
+  { bundleId: 'com.onesignal.sdkdemo.NSE', profileName: 'Appium Demo - NSE' },
+  { bundleId: 'com.onesignal.sdkdemo.LA', profileName: 'Appium Demo - Live Activity' },
 ];
 
 const API = 'https://api.appstoreconnect.apple.com/v1';
@@ -174,7 +174,7 @@ const apiDelete = (path: string): Promise<unknown> => apiRequest<unknown>('DELET
  * Look up a bundle ID by its exact identifier.
  *
  * `filter[identifier]` on /bundleIds is a substring/prefix match (e.g.,
- * filtering by `com.onesignal.example` returns every bundle ID that starts
+ * filtering by `com.onesignal.sdkdemo` returns every bundle ID that starts
  * with that string). We paginate and filter client-side for an exact match.
  */
 async function findBundleIdByExactIdentifier(
