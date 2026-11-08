@@ -3,7 +3,7 @@ description: 'Write the demo app google-services.json from a secret so Firebase 
 
 inputs:
   google-services-json:
-    description: 'google-services.json contents, as raw JSON or base64. Pass secrets.APPIUM_GOOGLE_SERVICES_JSON.'
+    description: 'google-services.json contents (raw JSON). Pass secrets.APPIUM_GOOGLE_SERVICES_JSON.'
     required: true
   path:
     description: 'Destination file path, relative to the workspace (e.g. examples/demo/app/google-services.json)'
@@ -37,14 +37,11 @@ runs:
         fi
 
         mkdir -p "$(dirname "$DEST")"
-        if printf '%s' "$GOOGLE_SERVICES_JSON" | jq -e . >/dev/null 2>&1; then
-          printf '%s' "$GOOGLE_SERVICES_JSON" > "$DEST"
-        elif printf '%s' "$GOOGLE_SERVICES_JSON" | base64 -d 2>/dev/null | jq -e . >/dev/null 2>&1; then
-          printf '%s' "$GOOGLE_SERVICES_JSON" | base64 -d > "$DEST"
-        else
-          echo "::error::google-services-json is neither valid JSON nor base64-encoded JSON"
+        if ! printf '%s' "$GOOGLE_SERVICES_JSON" | jq -e . >/dev/null 2>&1; then
+          echo "::error::google-services-json is not valid JSON"
           exit 1
         fi
+        printf '%s' "$GOOGLE_SERVICES_JSON" > "$DEST"
 
         if ! jq -e --arg pkg "$PACKAGE_NAME" \
           'any(.client[]; .client_info.android_client_info.package_name == $pkg)' "$DEST" >/dev/null; then
