@@ -25,7 +25,7 @@ inputs:
     required: false
     default: 'medium_phone'
   bundle-id:
-    description: 'App package ID (default: com.onesignal.sdkdemo)'
+    description: 'App package ID (default: com.onesignal.example)'
     required: false
   onesignal-app-id:
     description: 'OneSignal App ID for the test app'

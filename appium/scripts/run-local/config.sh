@@ -94,7 +94,7 @@ Options:
 
 Env vars (set in .env or export):
   APP_PATH           Path to .app/.apk (auto-detected if not set)
-  BUNDLE_ID          Bundle/package id (default: com.onesignal.sdkdemo on Android, com.onesignal.example on iOS and the native Android huawei flavor)
+  BUNDLE_ID          Bundle/package id (default: com.onesignal.example; com.onesignal.sdkdemo for native Android gms)
   ONESIGNAL_APP_ID   OneSignal app ID (written to demo app .env)
   ONESIGNAL_API_KEY  OneSignal REST API key (written to demo app .env)
   FLUTTER_DIR        Flutter SDK repo root (default: ../../OneSignal-Flutter-SDK)
@@ -317,11 +317,12 @@ USAGE
     IOS_XCODE_EXTRA_ARGS=""
   fi
 
-  # The native Android huawei flavor keeps the old id; its agconnect config is registered for it.
-  if [[ "$PLATFORM" == "ios" || ( "$SDK_TYPE" == "android" && "${ANDROID_FLAVOR:-gms}" == "huawei" ) ]]; then
-    BUNDLE_ID="${BUNDLE_ID:-com.onesignal.example}"
-  else
+  # Demos move to com.onesignal.sdkdemo one SDK at a time; so far only the native Android gms
+  # flavor has. Its huawei flavor stays on the old id to match its agconnect config.
+  if [[ "$PLATFORM" == "android" && "$SDK_TYPE" == "android" && "${ANDROID_FLAVOR:-gms}" == "gms" ]]; then
     BUNDLE_ID="${BUNDLE_ID:-com.onesignal.sdkdemo}"
+  else
+    BUNDLE_ID="${BUNDLE_ID:-com.onesignal.example}"
   fi
 
   if [[ "$SDK_TYPE" == "flutter" ]]; then
