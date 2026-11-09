@@ -1139,6 +1139,14 @@ build_android_native() {
   if [[ -n "${ANDROID_CHANNEL_ID:-}" ]]; then
     gradle_args+=("-PONESIGNAL_ANDROID_CHANNEL_ID=$ANDROID_CHANNEL_ID")
   fi
+  # Match CI: E2E runs with Firebase Installation ID registration, which needs google-services.json.
+  if [[ "$ANDROID_FLAVOR" == "gms" ]]; then
+    if [[ -f "$ANDROID_DIR/examples/demo/app/google-services.json" ]]; then
+      gradle_args+=("-PFIREBASE_INSTALLATION_ID_ENABLED=true")
+    else
+      warn "examples/demo/app/google-services.json not found; building without Firebase Installation ID registration"
+    fi
+  fi
 
   info "Building :app:$task with local SDK source (SDK_VERSION=$sdk_version)..."
   (cd "$sdk_dir" && ./gradlew ":app:$task" "${gradle_args[@]}")
