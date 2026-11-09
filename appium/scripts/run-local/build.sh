@@ -277,8 +277,16 @@ build_cordova_android() {
     echo "$sync_hash" > "$sync_stamp"
   fi
 
+  # Match CI: E2E runs with Firebase Installation ID registration, which needs google-services.json.
+  local -a gradle_args=()
+  if [[ -f "$DEMO_DIR/android/app/google-services.json" ]]; then
+    gradle_args+=("-PFIREBASE_INSTALLATION_ID_ENABLED=true")
+  else
+    warn "android/app/google-services.json not found; building without Firebase Installation ID registration"
+  fi
+
   info "Building debug APK (release has no signing config)..."
-  (cd "$DEMO_DIR/android" && ./gradlew assembleDebug)
+  (cd "$DEMO_DIR/android" && ./gradlew assembleDebug ${gradle_args[@]+"${gradle_args[@]}"})
 
   [[ -f "$APP_PATH" ]] || error ".apk not found after build at $APP_PATH"
   info "App built: $APP_PATH"
