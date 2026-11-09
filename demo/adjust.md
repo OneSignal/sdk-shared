@@ -26,7 +26,7 @@ The other emulator is the SDK demo.
 Assign them to variables for the steps below:
 
   REF=<emulator-with-com.onesignal.sdktest>
-  SDK=<emulator-with-com.onesignal.example>
+  SDK=<emulator-with-com.onesignal.sdkdemo>
 
 (Replace with the actual emulator names from `adb devices`.)
 ```

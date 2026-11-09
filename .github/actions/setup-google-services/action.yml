@@ -1,0 +1,53 @@
+name: 'Setup Google Services'
+description: 'Write the demo app google-services.json from a secret so Firebase (and Firebase Installation ID registration) is configured in CI builds.'
+
+inputs:
+  google-services-json:
+    description: 'google-services.json contents (raw JSON). Pass secrets.APPIUM_GOOGLE_SERVICES_JSON.'
+    required: true
+  path:
+    description: 'Destination file path, relative to the workspace (e.g. examples/demo/app/google-services.json)'
+    required: true
+  package-name:
+    description: 'Android package name that must have a client in the file'
+    required: false
+    default: 'com.onesignal.sdkdemo'
+
+runs:
+  using: composite
+  steps:
+    - name: Write google-services.json
+      shell: bash
+      env:
+        GOOGLE_SERVICES_JSON: ${{ inputs.google-services-json }}
+        DEST: ${{ inputs.path }}
+        PACKAGE_NAME: ${{ inputs.package-name }}
+        IS_FORK_PR: ${{ github.event.pull_request.head.repo.fork == true }}
+      run: |
+        set -euo pipefail
+
+        # Fork PRs never receive secrets; skip so outside contributions still build.
+        if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+          if [ "$IS_FORK_PR" = "true" ]; then
+            echo "::warning::google-services.json secret unavailable on fork PR; building without Firebase config"
+            exit 0
+          fi
+          echo "::error::google-services-json is empty. Is APPIUM_GOOGLE_SERVICES_JSON shared with this repo?"
+          exit 1
+        fi
+
+        # jq stderr is hidden throughout: its errors can echo parts of the secret.
+        if ! printf '%s' "$GOOGLE_SERVICES_JSON" | jq -e . >/dev/null 2>&1; then
+          echo "::error::google-services-json is not valid JSON"
+          exit 1
+        fi
+        if ! printf '%s' "$GOOGLE_SERVICES_JSON" | jq -e --arg pkg "$PACKAGE_NAME" \
+          'any(.client[]?; .client_info.android_client_info.package_name == $pkg)' >/dev/null 2>&1; then
+          echo "::error::google-services.json has no client for $PACKAGE_NAME"
+          exit 1
+        fi
+
+        mkdir -p "$(dirname "$DEST")"
+        printf '%s' "$GOOGLE_SERVICES_JSON" > "$DEST"
+
+        echo "Wrote $DEST"

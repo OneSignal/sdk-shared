@@ -31,6 +31,10 @@ on:
         description: 'Label for the BrowserStack session'
         required: false
         type: string
+      bundle-id:
+        description: 'App bundle/package ID (default: com.onesignal.example)'
+        required: false
+        type: string
 
 jobs:
   e2e:
@@ -83,6 +87,7 @@ jobs:
           DEVICE: ${{ inputs.device }}
           OS_VERSION: ${{ inputs.os-version }}
           BUILD_NAME: ${{ inputs.build-name }}
+          BUNDLE_ID: ${{ inputs.bundle-id }}
           ONESIGNAL_APP_ID: ${{ vars.APPIUM_ONESIGNAL_APP_ID }}
           ONESIGNAL_API_KEY: ${{ secrets.APPIUM_ONESIGNAL_API_KEY }}
         # Retry only on BrowserStack session-creation failures (queue
