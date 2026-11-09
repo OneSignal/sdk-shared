@@ -94,7 +94,7 @@ Options:
 
 Env vars (set in .env or export):
   APP_PATH           Path to .app/.apk (auto-detected if not set)
-  BUNDLE_ID          Bundle/package id (default: com.onesignal.example; com.onesignal.sdkdemo for native Android gms)
+  BUNDLE_ID          Bundle/package id (default: com.onesignal.example; com.onesignal.sdkdemo for Android demos that use it)
   ONESIGNAL_APP_ID   OneSignal app ID (written to demo app .env)
   ONESIGNAL_API_KEY  OneSignal REST API key (written to demo app .env)
   FLUTTER_DIR        Flutter SDK repo root (default: ../../OneSignal-Flutter-SDK)
@@ -317,8 +317,9 @@ USAGE
     IOS_XCODE_EXTRA_ARGS=""
   fi
 
-  # Demos move to com.onesignal.sdkdemo one SDK at a time; so far only the native Android gms
-  # flavor has. Its huawei flavor stays on the old id to match its agconnect config.
+  # Demos move to com.onesignal.sdkdemo one SDK at a time. Native Android gms has; its huawei
+  # flavor stays on the old id to match its agconnect config. Other SDKs are detected below.
+  local bundle_id_set="${BUNDLE_ID:+1}"
   if [[ "$PLATFORM" == "android" && "$SDK_TYPE" == "android" && "${ANDROID_FLAVOR:-gms}" == "gms" ]]; then
     BUNDLE_ID="${BUNDLE_ID:-com.onesignal.sdkdemo}"
   else
@@ -363,6 +364,10 @@ USAGE
       DEMO_DIR="$CAPACITOR_DIR/examples/demo-pods"
     else
       DEMO_DIR="$CAPACITOR_DIR/examples/demo"
+    fi
+    if [[ "$PLATFORM" == "android" && -z "$bundle_id_set" ]] &&
+      grep -q 'applicationId = "com.onesignal.sdkdemo"' "$DEMO_DIR/android/app/build.gradle.kts" 2>/dev/null; then
+      BUNDLE_ID="com.onesignal.sdkdemo"
     fi
     if [[ "$PLATFORM" == "ios" ]]; then
       APP_PATH="${APP_PATH:-$DEMO_DIR/ios/App/build/Build/Products/${IOS_BUILD_DIR}/App.app}"
