@@ -112,6 +112,12 @@ restore_demo_files() {
     [[ -z "$(ls -A "$entry/owners" 2>/dev/null)" ]] || continue
 
     file=$(<"$entry/path")
+    # The demo repo (often a deleted worktree) is gone, so there's nothing to restore into.
+    if [[ ! -d "$(dirname "$file")" ]]; then
+      rm -rf "$entry"
+      info "Dropped backup for missing $file"
+      continue
+    fi
     if [[ -e "$entry/original" ]]; then
       if ! mv -f "$entry/original" "$file" 2>/dev/null; then
         warn "Could not restore $file (backup kept at $entry/original)"

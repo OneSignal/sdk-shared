@@ -167,7 +167,7 @@ SDK repo paths (`*_DIR`) resolve in this order:
 3. A prompt listing the repo's worktrees, when it has more than one and the run is interactive. Enter keeps the default. `run-all.sh` asks once per SDK and reuses the answer for every platform.
 4. The default next to `sdk-shared`.
 
-Credential files the runner writes into demo repos (`.env`, Unity's `StreamingAssets/.env`, iOS `Secrets.plist`) are backed up to `appium/.demo-backups/` and restored when the run exits, pass or fail. If a run is killed hard, the next run restores them first.
+Credential files the runner writes into demo repos (`.env`, Unity's `StreamingAssets/.env`, iOS `Secrets.plist`) are backed up to `appium/.demo-backups/` and restored when the run exits, pass or fail. If a run is killed hard, the next run restores them first. Backups whose demo directory no longer exists (for example, a deleted worktree) are discarded.
 
 | Variable            | Default                             | Description                                   |
 | ------------------- | ----------------------------------- | --------------------------------------------- |
