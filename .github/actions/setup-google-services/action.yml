@@ -36,17 +36,18 @@ runs:
           exit 1
         fi
 
-        mkdir -p "$(dirname "$DEST")"
+        # jq stderr is hidden throughout: its errors can echo parts of the secret.
         if ! printf '%s' "$GOOGLE_SERVICES_JSON" | jq -e . >/dev/null 2>&1; then
           echo "::error::google-services-json is not valid JSON"
           exit 1
         fi
-        printf '%s' "$GOOGLE_SERVICES_JSON" > "$DEST"
-
-        if ! jq -e --arg pkg "$PACKAGE_NAME" \
-          'any(.client[]; .client_info.android_client_info.package_name == $pkg)' "$DEST" >/dev/null; then
+        if ! printf '%s' "$GOOGLE_SERVICES_JSON" | jq -e --arg pkg "$PACKAGE_NAME" \
+          'any(.client[]?; .client_info.android_client_info.package_name == $pkg)' >/dev/null 2>&1; then
           echo "::error::google-services.json has no client for $PACKAGE_NAME"
           exit 1
         fi
+
+        mkdir -p "$(dirname "$DEST")"
+        printf '%s' "$GOOGLE_SERVICES_JSON" > "$DEST"
 
         echo "Wrote $DEST"

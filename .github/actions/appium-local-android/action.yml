@@ -24,6 +24,9 @@ inputs:
     description: 'AVD device profile (as listed by `avdmanager list device`)'
     required: false
     default: 'medium_phone'
+  bundle-id:
+    description: 'App package ID (default: com.onesignal.sdkdemo)'
+    required: false
   onesignal-app-id:
     description: 'OneSignal App ID for the test app'
     required: true
@@ -144,6 +147,7 @@ runs:
         APPIUM_PORT: ${{ inputs.appium-port }}
         APP_PATH: ${{ inputs.app-path }}
         SDK_TYPE: ${{ inputs.sdk-type }}
+        BUNDLE_ID: ${{ inputs.bundle-id }}
         ONESIGNAL_APP_ID: ${{ inputs.onesignal-app-id }}
         ONESIGNAL_API_KEY: ${{ inputs.onesignal-api-key }}
       with:

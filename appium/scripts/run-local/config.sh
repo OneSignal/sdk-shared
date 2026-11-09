@@ -94,7 +94,7 @@ Options:
 
 Env vars (set in .env or export):
   APP_PATH           Path to .app/.apk (auto-detected if not set)
-  BUNDLE_ID          Bundle/package id (default: com.onesignal.sdkdemo on Android, com.onesignal.example on iOS)
+  BUNDLE_ID          Bundle/package id (default: com.onesignal.sdkdemo on Android, com.onesignal.example on iOS and the native Android huawei flavor)
   ONESIGNAL_APP_ID   OneSignal app ID (written to demo app .env)
   ONESIGNAL_API_KEY  OneSignal REST API key (written to demo app .env)
   FLUTTER_DIR        Flutter SDK repo root (default: ../../OneSignal-Flutter-SDK)
@@ -317,7 +317,8 @@ USAGE
     IOS_XCODE_EXTRA_ARGS=""
   fi
 
-  if [[ "$PLATFORM" == "ios" ]]; then
+  # The native Android huawei flavor keeps the old id; its agconnect config is registered for it.
+  if [[ "$PLATFORM" == "ios" || ( "$SDK_TYPE" == "android" && "${ANDROID_FLAVOR:-gms}" == "huawei" ) ]]; then
     BUNDLE_ID="${BUNDLE_ID:-com.onesignal.example}"
   else
     BUNDLE_ID="${BUNDLE_ID:-com.onesignal.sdkdemo}"
@@ -408,7 +409,7 @@ USAGE
       # The build passes -p:RuntimeIdentifier, so MSBuild emits the APK into a
       # RID subfolder; the RID-less parent dir may hold a stale APK from a
       # build without the RID restriction.
-      APP_PATH="${APP_PATH:-$DEMO_DIR/bin/Debug/${DOTNET_TFM}-android/${DOTNET_ANDROID_RID}/com.onesignal.sdkdemo-Signed.apk}"
+      APP_PATH="${APP_PATH:-$DEMO_DIR/bin/Debug/${DOTNET_TFM}-android/${DOTNET_ANDROID_RID}/${BUNDLE_ID}-Signed.apk}"
     fi
   elif [[ "$SDK_TYPE" == "unity" ]]; then
     [[ -d "$UNITY_DIR" ]] || error "Unity SDK not found at $UNITY_DIR — set UNITY_DIR in .env"
