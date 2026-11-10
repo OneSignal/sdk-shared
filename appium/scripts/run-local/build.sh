@@ -504,7 +504,8 @@ prepare_expo_demo() {
   local prebuild_hash
   prebuild_hash="$(hash_files "$DEMO_DIR/package.json" "$DEMO_DIR/bun.lock" \
                               "$DEMO_DIR/app.config.ts" "$DEMO_DIR/assets" \
-                              "$DEMO_DIR/customNSE" "$DEMO_DIR/customWidget")-${EXPO_PLUGIN_SRC_HASH:-none}"
+                              "$DEMO_DIR/customNSE" "$DEMO_DIR/customWidget" \
+                              "$DEMO_DIR/google-services.json")-${EXPO_PLUGIN_SRC_HASH:-none}-fid=${FIREBASE_INSTALLATION_ID_ENABLED:-}"
   if [[ -f "$prebuild_stamp" ]] && [[ "$(cat "$prebuild_stamp")" == "$prebuild_hash" ]]; then
     info "Expo $platform native project up to date, skipping prebuild"
     return
@@ -570,6 +571,16 @@ build_expo_ios() {
 
 build_expo_android() {
   write_expo_demo_env
+
+  # Match CI: E2E runs with Firebase Installation ID registration, which needs google-services.json.
+  # app.config.ts reads the flag during prebuild and the release JS bundle.
+  if [[ -f "$DEMO_DIR/google-services.json" ]]; then
+    export FIREBASE_INSTALLATION_ID_ENABLED=true
+  else
+    unset FIREBASE_INSTALLATION_ID_ENABLED
+    warn "google-services.json not found; building without Firebase Installation ID registration"
+  fi
+
   prepare_expo_demo android
 
   info "Building release APK (self-contained, no Metro required)..."

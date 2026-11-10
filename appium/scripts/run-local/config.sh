@@ -382,6 +382,10 @@ USAGE
   elif [[ "$SDK_TYPE" == "expo" ]]; then
     [[ -d "$EXPO_DIR" ]] || error "Expo plugin not found at $EXPO_DIR — set EXPO_DIR in .env"
     DEMO_DIR="$EXPO_DIR/examples/demo"
+    if [[ "$PLATFORM" == "android" && -z "$bundle_id_set" ]] &&
+      grep -q "package: 'com\.onesignal\.sdkdemo'" "$DEMO_DIR/app.config.ts" 2>/dev/null; then
+      BUNDLE_ID="com.onesignal.sdkdemo"
+    fi
     if [[ "$PLATFORM" == "ios" ]]; then
       APP_PATH="${APP_PATH:-$DEMO_DIR/ios/build/Build/Products/${IOS_BUILD_DIR}/OneSignalDemo.app}"
     else
