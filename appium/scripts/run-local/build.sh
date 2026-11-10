@@ -41,8 +41,16 @@ EOF
   info "Installing Flutter dependencies..."
   (cd "$FLUTTER_DIR" && flutter pub get)
 
+  # Match CI: E2E runs with Firebase Installation ID registration, which needs google-services.json.
+  local -a build_args=()
+  if [[ -f "$DEMO_DIR/android/app/google-services.json" ]]; then
+    build_args+=("-PFIREBASE_INSTALLATION_ID_ENABLED=true")
+  else
+    warn "android/app/google-services.json not found; building without Firebase Installation ID registration"
+  fi
+
   info "Building debug APK (this may take a few minutes)..."
-  (cd "$DEMO_DIR" && flutter build apk --debug)
+  (cd "$DEMO_DIR" && flutter build apk --debug ${build_args[@]+"${build_args[@]}"})
 
   [[ -f "$APP_PATH" ]] || error ".apk not found after build at $APP_PATH"
   info "App built: $APP_PATH"

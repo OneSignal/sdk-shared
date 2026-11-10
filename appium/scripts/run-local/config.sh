@@ -339,6 +339,7 @@ USAGE
     else
       DEMO_DIR="$FLUTTER_DIR/examples/demo"
     fi
+    use_sdkdemo_if_declared "$DEMO_DIR/android/app/build.gradle.kts"
     if [[ "$PLATFORM" == "ios" ]]; then
       APP_PATH="${APP_PATH:-$DEMO_DIR/build/ios/iphonesimulator/Runner.app}"
     else
