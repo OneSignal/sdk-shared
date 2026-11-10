@@ -391,6 +391,10 @@ USAGE
     [[ -d "$DOTNET_DIR" ]] || error ".NET MAUI SDK not found at $DOTNET_DIR — set DOTNET_DIR in .env"
     DEMO_DIR="$DOTNET_DIR/examples/demo"
     DOTNET_TFM="${DOTNET_TFM:-net10.0}"
+    if [[ "$PLATFORM" == "android" && -z "$bundle_id_set" ]] &&
+      grep -q '>com\.onesignal\.sdkdemo</ApplicationId>' "$DEMO_DIR/demo.csproj" 2>/dev/null; then
+      BUNDLE_ID="com.onesignal.sdkdemo"
+    fi
     if [[ "$PLATFORM" == "ios" ]]; then
       # iOS simulator RID is arch-specific; auto-detect host arch (Apple Silicon vs Intel).
       case "$(uname -m)" in

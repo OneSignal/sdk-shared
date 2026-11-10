@@ -790,6 +790,15 @@ build_dotnet_android() {
   #
   # RuntimeIdentifier: restrict to the host's native ABI (set above) so
   # _BuildApkEmbed only packs one Mono runtime instead of all four.
+  # Match CI: E2E runs with Firebase Installation ID registration, which needs google-services.json.
+  # The input hash covers the json, so adding or removing it busts the build cache.
+  local -a build_args=()
+  if [[ -f "$DEMO_DIR/Platforms/Android/google-services.json" ]]; then
+    build_args+=("-p:FIREBASE_INSTALLATION_ID_ENABLED=true")
+  else
+    warn "Platforms/Android/google-services.json not found; building without Firebase Installation ID registration"
+  fi
+
   info "Building Debug APK (RID=${DOTNET_ANDROID_RID}, ABI=${DOTNET_ANDROID_ABI})..."
   (cd "$DEMO_DIR" && dotnet build demo.csproj \
     -c Debug \
@@ -799,6 +808,7 @@ build_dotnet_android() {
     -p:AndroidLinkMode=None \
     -p:OneSignalAndroidOnly=true \
     -p:RuntimeIdentifier="$DOTNET_ANDROID_RID" \
+    ${build_args[@]+"${build_args[@]}"} \
     --no-dependencies)
 
   [[ -f "$APP_PATH" ]] || error ".apk not found after build at $APP_PATH"
