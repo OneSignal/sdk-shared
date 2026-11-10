@@ -449,6 +449,10 @@ USAGE
       # arch flip doesn't return a stale wrong-arch binary from the cache.
       APP_PATH="${APP_PATH:-$DEMO_DIR/Build/iOS-DerivedData-${UNITY_IOS_SIM_ARCH}/Build/Products/ReleaseForRunning-iphonesimulator/OneSignalDemo.app}"
     else
+      if [[ -z "$bundle_id_set" ]] &&
+        grep -q '^    Android: com\.onesignal\.sdkdemo$' "$DEMO_DIR/ProjectSettings/ProjectSettings.asset" 2>/dev/null; then
+        BUNDLE_ID="com.onesignal.sdkdemo"
+      fi
       APP_PATH="${APP_PATH:-$DEMO_DIR/Build/Android/onesignal-demo.apk}"
     fi
   elif [[ "$SDK_TYPE" == "android" ]]; then

@@ -885,6 +885,9 @@ manifest["dependencies"]["com.unity.modules.accessibility"] = "1.0.0"
 path.write_text(json.dumps(manifest, indent=2) + "\n")
 PY
   printf '%s\n' '-define:ONESIGNAL_E2E_ACCESSIBILITY' > "$csc"
+  if [[ "$PLATFORM" == "android" && -f "$DEMO_DIR/google-services.json" ]]; then
+    printf '%s\n' '-define:FIREBASE_INSTALLATION_ID_ENABLED' >> "$csc"
+  fi
   printf '%s\n' "$backup_dir"
 }
 
@@ -978,9 +981,12 @@ unity_demo_inputs_hash() {
                                "$DEMO_DIR/ProjectSettings")
   # Fold the demo .env in separately — `unity_hash_paths` only finds it when
   # passed as a directory glob, but here we want the file hash if it exists.
-  local env_hash=""
+  local env_hash="" google_services_hash=""
   [[ -f "$DEMO_DIR/.env" ]] && env_hash=$(shasum < "$DEMO_DIR/.env" | awk '{print $1}')
-  printf '%s\n%s\n%s\n' "$sdk_hash" "$demo_hash" "$env_hash" | shasum | awk '{print $1}'
+  [[ -f "$DEMO_DIR/google-services.json" ]] &&
+    google_services_hash=$(shasum < "$DEMO_DIR/google-services.json" | awk '{print $1}')
+  printf '%s\n%s\n%s\n%s\n' "$sdk_hash" "$demo_hash" "$env_hash" "$google_services_hash" |
+    shasum | awk '{print $1}'
 }
 
 unity_build_is_cached() {
