@@ -12,11 +12,16 @@ inputs:
     description: 'Android package name that must have a client in the file'
     required: false
     default: 'com.onesignal.sdkdemo'
+  enabled:
+    description: "Set to 'false' to skip writing the file (e.g. for a build with Firebase Installation IDs off)"
+    required: false
+    default: 'true'
 
 runs:
   using: composite
   steps:
     - name: Write google-services.json
+      if: inputs.enabled == 'true'
       shell: bash
       env:
         GOOGLE_SERVICES_JSON: ${{ inputs.google-services-json }}

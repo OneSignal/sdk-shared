@@ -22,11 +22,18 @@ export function getPlatform(): Platform {
   throw new Error(`Unexpected platformName: ${name}`);
 }
 
-export function getTestExternalId(): string {
+function getTestDataKey(): string {
   const sdk = getSdkType();
   const platform = getPlatform();
   if (sdk === platform) return sdk;
   return `${sdk}-${platform}`;
+}
+
+/** Variant runs (e.g. fid-off) get their own user so parallel runs don't share or delete it. */
+export function getTestExternalId(): string {
+  const key = getTestDataKey();
+  const variant = process.env.E2E_VARIANT;
+  return variant ? `${key}-${variant}` : key;
 }
 
 export const TEST_DATA: Record<
@@ -127,7 +134,7 @@ export const TEST_DATA: Record<
 };
 
 export function getTestData() {
-  const id = getTestExternalId();
+  const id = getTestDataKey();
   const data = TEST_DATA[id];
   if (!data) throw new Error(`No test data for ${id}`);
   return data;

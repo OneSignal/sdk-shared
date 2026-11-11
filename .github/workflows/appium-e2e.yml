@@ -35,15 +35,24 @@ on:
         description: 'App bundle/package ID (default: com.onesignal.example)'
         required: false
         type: string
+      fid-off-app-artifact:
+        description: 'Optional artifact with an Android build that has Firebase Installation IDs off and no google-services.json. Runs 02_push against it in a separate session.'
+        required: false
+        type: string
 
 jobs:
   e2e:
+    name: ${{ matrix.variant == 'fid-off' && 'e2e (fid off)' || 'e2e' }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: ${{ fromJSON(inputs.fid-off-app-artifact != '' && '["default","fid-off"]' || '["default"]') }}
     steps:
       - name: Download app artifact
         uses: actions/download-artifact@v8
         with:
-          name: ${{ inputs.app-artifact }}
+          name: ${{ matrix.variant == 'fid-off' && inputs.fid-off-app-artifact || inputs.app-artifact }}
 
       - name: Checkout sdk-shared (for test files)
         uses: actions/checkout@v6
@@ -86,8 +95,10 @@ jobs:
           PLATFORM: ${{ inputs.platform }}
           DEVICE: ${{ inputs.device }}
           OS_VERSION: ${{ inputs.os-version }}
-          BUILD_NAME: ${{ inputs.build-name }}
+          BUILD_NAME: ${{ inputs.build-name }}${{ matrix.variant == 'fid-off' && '-fid-off' || '' }}
           BUNDLE_ID: ${{ inputs.bundle-id }}
+          E2E_VARIANT: ${{ matrix.variant == 'fid-off' && 'fid-off' || '' }}
+          SPECS: ${{ matrix.variant == 'fid-off' && '02_push' || '' }}
           ONESIGNAL_APP_ID: ${{ vars.APPIUM_ONESIGNAL_APP_ID }}
           ONESIGNAL_API_KEY: ${{ secrets.APPIUM_ONESIGNAL_API_KEY }}
         # Retry only on BrowserStack session-creation failures (queue
@@ -132,6 +143,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: appium-results-${{ inputs.platform }}-${{ inputs.sdk-type }}
+          name: appium-results-${{ inputs.platform }}-${{ inputs.sdk-type }}${{ matrix.variant == 'fid-off' && '-fid-off' || '' }}
           path: _sdk-shared/appium/results/
           if-no-files-found: ignore

@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { SuiteStats, TestStats } from '@wdio/reporter';
 import SpecReporter from '@wdio/spec-reporter';
 import { globSync } from 'glob';
@@ -100,6 +102,20 @@ const bstackOptions = {
   idleTimeout: 300,
 };
 
+// SPECS: comma-separated spec names (e.g. "02_push") to run instead of the full suite.
+function selectSpecs(all: string[]): string[] {
+  const names = (process.env.SPECS ?? '')
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean);
+  if (names.length === 0) return all;
+  const selected = all.filter((file) => names.includes(path.basename(file, '.spec.ts')));
+  if (selected.length !== names.length) {
+    throw new Error(`SPECS has unknown entries: ${process.env.SPECS}`);
+  }
+  return selected;
+}
+
 export const sharedConfig: WebdriverIO.Config = {
   ...(isLocal ? localConnection : browserstackConnection),
   maxInstances: 1,
@@ -110,7 +126,11 @@ export const sharedConfig: WebdriverIO.Config = {
   autoXvfb: false,
 
   // Pre-expand the glob so WDIO groups all specs into one runner and reuses a single Appium session (a raw glob or `--spec` flag spawns one runner per file, costing ~10-30s of iOS session setup each).
-  specs: [globSync('tests/specs/**/*.spec.ts', { cwd: SHARED_CONF_DIR, absolute: true }).sort()],
+  specs: [
+    selectSpecs(
+      globSync('tests/specs/**/*.spec.ts', { cwd: SHARED_CONF_DIR, absolute: true }).sort(),
+    ),
+  ],
 
   capabilities: [],
 
@@ -139,8 +159,9 @@ export const sharedConfig: WebdriverIO.Config = {
     const sdkType = process.env.SDK_TYPE;
     const platform = process.env.PLATFORM;
     if (!sdkType || !platform) return;
-    const externalId = sdkType === platform ? sdkType : `${sdkType}-${platform}`;
-    await deleteUser(externalId);
+    const key = sdkType === platform ? sdkType : `${sdkType}-${platform}`;
+    const variant = process.env.E2E_VARIANT;
+    await deleteUser(variant ? `${key}-${variant}` : key);
   },
 };
 
