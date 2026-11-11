@@ -42,7 +42,7 @@ on:
 
 jobs:
   e2e:
-    name: ${{ matrix.variant == 'fid-off' && 'e2e (fid off)' || 'e2e' }}
+    name: ${{ matrix.variant == 'fid-off' && 'e2e (FID off)' || inputs.fid-off-app-artifact != '' && 'e2e (FID on)' || 'e2e' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
