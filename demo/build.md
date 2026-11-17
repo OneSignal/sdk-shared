@@ -327,7 +327,7 @@ Language list, after Device Default, in this order: English (`en`), Arabic (`ar`
 - Toggle: "Location Shared" / "Share device location with OneSignal"
 - Buttons in a Button Grid (styles.md):
 - PROMPT LOCATION button
-- CHECK LOCATION SHARED button -> queries SDK and shows snackbar "Location shared: {bool}"
+- CHECK LOCATION button -> queries SDK and shows snackbar "Location shared: {bool}"
 
 ### Prompt 2.14 - Live Activities Section (iOS Only)
 
