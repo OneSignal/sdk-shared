@@ -107,6 +107,17 @@ Used for secondary and destructive actions. "Destructive" and "outlined" refer t
 - Height: 48
 - Corner radius: 8
 
+### Button Grid
+
+A section with two or more action buttons lays them out two per row instead of stacking them full width.
+
+- Two equal columns, in the order the section lists the buttons (left, right)
+- Column and row gap: same as the vertical gap between other section elements
+- Odd count: the last button spans both columns
+- Hidden buttons (e.g. REMOVE TAGS on an empty list) drop out and the rest reflow; never leave an empty cell
+- Each button fills its cell. Labels stay on one line and scale down if needed instead of truncating
+- Single-button sections (e.g. ADD EMAIL, SEND OUTCOME) stay full width
+
 ## Toggle / Switch
 
 - Use the platform's native switch component
@@ -114,6 +125,8 @@ Used for secondary and destructive actions. "Destructive" and "outlined" refer t
 
 ## Dialogs
 
+- Position: prefer top-anchored (below the vertical inset) over centered, and keep the dialog fixed when the keyboard opens. A dialog that moves while open can leave Appium with stale element frames, so taps miss. Fall back to the platform default only if it can't be anchored
+- Height: bounded by the screen. Content with no natural height (multi-line inputs, lists) gets a fixed or max height, with scrolling for overflow, so the action row stays on screen in landscape and above the keyboard
 - Backdrop: osBackdrop (`rgba(0,0,0,0.54)`)
 - Background: osCardBackground (`#FFFFFF`)
 - Corner radius: 28

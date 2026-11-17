@@ -158,12 +158,12 @@ Clean up listeners on teardown if the platform requires it.
 4. **Send Push Notification Section** (Simple, With Image, With Sound, Custom, Clear All)
 5. **In-App Messaging Section** (Pause toggle)
 6. **Send In-App Message Section** (Top, Bottom, Center, HTML, Full, Full Bleed, Carousel, Carousel Bleed)
-7. **Aliases Section** (Add/Add Multiple, read-only list)
+7. **Aliases Section** (Add Alias/Add Aliases, read-only list)
 8. **Emails Section** (Collapsible list >5)
 9. **SMS Section** (Collapsible list >5)
-10. **Tags Section** (Add Tag/Add Multiple Tags/Remove Tags)
+10. **Tags Section** (Add Tag/Add Tags/Remove Tags)
 11. **Outcomes Section** (Send Outcome with type selection)
-12. **Triggers Section** (Add Trigger/Add Multiple Triggers/Remove Triggers/Clear All Triggers - IN MEMORY ONLY)
+12. **Triggers Section** (Add Trigger/Add Triggers/Remove Triggers/Clear All - IN MEMORY ONLY)
 13. **Custom Events Section** (JSON validation)
 14. **Location Section** (Shared toggle, Prompt button, Check button)
 15. **Live Activities Section** (iOS only - Start, Update, End)
@@ -207,6 +207,8 @@ Separate SectionCard titled "User":
    - Logged in: Status = "Logged In" (success/green), External ID = actual value
    - Language: picker showing the selected language name. Options are "Device Default" (code `""`) followed by the language list below, in this order. Selecting an option calls `OneSignal.User.setLanguage(code)`. `""` tells the native SDK to use the device language.
    - Use the platform's dropdown/picker where it is Appium-friendly; otherwise a single-select list dialog. Cap the open list's height at 320 so it doesn't cover the screen. Right-align the selected value so it sits next to the dropdown arrow, like the other value rows.
+Buttons 2-3 use the Button Grid (styles.md): LOGIN USER spans full width when logged out, LOGIN / LOGOUT share a row when logged in.
+
 2. LOGIN USER button ("SWITCH USER" when logged in) -> dialog with empty "External User Id" field. Login resets the Language picker to Device Default locally (clear the cached value only). Do NOT call `setLanguage` on login: `""` resolves to the device language and would overwrite the new user's language on the backend.
 3. LOGOUT USER button (only when logged in, outlined style). Logout also resets the Language picker to Device Default locally, without calling `setLanguage`. The SDK starts the new anonymous user with no language override, and `logout()` isn't awaited, so a `setLanguage('')` could land on the logged-out user.
 
@@ -224,7 +226,7 @@ Language list, after Device Default, in this order: English (`en`), Arabic (`ar`
 ### Prompt 2.3 - Send Push Notification Section
 
 - Title: "Send Push Notification" with info icon
-- Five buttons:
+- Five buttons in a Button Grid (styles.md); CLEAR ALL spans the last row:
   1. SIMPLE - title: "Simple Notification", body: "This is a simple push notification"
   2. WITH IMAGE - title: "Image Notification", body: "This notification includes an image"
      big_picture/ios_attachments: `https://media.onesignal.com/automated_push_templates/ratings_template.png`
@@ -242,7 +244,7 @@ Language list, after Device Default, in this order: English (`en`), Arabic (`ar`
 ### Prompt 2.5 - Send In-App Message Section
 
 - Title: "Send In-App Message" with info icon
-- Eight buttons in a 2-column grid (4 rows), in this order (left, right):
+- Eight buttons in a Button Grid (styles.md, 4 rows), in this order (left, right):
   1. TOP - trigger: "iam_type" = "top_banner"
   2. BOTTOM - trigger: "iam_type" = "bottom_banner"
   3. CENTER - trigger: "iam_type" = "center_modal"
@@ -251,8 +253,7 @@ Language list, after Device Default, in this order: English (`en`), Arabic (`ar`
   6. FULL BLEED - trigger: "iam_type" = "full_bleed"
   7. CAROUSEL - trigger: "iam_type" = "carousel"
   8. CAROUSEL BLEED - trigger: "iam_type" = "carousel_bleed"
-- Grid spacing matches the vertical gap between other section elements
-- Styling: primary (red) background, white text, centered, no icons, UPPERCASE (same as other primary buttons). Each button fills its column; labels stay on one line and scale down if needed instead of truncating
+- Styling: primary (red) background, white text, centered, no icons, UPPERCASE (same as other primary buttons)
 - On tap: upserts `iam_type` in Triggers list. No snackbar (silent action — see Prompt 7.6)
 
 ### Prompt 2.6 - Aliases Section
@@ -261,8 +262,9 @@ Language list, after Device Default, in this order: English (`en`), Arabic (`ar`
 - Stacked key-value list (read-only, no delete icons, see styles.md "Stacked" layout)
 - Filter out "external_id" and "onesignal_id" from display
 - "No aliases added" when empty
+- Buttons in a Button Grid (styles.md):
 - ADD ALIAS -> PairInputDialog (Label + ID on same row)
-- ADD MULTIPLE ALIASES -> MultiPairInputDialog
+- ADD ALIASES -> MultiPairInputDialog
 - No remove functionality (aliases are add-only)
 
 ### Prompt 2.7 - Emails Section
@@ -285,8 +287,9 @@ Language list, after Device Default, in this order: English (`en`), Arabic (`ar`
 - Title: "Tags" with info icon
 - Stacked key-value list with X icon (remove action)
 - "No tags added" when empty
+- Buttons in a Button Grid (styles.md); REMOVE TAGS spans the second row when shown:
 - ADD TAG -> PairInputDialog (Key + Value)
-- ADD MULTIPLE TAGS -> MultiPairInputDialog
+- ADD TAGS -> MultiPairInputDialog
 - REMOVE TAGS (only when tags exist) -> MultiSelectRemoveDialog
 
 ### Prompt 2.10 - Outcomes Section
@@ -300,8 +303,8 @@ Language list, after Device Default, in this order: English (`en`), Arabic (`ar`
 ### Prompt 2.11 - Triggers Section (IN MEMORY ONLY)
 
 - Title: "Triggers" with info icon
-- Same list/button pattern as Tags (ADD TRIGGER, ADD MULTIPLE TRIGGERS, REMOVE TRIGGERS — hidden when the list is empty), plus:
-  - CLEAR ALL TRIGGERS button (only when triggers exist)
+- Same list/Button Grid pattern as Tags (ADD TRIGGER, ADD TRIGGERS, REMOVE TRIGGERS — hidden when the list is empty), plus:
+  - CLEAR ALL button (only when triggers exist)
 - "No triggers added" when empty
 - Triggers are IN MEMORY ONLY: not persisted, cleared on restart
 - Sending an IAM also upserts `iam_type` in this list
@@ -322,6 +325,7 @@ Language list, after Device Default, in this order: English (`en`), Arabic (`ar`
 
 - Title: "Location" with info icon
 - Toggle: "Location Shared" / "Share device location with OneSignal"
+- Buttons in a Button Grid (styles.md):
 - PROMPT LOCATION button
 - CHECK LOCATION SHARED button -> queries SDK and shows snackbar "Location shared: {bool}"
 
@@ -333,10 +337,10 @@ Only shown on iOS. Requires an iOS Widget Extension target with a Live Activity 
 - Input card with two editable fields (pre-filled, not empty), using Inline Input Row styling per styles.md:
   - "Activity ID" (default: "order-1") — identifies the Live Activity for all operations
   - "Order #" (default: "ORD-1234") — attribute set at start, immutable after
-- Three buttons:
-  1. START LIVE ACTIVITY — calls `OneSignal.LiveActivities.startDefault(activityId, attributes, content)` with initial order status. Disabled when Activity ID is empty.
+- Three buttons in a Button Grid (styles.md); END ACTIVITY spans the second row:
+  1. START ACTIVITY — calls `OneSignal.LiveActivities.startDefault(activityId, attributes, content)` with initial order status. Disabled when Activity ID is empty.
   2. UPDATE → {NEXT STATUS} — cycles through order statuses via REST API (`event: "update"`). Label dynamically shows the next status (e.g. "UPDATE → ON THE WAY"). Disabled when Activity ID is empty, while updating, or when no API key is configured.
-  3. END LIVE ACTIVITY — ends the activity via REST API (`event: "end"`) with `dismissal_date`. Destructive style. Disabled when Activity ID is empty or when no API key is configured.
+  3. END ACTIVITY — ends the activity via REST API (`event: "end"`) with `dismissal_date`. Destructive style. Disabled when Activity ID is empty or when no API key is configured.
 
 Order status cycle (content state fields: `status`, `message`, `estimatedTime`):
 
@@ -608,14 +612,15 @@ Single state container at app root. Holds all UI state with public getters. Expo
 - **SectionCard**: card with title, optional info icon, content slot, onInfoTap callback, optional `sectionKey` for accessibility identifiers (generates `{sectionKey}_section` on the container and `{sectionKey}_info_icon` on the info button)
 - **ToggleRow**: label, optional description, toggle control, optional `semanticsLabel` for accessibility identifier
 - **ActionButton**: PrimaryButton (filled) and DestructiveButton (outlined, for secondary/destructive actions), full-width, per styles.md. Both accept optional `semanticsLabel` for accessibility identifier.
+- **ButtonGrid**: lays out a section's ActionButtons per styles.md "Button Grid" (two columns, odd last button spans, hidden buttons reflow). Used by every section with two or more buttons.
 - **ListWidgets**: PairItem (key-value + optional delete), SingleItem (value + delete), EmptyState, LoadingState (inline spinner shown in the empty-state slot while a fetch is in flight, per styles.md), CollapsibleList (5 items then expandable; accepts an optional `loading` flag that swaps EmptyState for LoadingState when items is empty), PairList. All list widgets accept a required `sectionKey` for generating accessibility identifiers (e.g. `{sectionKey}_pair_key_{keyText}`, `{sectionKey}_remove_{keyText}`, `{sectionKey}_loading`). Empty list copy uses `"No <items> added"` with lowercase item names and lowercase `added` (exception: `"No SMS added"` keeps `SMS` uppercase).
-- **Dialogs**: all full-width with consistent padding. Dialogs accept optional semantics label parameters for key inputs and confirm buttons (e.g. `keySemanticsLabel`, `valueSemanticsLabel`, `confirmSemanticsLabel`).
+- **Dialogs**: all full-width with consistent padding, top-anchored and keyboard-fixed per styles.md "Dialogs". Dialogs accept optional semantics label parameters for key inputs and confirm buttons (e.g. `keySemanticsLabel`, `valueSemanticsLabel`, `confirmSemanticsLabel`).
   - SingleInputDialog, PairInputDialog (same row), MultiPairInputDialog (dynamic rows, dividers, X to delete, batch submit), MultiSelectRemoveDialog (checkboxes, batch remove)
   - LoginDialog, OutcomeDialog, TrackEventDialog, CustomNotificationDialog, TooltipDialog
 
 ### Prompt 7.3 - MultiPairInputDialog
 
-Shared by Aliases, Tags, and Triggers ADD MULTIPLE buttons.
+Shared by the Aliases, Tags, and Triggers ADD ALIASES / ADD TAGS / ADD TRIGGERS buttons.
 
 - Starts with one empty key-value row (side by side)
 - "Add Row" adds another row, dividers between rows
