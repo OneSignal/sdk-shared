@@ -4,7 +4,6 @@ import {
   checkTooltip,
   lockScreen,
   returnToApp,
-  isBrowserStackIos,
 } from '../helpers/app.js';
 import { getPlatform } from '../helpers/selectors.js';
 
@@ -25,8 +24,6 @@ async function checkActivity(options: { orderId?: string; status: string; messag
   await returnToApp();
 }
 
-const itSkipBsIos = isBrowserStackIos() ? it.skip : it;
-
 describe('Live Activities', () => {
   before(async function () {
     await waitForAppReady();
@@ -40,7 +37,7 @@ describe('Live Activities', () => {
     await checkTooltip('live_activities_info_icon', 'liveActivities');
   });
 
-  itSkipBsIos('can start a live, update, and exit activity', async () => {
+  it('can start a live, update, and exit activity', async () => {
     const clickLiveActivityButton = async (buttonId: string) => {
       const button = await scrollToEl(buttonId);
       await button.waitForEnabled({ timeout: 15_000 });

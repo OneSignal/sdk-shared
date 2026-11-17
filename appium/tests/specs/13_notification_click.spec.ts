@@ -1,7 +1,6 @@
 import {
   waitForAppReady,
   waitForInitId,
-  isBrowserStackIos,
   tapNotification,
   switchToNativeContext,
   returnToApp,
@@ -14,8 +13,6 @@ import {
   sendPushNotification,
   waitForPushSubscriptionReady,
 } from '../helpers/selectors.js';
-
-const itSkipBsIos = isBrowserStackIos() ? it.skip : it;
 
 const LAUNCH_URL_HOST = 'onesignal.com';
 const LAUNCH_URL = `https://${LAUNCH_URL_HOST}`;
@@ -69,8 +66,6 @@ describe('Notification click', () => {
   let subscriptionId: string;
 
   before(async () => {
-    // Need enterprise signing cert for ios push tests
-    if (isBrowserStackIos()) return;
     await waitForAppReady();
     subscriptionId = await waitForInitId();
 
@@ -86,14 +81,14 @@ describe('Notification click', () => {
   // The click reaches the SDK before the wrapper has initialized it. Wrappers
   // that initialize late must hold that click and replay it, or the launch
   // URL is never opened.
-  itSkipBsIos('opens the launch URL after a cold-start tap', async () => {
+  it('opens the launch URL after a cold-start tap', async () => {
     await switchToNativeContext();
     await killApp();
 
     await tapPushAndExpectLaunchUrl(subscriptionId, `Cold start ${Date.now()}`);
   });
 
-  itSkipBsIos('opens the launch URL after a background tap', async () => {
+  it('opens the launch URL after a background tap', async () => {
     await switchToNativeContext();
     await backgroundApp();
 

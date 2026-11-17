@@ -16,7 +16,10 @@ import {
   waitForPushSubscriptionReady,
 } from './selectors.js';
 
-const PACKAGE_ID = process.env.BUNDLE_ID || 'com.onesignal.example';
+// iOS demos sign under com.onesignal.sdkdemo (Enterprise team); Android demos vary.
+const PACKAGE_ID =
+  process.env.BUNDLE_ID ||
+  (getPlatform() === 'ios' ? 'com.onesignal.sdkdemo' : 'com.onesignal.example');
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const tooltipContent = JSON.parse(
@@ -25,11 +28,6 @@ const tooltipContent = JSON.parse(
 
 const sdkType = getSdkType();
 export const isWebViewSDK = sdkType === 'capacitor' || sdkType === 'cordova';
-export const isBrowserStack = Boolean(process.env.BROWSERSTACK_USERNAME);
-
-export function isBrowserStackIos(): boolean {
-  return isBrowserStack && getPlatform() === 'ios';
-}
 
 const SCROLL_DURATION = 750;
 const getScrollContainer = () => byTestId('main_scroll_view');

@@ -18,7 +18,7 @@ End-to-end tests for OneSignal mobile SDKs using [Appium](https://appium.io/) an
 
 CI (`.github/workflows/appium-e2e.yml`) runs these tests on BrowserStack devices with Node 24 and does **not** use `scripts/run-local.sh` — it calls `vpx wdio run "wdio.<platform>.conf.ts"` directly.
 
-Notification-dependent tests currently only run locally: `02_push.spec.ts`, `12_activity.spec.ts`, and `13_notification_click.spec.ts` mark them with `itSkipBsIos` (`isBrowserStackIos()` from `tests/helpers/app.ts`, true when `BROWSERSTACK_USERNAME` is set and the platform is iOS). BrowserStack requires the app to be built with an Enterprise Signing Certificate for these notification flows, which we don't have yet — a temporary signing limitation, not an inherent device capability limit. The skip helper exists so these tests can be re-enabled once signing support is available. Until then, run `scripts/run-local.sh` on iOS to cover them.
+All specs, including the notification ones (`02_push.spec.ts`, `12_activity.spec.ts`, `13_notification_click.spec.ts`), run on BrowserStack iOS. They need the demo signed with the OneSignal, Inc. Enterprise team's in-house cert and In House profiles, and `resignApp: false` in `wdio.ios.conf.ts` so BrowserStack keeps that signature.
 
 ## Directory Structure
 
