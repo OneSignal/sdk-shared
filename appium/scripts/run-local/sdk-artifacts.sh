@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 
 hash_files() {
-  find "$@" \
+  # Optional inputs (e.g. a gitignored google-services.json) may be missing;
+  # find would fail on them and abort the run under pipefail.
+  local existing=() f
+  for f in "$@"; do [[ -e "$f" ]] && existing+=("$f"); done
+  [[ ${#existing[@]} -gt 0 ]] || { echo none; return; }
+  find "${existing[@]}" \
        -type f 2>/dev/null \
        | sort \
        | xargs shasum 2>/dev/null \
