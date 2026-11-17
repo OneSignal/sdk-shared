@@ -700,7 +700,7 @@ See each SDK's `examples/build.md` for the platform-specific helper APIs, the ex
 
 ### Identifiers
 
-Android package name MUST be `com.onesignal.sdkdemo` so the shared `google-services.json` (CI: `APPIUM_GOOGLE_SERVICES_JSON` via `setup-google-services`) matches. iOS bundle identifier MUST be `com.onesignal.example`. The native Android SDK's `huawei` flavor stays on `com.onesignal.example` to match its `agconnect-services.json`.
+Android package name / iOS bundle identifier MUST be `com.onesignal.sdkdemo` so the shared `google-services.json` (CI: `APPIUM_GOOGLE_SERVICES_JSON` via `setup-google-services`), the registered Apple App IDs and provisioning profiles match. iOS extensions use `com.onesignal.sdkdemo.NSE` and `com.onesignal.sdkdemo.LA`, and the App Group is `group.com.onesignal.sdkdemo.onesignal`. The native Android SDK's `huawei` flavor stays on `com.onesignal.example` to match its `agconnect-services.json`.
 
 ### REST API authentication
 
