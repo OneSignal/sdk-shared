@@ -33,7 +33,7 @@ describe('Live Activities', () => {
     if (getPlatform() !== 'ios') {
       return this.skip();
     }
-    await scrollToEl('live_activities_section');
+    await scrollToEl('live_activities_section', { maxScrolls: 30 });
   });
 
   it('can show correct tooltip info', async () => {
