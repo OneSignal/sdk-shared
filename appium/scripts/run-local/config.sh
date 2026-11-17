@@ -94,7 +94,7 @@ Options:
 
 Env vars (set in .env or export):
   APP_PATH           Path to .app/.apk (auto-detected if not set)
-  BUNDLE_ID          Bundle/package id (default: com.onesignal.example; com.onesignal.sdkdemo for Android demos that use it)
+  BUNDLE_ID          Bundle/package id (default: com.onesignal.sdkdemo; com.onesignal.example for the native Android huawei flavor)
   ONESIGNAL_APP_ID   OneSignal app ID (written to demo app .env)
   ONESIGNAL_API_KEY  OneSignal REST API key (written to demo app .env)
   FLUTTER_DIR        Flutter SDK repo root (default: ../../OneSignal-Flutter-SDK)
@@ -317,19 +317,11 @@ USAGE
     IOS_XCODE_EXTRA_ARGS=""
   fi
 
-  # Demos move to com.onesignal.sdkdemo one SDK at a time. Native Android gms has; its huawei
-  # flavor stays on the old id to match its agconnect config. Other SDKs are detected below.
-  local bundle_id_set="${BUNDLE_ID:+1}"
-  use_sdkdemo_if_declared() {
-    if [[ "$PLATFORM" == "android" && -z "$bundle_id_set" ]] &&
-      grep -Eq 'applicationId( =)? "com\.onesignal\.sdkdemo"' "$1" 2>/dev/null; then
-      BUNDLE_ID="com.onesignal.sdkdemo"
-    fi
-  }
-  if [[ "$PLATFORM" == "android" && "$SDK_TYPE" == "android" && "${ANDROID_FLAVOR:-gms}" == "gms" ]]; then
-    BUNDLE_ID="${BUNDLE_ID:-com.onesignal.sdkdemo}"
-  else
+  # Native Android's huawei flavor stays on the old id to match its agconnect config.
+  if [[ "$PLATFORM" == "android" && "$SDK_TYPE" == "android" && "${ANDROID_FLAVOR:-gms}" == "huawei" ]]; then
     BUNDLE_ID="${BUNDLE_ID:-com.onesignal.example}"
+  else
+    BUNDLE_ID="${BUNDLE_ID:-com.onesignal.sdkdemo}"
   fi
 
   if [[ "$SDK_TYPE" == "flutter" ]]; then
@@ -339,7 +331,6 @@ USAGE
     else
       DEMO_DIR="$FLUTTER_DIR/examples/demo"
     fi
-    use_sdkdemo_if_declared "$DEMO_DIR/android/app/build.gradle.kts"
     if [[ "$PLATFORM" == "ios" ]]; then
       APP_PATH="${APP_PATH:-$DEMO_DIR/build/ios/iphonesimulator/Runner.app}"
     else
@@ -360,7 +351,6 @@ USAGE
     else
       DEMO_DIR="$CORDOVA_DIR/examples/demo"
     fi
-    use_sdkdemo_if_declared "$DEMO_DIR/android/app/build.gradle"
     if [[ "$PLATFORM" == "ios" ]]; then
       APP_PATH="${APP_PATH:-$DEMO_DIR/ios/App/build/Build/Products/${IOS_BUILD_DIR}/App.app}"
     else
@@ -373,7 +363,6 @@ USAGE
     else
       DEMO_DIR="$CAPACITOR_DIR/examples/demo"
     fi
-    use_sdkdemo_if_declared "$DEMO_DIR/android/app/build.gradle.kts"
     if [[ "$PLATFORM" == "ios" ]]; then
       APP_PATH="${APP_PATH:-$DEMO_DIR/ios/App/build/Build/Products/${IOS_BUILD_DIR}/App.app}"
     else
@@ -382,10 +371,6 @@ USAGE
   elif [[ "$SDK_TYPE" == "expo" ]]; then
     [[ -d "$EXPO_DIR" ]] || error "Expo plugin not found at $EXPO_DIR — set EXPO_DIR in .env"
     DEMO_DIR="$EXPO_DIR/examples/demo"
-    if [[ "$PLATFORM" == "android" && -z "$bundle_id_set" ]] &&
-      grep -q "package: 'com\.onesignal\.sdkdemo'" "$DEMO_DIR/app.config.ts" 2>/dev/null; then
-      BUNDLE_ID="com.onesignal.sdkdemo"
-    fi
     if [[ "$PLATFORM" == "ios" ]]; then
       APP_PATH="${APP_PATH:-$DEMO_DIR/ios/build/Build/Products/${IOS_BUILD_DIR}/OneSignalDemo.app}"
     else
@@ -395,10 +380,6 @@ USAGE
     [[ -d "$DOTNET_DIR" ]] || error ".NET MAUI SDK not found at $DOTNET_DIR — set DOTNET_DIR in .env"
     DEMO_DIR="$DOTNET_DIR/examples/demo"
     DOTNET_TFM="${DOTNET_TFM:-net10.0}"
-    if [[ "$PLATFORM" == "android" && -z "$bundle_id_set" ]] &&
-      grep -q '>com\.onesignal\.sdkdemo</ApplicationId>' "$DEMO_DIR/demo.csproj" 2>/dev/null; then
-      BUNDLE_ID="com.onesignal.sdkdemo"
-    fi
     if [[ "$PLATFORM" == "ios" ]]; then
       # iOS simulator RID is arch-specific; auto-detect host arch (Apple Silicon vs Intel).
       case "$(uname -m)" in
@@ -449,10 +430,6 @@ USAGE
       # arch flip doesn't return a stale wrong-arch binary from the cache.
       APP_PATH="${APP_PATH:-$DEMO_DIR/Build/iOS-DerivedData-${UNITY_IOS_SIM_ARCH}/Build/Products/ReleaseForRunning-iphonesimulator/OneSignalDemo.app}"
     else
-      if [[ -z "$bundle_id_set" ]] &&
-        grep -q '^    Android: com\.onesignal\.sdkdemo$' "$DEMO_DIR/ProjectSettings/ProjectSettings.asset" 2>/dev/null; then
-        BUNDLE_ID="com.onesignal.sdkdemo"
-      fi
       APP_PATH="${APP_PATH:-$DEMO_DIR/Build/Android/onesignal-demo.apk}"
     fi
   elif [[ "$SDK_TYPE" == "android" ]]; then
