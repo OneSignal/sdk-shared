@@ -1,9 +1,9 @@
 name: 'Setup iOS Demo Codesigning'
-description: 'Import the Appium signing cert and download provisioning profiles for the OneSignal demo app (main target, NSE, Live Activity widget) via the App Store Connect API. Call once per iOS build job in an SDK E2E workflow.'
+description: 'Import the Appium signing cert and download provisioning profiles for the OneSignal demo app (main target, NSE, Live Activity widget) via the App Store Connect API. Call once per iOS build job in an SDK E2E workflow. Defaults target the OneSignal, Inc. Enterprise team (DL8TF3X4K3): in-house distribution cert and In House profiles.'
 
 inputs:
   p12-base64:
-    description: 'Base64-encoded .p12 signing certificate'
+    description: 'Base64-encoded .p12 signing certificate (in-house "iPhone Distribution" for the default profile type)'
     required: true
   p12-password:
     description: 'Password used when exporting the .p12'
@@ -20,19 +20,19 @@ inputs:
   main-bundle-id:
     description: 'Main app bundle identifier'
     required: false
-    default: 'com.onesignal.example'
+    default: 'com.onesignal.sdkdemo'
   nse-bundle-id:
     description: 'Notification Service Extension bundle identifier. Leave empty to skip.'
     required: false
-    default: 'com.onesignal.example.NSE'
+    default: 'com.onesignal.sdkdemo.NSE'
   widget-bundle-id:
     description: 'Live Activity / Widget Extension bundle identifier. Leave empty to skip.'
     required: false
-    default: 'com.onesignal.example.LA'
+    default: 'com.onesignal.sdkdemo.LA'
   profile-type:
-    description: 'Provisioning profile type (IOS_APP_DEVELOPMENT, IOS_APP_ADHOC, IOS_APP_STORE)'
+    description: 'Provisioning profile type (IOS_APP_INHOUSE, IOS_APP_DEVELOPMENT, IOS_APP_ADHOC, IOS_APP_STORE). In House profiles need no registered devices, so BrowserStack real devices can install the app.'
     required: false
-    default: 'IOS_APP_DEVELOPMENT'
+    default: 'IOS_APP_INHOUSE'
 
 runs:
   using: composite

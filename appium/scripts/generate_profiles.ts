@@ -1,22 +1,27 @@
 #!/usr/bin/env bun
 /**
- * Create (or regenerate) iOS Development provisioning profiles for the OneSignal
+ * Create (or regenerate) iOS In House provisioning profiles for the OneSignal
  * demo app (main target, Notification Service Extension, Live Activity widget)
  * via the App Store Connect API. It does not create signing certificates.
  *
+ * In House profiles need no registered devices, so BrowserStack real devices
+ * can install the app.
+ *
  * Idempotent: if a profile with the target name already exists, it is deleted
- * and recreated with all currently registered dev certs + enabled iOS devices.
- * Re-run after registering a device, rotating a signing certificate, or when
- * Apple's one-year profile validity expires.
+ * and recreated with all current in-house distribution certs. Re-run after
+ * rotating the signing certificate or when Apple's one-year profile validity
+ * expires.
  *
  * Prerequisites
  * -------------
  * - The bundle IDs below must already be registered in the Apple Developer
- *   portal as Explicit App IDs with the required capabilities (App Groups for
- *   both, plus Live Activities on .LA). This script does not configure
- *   capabilities.
- * - App Store Connect API credentials from the "OneSignal Sdk-Shared Script"
- *   key in https://appstoreconnect.apple.com/access/integrations/api.
+ *   portal as Explicit App IDs with the required capabilities: Push
+ *   Notifications + App Groups on the main app, App Groups on .NSE (both
+ *   assigned `group.com.onesignal.sdkdemo.onesignal`), none on .LA. This
+ *   script does not configure capabilities.
+ * - An in-house "iPhone Distribution" certificate on the team.
+ * - An Admin App Store Connect API key from the OneSignal, Inc. Enterprise team (DL8TF3X4K3)
+ *   (https://appstoreconnect.apple.com/access/integrations/api).
  * - Bun (or `tsx`) to run the script.
  *
  * Environment variables
@@ -40,9 +45,9 @@ interface ProfileTarget {
 }
 
 const TARGETS: ProfileTarget[] = [
-  { bundleId: 'com.onesignal.example', profileName: 'Appium Demo - Main' },
-  { bundleId: 'com.onesignal.example.NSE', profileName: 'Appium Demo - NSE' },
-  { bundleId: 'com.onesignal.example.LA', profileName: 'Appium Demo - Live Activity' },
+  { bundleId: 'com.onesignal.sdkdemo', profileName: 'Appium Demo - Main' },
+  { bundleId: 'com.onesignal.sdkdemo.NSE', profileName: 'Appium Demo - NSE' },
+  { bundleId: 'com.onesignal.sdkdemo.LA', profileName: 'Appium Demo - Live Activity' },
 ];
 
 const API = 'https://api.appstoreconnect.apple.com/v1';
@@ -115,10 +120,6 @@ interface CertificateResource extends ResourceRef {
   type: 'certificates';
 }
 
-interface DeviceResource extends ResourceRef {
-  type: 'devices';
-}
-
 interface ProfileResource extends ResourceRef {
   type: 'profiles';
   attributes?: { name?: string; profileState?: string };
@@ -174,7 +175,7 @@ const apiDelete = (path: string): Promise<unknown> => apiRequest<unknown>('DELET
  * Look up a bundle ID by its exact identifier.
  *
  * `filter[identifier]` on /bundleIds is a substring/prefix match (e.g.,
- * filtering by `com.onesignal.example` returns every bundle ID that starts
+ * filtering by `com.onesignal.sdkdemo` returns every bundle ID that starts
  * with that string). We paginate and filter client-side for an exact match.
  */
 async function findBundleIdByExactIdentifier(
@@ -193,25 +194,15 @@ async function findBundleIdByExactIdentifier(
 }
 
 async function main(): Promise<void> {
-  console.info('Fetching development certificates...');
+  console.info('Fetching distribution certificates...');
   const certs = await apiGet<ListResponse<CertificateResource>>(
-    '/certificates?filter%5BcertificateType%5D=DEVELOPMENT&limit=200',
+    '/certificates?filter%5BcertificateType%5D=IOS_DISTRIBUTION,DISTRIBUTION&limit=200',
   );
   if (certs.data.length === 0) {
-    throw new Error('No Development certificates found. Upload a dev cert first.');
+    throw new Error('No distribution certificates found. Create an in-house cert first.');
   }
   const certIds = certs.data.map((c) => c.id);
   console.info(`  found ${certIds.length} cert(s)`);
-
-  console.info('Fetching enabled iOS devices...');
-  const devices = await apiGet<ListResponse<DeviceResource>>(
-    '/devices?filter%5Bstatus%5D=ENABLED&filter%5Bplatform%5D=IOS&limit=200',
-  );
-  if (devices.data.length === 0) {
-    throw new Error('No ENABLED iOS devices registered.');
-  }
-  const deviceIds = devices.data.map((d) => d.id);
-  console.info(`  found ${deviceIds.length} device(s)`);
 
   for (const target of TARGETS) {
     console.info(`\n=== ${target.bundleId} ===`);
@@ -236,11 +227,10 @@ async function main(): Promise<void> {
     const created = await apiPost<SingleResponse<ProfileResource>>('/profiles', {
       data: {
         type: 'profiles',
-        attributes: { name: target.profileName, profileType: 'IOS_APP_DEVELOPMENT' },
+        attributes: { name: target.profileName, profileType: 'IOS_APP_INHOUSE' },
         relationships: {
           bundleId: { data: { type: 'bundleIds', id: bundleIdRecord.id } },
           certificates: { data: certIds.map((id) => ({ type: 'certificates', id })) },
-          devices: { data: deviceIds.map((id) => ({ type: 'devices', id })) },
         },
       },
     });

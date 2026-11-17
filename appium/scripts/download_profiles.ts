@@ -18,13 +18,13 @@
  *   ASC_KEY_FILE      Path to the .p8 private key file (use in local dev)
  *   ASC_KEY_CONTENT   Raw PEM contents of the .p8 (alternative to ASC_KEY_FILE;
  *                     use in CI to avoid writing a temp file)
- *   PROFILE_TYPE      (optional) IOS_APP_DEVELOPMENT | IOS_APP_ADHOC | IOS_APP_STORE
- *                     Default: IOS_APP_DEVELOPMENT
+ *   PROFILE_TYPE      (optional) IOS_APP_INHOUSE | IOS_APP_DEVELOPMENT | IOS_APP_ADHOC |
+ *                     IOS_APP_STORE. Default: IOS_APP_INHOUSE
  *
  * Usage
  * -----
  *   ASC_KEY_ID=... ASC_ISSUER_ID=... ASC_KEY_FILE=~/keys/AuthKey_XXX.p8 \
- *     bun appium/scripts/download_profiles.ts com.onesignal.example com.onesignal.example.NSE
+ *     bun appium/scripts/download_profiles.ts com.onesignal.sdkdemo com.onesignal.sdkdemo.NSE
  */
 
 import { createPrivateKey, sign } from 'node:crypto';
@@ -61,7 +61,7 @@ if (BUNDLE_IDS.length === 0) {
 
 const ASC_KEY_ID = requireEnv('ASC_KEY_ID');
 const ASC_ISSUER_ID = requireEnv('ASC_ISSUER_ID');
-const PROFILE_TYPE = process.env.PROFILE_TYPE ?? 'IOS_APP_DEVELOPMENT';
+const PROFILE_TYPE = process.env.PROFILE_TYPE ?? 'IOS_APP_INHOUSE';
 const keyPem = process.env.ASC_KEY_CONTENT ?? readFileSync(requireEnv('ASC_KEY_FILE'), 'utf8');
 
 // ─── JWT (ES256) ───────────────────────────────────────────────────────────
