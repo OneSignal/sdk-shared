@@ -32,6 +32,11 @@ install_local_js_sdk_artifact() {
     return
   fi
 
+  if [[ ! -d "$sdk_dir/node_modules" ]]; then
+    info "Installing $build_label dependencies (fresh checkout)..."
+    (cd "$sdk_dir" && vp install)
+  fi
+
   info "Building $build_label & packing tarball..."
   (cd "$sdk_dir" && vp run build)
   (cd "$sdk_dir" && rm -f $remove_glob && vp pm pack && mv $packed_glob "$(basename "$tarball")")

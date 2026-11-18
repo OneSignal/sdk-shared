@@ -361,12 +361,16 @@ build_capacitor_ios() {
     echo "$sync_hash" > "$sync_stamp"
   fi
 
-  # Capacitor 7 uses Swift Package Manager (no Pods/.xcworkspace), so we
-  # build the .xcodeproj directly.
+  # SPM demos build the .xcodeproj directly. The CocoaPods demo must build its
+  # workspace, or the Pods targets (OneSignal extensions) don't resolve.
   ensure_capacitor_app_scheme "$DEMO_DIR/ios/App/App.xcodeproj"
+  local -a xcode_target_args=(-project App.xcodeproj)
+  if [[ -d "$DEMO_DIR/ios/App/App.xcworkspace" && -d "$DEMO_DIR/ios/App/Pods" ]]; then
+    xcode_target_args=(-workspace App.xcworkspace)
+  fi
   info "Building release .app for ${IOS_SDK}..."
   (cd "$DEMO_DIR/ios/App" && xcodebuild \
-    -project App.xcodeproj \
+    "${xcode_target_args[@]}" \
     -scheme App \
     -configuration Release \
     -sdk "$IOS_SDK" \
@@ -1263,6 +1267,37 @@ ios_pbxproj_inputs_hash() {
   } | shasum | awk '{print $1}'
 }
 
+# The iOS SDK links OneSignalKMP.xcframework, built from the OneSignal-KMP-SDK
+# submodule. Fresh clones have neither, so init the submodule when it's empty
+# and rebuild the framework whenever the KMP source or Xcode version changes.
+ensure_ios_kmp_xcframework() {
+  local kmp="$IOS_DIR/OneSignal-KMP-SDK"
+  if [[ ! -f "$kmp/gradlew" ]]; then
+    info "Initializing OneSignal-KMP-SDK submodule..."
+    git -C "$IOS_DIR" submodule update --init --recursive OneSignal-KMP-SDK
+  fi
+
+  local framework="$kmp/kmp/build/XCFrameworks/release/OneSignalKMP.xcframework"
+  local stamp="$kmp/kmp/build/.run-local-xcframework.stamp"
+  KMP_XCFRAMEWORK_HASH=$( {
+    git -C "$kmp" rev-parse HEAD
+    git -C "$kmp" diff HEAD
+    git -C "$kmp" ls-files --others --exclude-standard
+    xcodebuild -version
+  } | shasum | awk '{print $1}')
+
+  if [[ -d "$framework" ]] && [[ -f "$stamp" ]] && [[ "$(cat "$stamp")" == "$KMP_XCFRAMEWORK_HASH" ]]; then
+    info "OneSignalKMP.xcframework up to date, skipping KMP build"
+    return
+  fi
+
+  info "Building OneSignalKMP.xcframework (Gradle, needs JDK 17)..."
+  "$IOS_DIR/iOS_SDK/OneSignalSDK/build_kmp_xcframework.sh" \
+    :kmp:assembleOneSignalKMPReleaseXCFramework --quiet
+  [[ -d "$framework" ]] || error "OneSignalKMP.xcframework not found after KMP build at $framework"
+  echo "$KMP_XCFRAMEWORK_HASH" > "$stamp"
+}
+
 build_ios_native() {
   # Builds the native iOS demo directly so local SDK source changes (under
   # OneSignal-iOS-SDK/iOS_SDK/) get exercised end-to-end. The demo's
@@ -1343,8 +1378,9 @@ build_ios_native() {
   # while the pre-edit sim .app is still on disk, and the skip would serve
   # the stale binary).
   local build_stamp="$DEMO_DIR/build/.ios-native-build-${IOS_BUILD_DIR}.stamp"
+  ensure_ios_kmp_xcframework
   local build_hash
-  build_hash=$(ios_native_inputs_hash)
+  build_hash="$(ios_native_inputs_hash)-$KMP_XCFRAMEWORK_HASH"
   if [[ -d "$APP_PATH" ]] && [[ -f "$build_stamp" ]] && [[ "$(cat "$build_stamp")" == "$build_hash" ]]; then
     info "Demo + SDK source unchanged, skipping iOS native rebuild"
     info "App: $APP_PATH"
