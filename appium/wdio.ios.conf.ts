@@ -26,7 +26,9 @@ export const config: WebdriverIO.Config = {
       'appium:noReset': true,
       'appium:webviewAtomWaitTimeout': 1_000,
       ...(needsSlowTyping && isLocal ? { 'appium:maxTypingFrequency': 20 } : {}),
-      ...(isLocal ? {} : { 'bstack:options': { ...bstackOptions, resignApp: false, video: false } }),
+      ...(isLocal
+        ? {}
+        : { 'bstack:options': { ...bstackOptions, resignApp: false, video: false } }),
     },
   ],
 };
