@@ -1,26 +1,38 @@
 name: 'Setup iOS Demo Codesigning'
-description: 'Import the Appium signing cert and install the In House provisioning profiles for the OneSignal demo app (main target, NSE, Live Activity widget). Call once per iOS build job in an SDK E2E workflow. Targets the OneSignal, Inc. Enterprise team (DL8TF3X4K3), which has no App Store Connect API, so the profiles come from secrets.'
+description: 'Import the Appium signing cert and download provisioning profiles for the OneSignal demo app (main target, NSE, Live Activity widget) via the Apple Enterprise Program API. Call once per iOS build job in an SDK E2E workflow. Defaults target the OneSignal, Inc. Enterprise team (DL8TF3X4K3): in-house distribution cert and In House profiles.'
 
 inputs:
   p12-base64:
-    description: 'Base64-encoded .p12 of the in-house "iPhone Distribution" certificate'
+    description: 'Base64-encoded .p12 signing certificate (in-house "iPhone Distribution" for the default profile type)'
     required: true
   p12-password:
     description: 'Password used when exporting the .p12'
     required: true
-  main-profile-base64:
-    description: 'Base64-encoded "Appium Demo - Main" .mobileprovision'
+  asc-key-id:
+    description: 'Enterprise Program API Key ID'
     required: true
-  nse-profile-base64:
-    description: 'Base64-encoded "Appium Demo - NSE" .mobileprovision'
+  asc-issuer-id:
+    description: 'Enterprise Program API Issuer ID'
     required: true
-  widget-profile-base64:
-    description: 'Base64-encoded "Appium Demo - Live Activity" .mobileprovision'
+  asc-private-key:
+    description: 'Enterprise Program API private key (.p8) contents, as raw PKCS8 PEM text'
     required: true
-  team-id:
-    description: 'Apple team the profiles must belong to'
+  main-bundle-id:
+    description: 'Main app bundle identifier'
     required: false
-    default: 'DL8TF3X4K3'
+    default: 'com.onesignal.sdkdemo'
+  nse-bundle-id:
+    description: 'Notification Service Extension bundle identifier. Leave empty to skip.'
+    required: false
+    default: 'com.onesignal.sdkdemo.NSE'
+  widget-bundle-id:
+    description: 'Live Activity / Widget Extension bundle identifier. Leave empty to skip.'
+    required: false
+    default: 'com.onesignal.sdkdemo.LA'
+  profile-type:
+    description: 'Provisioning profile type (IOS_APP_INHOUSE, IOS_APP_DEVELOPMENT, IOS_APP_ADHOC, IOS_APP_STORE). In House profiles need no registered devices, so BrowserStack real devices can install the app.'
+    required: false
+    default: 'IOS_APP_INHOUSE'
 
 runs:
   using: composite
@@ -32,59 +44,26 @@ runs:
         p12-password: ${{ inputs.p12-password }}
         keychain-password: ci-keychain
 
-    - name: Install provisioning profiles
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: latest
+
+    - name: Download provisioning profiles
       shell: bash
+      working-directory: ${{ github.action_path }}/../../..
       env:
-        MAIN_PROFILE: ${{ inputs.main-profile-base64 }}
-        NSE_PROFILE: ${{ inputs.nse-profile-base64 }}
-        WIDGET_PROFILE: ${{ inputs.widget-profile-base64 }}
-        TEAM_ID: ${{ inputs.team-id }}
+        ASC_KEY_ID: ${{ inputs.asc-key-id }}
+        ASC_ISSUER_ID: ${{ inputs.asc-issuer-id }}
+        ASC_KEY_CONTENT: ${{ inputs.asc-private-key }}
+        PROFILE_TYPE: ${{ inputs.profile-type }}
+        MAIN_BUNDLE_ID: ${{ inputs.main-bundle-id }}
+        NSE_BUNDLE_ID: ${{ inputs.nse-bundle-id }}
+        WIDGET_BUNDLE_ID: ${{ inputs.widget-bundle-id }}
       run: |
         set -euo pipefail
-        dest="$HOME/Library/MobileDevice/Provisioning Profiles"
-        mkdir -p "$dest"
-        tmp=$(mktemp -d)
-        trap 'rm -rf "$tmp"' EXIT
-
-        install_profile() {
-          local label=$1 expected_name=$2 data=$3
-          if [ -z "$data" ]; then
-            echo "::error::$label profile secret is empty; set APPIUM_IOS_PROFILE_*_BASE64"
-            exit 1
-          fi
-          printf '%s' "$data" | base64 --decode > "$tmp/$label.mobileprovision"
-          security cms -D -i "$tmp/$label.mobileprovision" > "$tmp/$label.plist"
-
-          local uuid name team expires
-          uuid=$(plutil -extract UUID raw "$tmp/$label.plist")
-          name=$(plutil -extract Name raw "$tmp/$label.plist")
-          team=$(plutil -extract TeamIdentifier.0 raw "$tmp/$label.plist")
-          expires=$(plutil -extract ExpirationDate raw "$tmp/$label.plist")
-
-          if [ "$name" != "$expected_name" ]; then
-            echo "::error::$label profile is \"$name\", expected \"$expected_name\""
-            exit 1
-          fi
-          if [ "$team" != "$TEAM_ID" ]; then
-            echo "::error::$label profile belongs to team $team, expected $TEAM_ID"
-            exit 1
-          fi
-
-          local expires_epoch now days_left
-          expires_epoch=$(date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "$expires" +%s)
-          now=$(date -u +%s)
-          days_left=$(( (expires_epoch - now) / 86400 ))
-          if [ "$days_left" -lt 0 ]; then
-            echo "::error::\"$name\" expired on $expires; regenerate it and update the secret"
-            exit 1
-          elif [ "$days_left" -lt 30 ]; then
-            echo "::warning::\"$name\" expires in $days_left days ($expires)"
-          fi
-
-          cp "$tmp/$label.mobileprovision" "$dest/$uuid.mobileprovision"
-          echo "Installed \"$name\" ($uuid), expires $expires"
-        }
-
-        install_profile main 'Appium Demo - Main' "$MAIN_PROFILE"
-        install_profile nse 'Appium Demo - NSE' "$NSE_PROFILE"
-        install_profile widget 'Appium Demo - Live Activity' "$WIDGET_PROFILE"
+        BUNDLE_IDS=()
+        [ -n "$MAIN_BUNDLE_ID" ] && BUNDLE_IDS+=("$MAIN_BUNDLE_ID")
+        [ -n "$NSE_BUNDLE_ID" ] && BUNDLE_IDS+=("$NSE_BUNDLE_ID")
+        [ -n "$WIDGET_BUNDLE_ID" ] && BUNDLE_IDS+=("$WIDGET_BUNDLE_ID")
+        bun appium/scripts/download_profiles.ts "${BUNDLE_IDS[@]}"
