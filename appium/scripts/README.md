@@ -80,8 +80,6 @@ If `--platform` or `--sdk` are not provided, the script prompts interactively.
 | `--platform=P`   | `ios` or `android`                                                                             |
 | `--sdk=S`        | `flutter`, `react-native`, `cordova`, `capacitor`, `expo`, `dotnet`, `unity`, `android`, `ios` |
 | `--spec=GLOB`    | Spec file glob (default: `tests/specs/**/*.spec.ts`)                                           |
-| `--app-id=ID`    | OneSignal app ID; overrides `ONESIGNAL_APP_ID` from `.env`                                     |
-| `--api-key=KEY`  | OneSignal REST API key; overrides `ONESIGNAL_API_KEY` from `.env`                              |
 | `--skip`         | Skip build, device launch, and app reset (rerun tests only)                                    |
 | `--skip-build`   | Skip app build (reuse existing `.app`/`.apk`)                                                  |
 | `--skip-device`  | Skip simulator/emulator launch                                                                 |
@@ -150,7 +148,6 @@ Skip only the build (simulator + reset still happen):
 ./run-all.sh --bail                       # stop after the first failing combo
 ./run-all.sh --pick-device                # prompt for a simulator and/or emulator up front
 ./run-all.sh --sdks=flutter --install-only  # build and install on both platforms, no tests
-./run-all.sh --app-id=<id> --api-key=<key>  # override the OneSignal app from .env
 ```
 
 `--release` is available on both `run-all.sh` and `run-local.sh`. It runs `checkout-releases.sh`, which checks out the newest stable `rel/X.Y.Z` branch (for expo/ios, the newest semver tag unless a newer stable `rel/X.Y.Z` branch exists for a pending release) in each SDK repo, honoring the `*_DIR` overrides from `.env`. Uncommitted changes, including untracked files, are stashed before checkout and can be restored later with `git stash pop`.
@@ -161,7 +158,7 @@ Skip only the build (simulator + reset still happen):
 
 ### Environment Variables
 
-All env vars can be set in `.env` or exported in your shell. See [`.env.example`](.env.example) for the full list.
+All env vars can be set in `.env` or in your shell. Shell values win over `.env`, so `ONESIGNAL_APP_ID=<id> ONESIGNAL_API_KEY=<key> ./run-all.sh` runs against a different app without editing `.env`. See [`.env.example`](.env.example) for the full list.
 
 SDK repo paths (`*_DIR`) resolve in this order:
 

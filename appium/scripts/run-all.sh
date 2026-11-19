@@ -4,11 +4,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SDK_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
-if [[ -f "$SCRIPT_DIR/.env" ]]; then
-  set -a
-  source "$SCRIPT_DIR/.env"
-  set +a
-fi
+source "$SCRIPT_DIR/run-local/env.sh"
+load_env_defaults "$SCRIPT_DIR/.env"
 
 source "$SCRIPT_DIR/run-local/repo-dir.sh"
 source "$SCRIPT_DIR/run-local/device-picker.sh"
@@ -52,7 +49,7 @@ for arg in "$@"; do
       RELEASE=1 ;;
     --main)
       MAIN=1 ;;
-    --spec=*|--app-id=*|--api-key=*)
+    --spec=*)
       EXTRA_ARGS+=("$arg") ;;
     --platform=ios|--platform=android)
       PLATFORM_FILTER="${arg#--platform=}" ;;
@@ -102,8 +99,6 @@ Options forwarded to run-local.sh:
   --pods           Use examples/demo-pods for flutter, cordova, capacitor
                    (ignored for other SDKs)
   --spec=GLOB      Spec glob to run (default: full suite, grouped into one session)
-  --app-id=ID      OneSignal app ID; overrides ONESIGNAL_APP_ID from .env
-  --api-key=KEY    OneSignal REST API key; overrides ONESIGNAL_API_KEY from .env
   -q, --quiet      Show only test output; build/setup output goes to a
                    log file printed if setup fails
   -h, --help       Show this help

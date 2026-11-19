@@ -44,8 +44,6 @@ configure_runner() {
       --release)        RELEASE=true ;;
       --main)           MAIN=true ;;
       --spec=*)         SPEC="${arg#--spec=}" ;;
-      --app-id=*)       ONESIGNAL_APP_ID="${arg#--app-id=}" ;;
-      --api-key=*)      ONESIGNAL_API_KEY="${arg#--api-key=}" ;;
       --quiet|-q)       QUIET=true ;;
       --help|-h)
         cat <<USAGE
@@ -90,8 +88,6 @@ Options:
   --udid=ID           Physical device UDID (xcrun devicectl list devices).
                       Required by --device-real; also accepted via UDID env.
   --spec=GLOB         Spec glob (default: all specs grouped into one session)
-  --app-id=ID         OneSignal app ID; overrides ONESIGNAL_APP_ID from .env
-  --api-key=KEY       OneSignal REST API key; overrides ONESIGNAL_API_KEY from .env
   -q, --quiet         Show only test output; build/setup output goes to a
                       log file printed if setup fails
   -h, --help          Show this help
@@ -155,8 +151,6 @@ USAGE
   export APPIUM_PORT
   [[ -n "$WDA_LOCAL_PORT" ]] && export WDA_LOCAL_PORT
   [[ -n "$SYSTEM_PORT" ]] && export SYSTEM_PORT
-  [[ -n "${ONESIGNAL_APP_ID:-}" ]] && export ONESIGNAL_APP_ID
-  [[ -n "${ONESIGNAL_API_KEY:-}" ]] && export ONESIGNAL_API_KEY
 
 
   # Native --sdk=<platform> implies --platform=<platform> (the native demos only
@@ -240,8 +234,7 @@ USAGE
       error "ONESIGNAL_APP_ID / ONESIGNAL_API_KEY not set. Use the OneSignal app
         dedicated to Appium tests (not a general/shared app — its live in-app
         marketing campaigns can cover the UI and cause misleading 'element not
-        displayed' failures). Set both in $SCRIPT_DIR/.env (cp .env.example .env)
-        or pass --app-id and --api-key."
+        displayed' failures). Set both in $SCRIPT_DIR/.env (cp .env.example .env)."
     fi
   }
 
