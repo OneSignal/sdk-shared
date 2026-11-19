@@ -52,7 +52,7 @@ for arg in "$@"; do
       RELEASE=1 ;;
     --main)
       MAIN=1 ;;
-    --spec=*)
+    --spec=*|--app-id=*|--api-key=*)
       EXTRA_ARGS+=("$arg") ;;
     --platform=ios|--platform=android)
       PLATFORM_FILTER="${arg#--platform=}" ;;
@@ -102,6 +102,8 @@ Options forwarded to run-local.sh:
   --pods           Use examples/demo-pods for flutter, cordova, capacitor
                    (ignored for other SDKs)
   --spec=GLOB      Spec glob to run (default: full suite, grouped into one session)
+  --app-id=ID      OneSignal app ID; overrides ONESIGNAL_APP_ID from .env
+  --api-key=KEY    OneSignal REST API key; overrides ONESIGNAL_API_KEY from .env
   -q, --quiet      Show only test output; build/setup output goes to a
                    log file printed if setup fails
   -h, --help       Show this help
