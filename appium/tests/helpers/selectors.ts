@@ -252,6 +252,36 @@ export async function sendPushNotification(opts: {
   return result.id;
 }
 
+async function lastPushErrored(subscriptionId: string) {
+  const response = await fetch(
+    `https://api.onesignal.com/notifications?app_id=${process.env.ONESIGNAL_APP_ID}&limit=20`,
+    { headers: { Authorization: `Key ${process.env.ONESIGNAL_API_KEY}` } },
+  );
+  const { notifications } = (await response.json()) as {
+    notifications: { include_player_ids?: string[]; errored: number }[];
+  };
+  const push = notifications.find((n) => n.include_player_ids?.includes(subscriptionId));
+  return Boolean(push?.errored);
+}
+
+/** The APNs sandbox sometimes doesn't respond to OneSignal, which errors the push without retrying. */
+export async function sendPushWithRetry<T>(opts: {
+  subscriptionId: string;
+  send: () => Promise<T>;
+  expectArrived: () => Promise<unknown>;
+}) {
+  const result = await opts.send();
+  try {
+    await opts.expectArrived();
+    return result;
+  } catch (error) {
+    if (!(await lastPushErrored(opts.subscriptionId).catch(() => false))) throw error;
+    const retried = await opts.send();
+    await opts.expectArrived();
+    return retried;
+  }
+}
+
 export async function getToggleState(el: {
   getAttribute(name: string): Promise<string | null>;
 }): Promise<boolean> {
@@ -301,40 +331,60 @@ type ElementWithInteractionMethods = {
   click(): Promise<void>;
   getAttribute(name: string): Promise<string | null>;
   getText(): Promise<string>;
+  getValue(): Promise<string>;
+  selector: unknown;
   setValue(value: string): Promise<void>;
   waitForDisplayed(options?: { timeout?: number }): Promise<unknown>;
 };
 
 // Centralized SDK-specific element shims.
 function withElementInteractionFixes<T extends ElementWithInteractionMethods>(el: T): T {
-  const isFlutterAndroid = getPlatform() === 'android' && getSdkType() === 'flutter';
+  const sdkType = getSdkType();
+  const isAndroid = getPlatform() === 'android';
+  const isFlutterAndroid = isAndroid && sdkType === 'flutter';
+  // UiAutomator2 has no `value` attribute; native Android exposes input text via getText.
+  const readsText = isAndroid && sdkType !== 'capacitor' && sdkType !== 'cordova';
+
+  const getText = async () => {
+    if (!isFlutterAndroid) return el.getText();
+
+    const text = (await el.getText()).trim();
+    if (text) return text;
+
+    const attrs = ['content-desc', 'contentDescription', 'text', 'name'];
+    for (const attr of attrs) {
+      try {
+        const val = (await el.getAttribute(attr))?.trim();
+        if (val) return val;
+      } catch {
+        /* best-effort */
+      }
+    }
+
+    return '';
+  };
 
   return new Proxy(el, {
     get(target, prop, receiver) {
-      if (prop === 'getText' && isFlutterAndroid) {
-        return async () => {
-          const text = (await target.getText()).trim();
-          if (text) return text;
-
-          const attrs = ['content-desc', 'contentDescription', 'text', 'name'];
-          for (const attr of attrs) {
-            try {
-              const val = (await target.getAttribute(attr))?.trim();
-              if (val) return val;
-            } catch {
-              /* best-effort */
-            }
-          }
-
-          return '';
-        };
-      }
+      if (prop === 'getText') return getText;
 
       if (prop === 'setValue') {
+        // Typed characters can be dropped (e.g. right after a modal opens), so retype until the field keeps the value.
         return async (value: string) => {
-          if (isFlutterAndroid) await target.click();
-          await target.waitForDisplayed({ timeout: 5_000 });
-          await target.setValue(value);
+          await driver.waitUntil(
+            async () => {
+              if (isFlutterAndroid) await target.click();
+              await target.waitForDisplayed({ timeout: 5_000 });
+              await target.setValue(value);
+              const typed = readsText ? await getText() : await target.getValue();
+              return typed === value;
+            },
+            {
+              timeout: 10_000,
+              interval: 500,
+              timeoutMsg: `Input "${String(target.selector)}" did not keep "${value}"`,
+            },
+          );
         };
       }
 

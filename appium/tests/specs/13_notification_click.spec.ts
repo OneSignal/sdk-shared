@@ -11,6 +11,7 @@ import {
 import {
   getPlatform,
   sendPushNotification,
+  sendPushWithRetry,
   waitForPushSubscriptionReady,
 } from '../helpers/selectors.js';
 
@@ -28,13 +29,12 @@ const CHROME_FIRST_RUN_DISMISS = [
 ];
 
 async function tapPushAndExpectLaunchUrl(subscriptionId: string, title: string) {
-  const notificationId = await sendPushNotification({
+  const notificationId = await sendPushWithRetry({
     subscriptionId,
-    title,
-    body: 'Tap to open URL',
-    url: LAUNCH_URL,
+    send: () =>
+      sendPushNotification({ subscriptionId, title, body: 'Tap to open URL', url: LAUNCH_URL }),
+    expectArrived: () => tapNotification(title),
   });
-  await tapNotification(title);
 
   await driver.waitUntil(async () => (await getBrowserAddress()).includes(LAUNCH_URL_HOST), {
     timeout: 20_000,

@@ -12,6 +12,7 @@ import {
   getPlatform,
   getSdkType,
   getTestExternalId,
+  sendPushWithRetry,
   waitForBackendUser,
   waitForPushSubscriptionReady,
 } from './selectors.js';
@@ -302,22 +303,6 @@ export async function loginUser(externalUserId: string) {
 export async function logoutUser() {
   const logoutButton = await byTestId('logout_user_button');
   await logoutButton.click();
-}
-
-/** Type into an input and confirm it stuck; typing right after a modal opens can be dropped. */
-export async function fillInput(testId: string, value: string) {
-  const input = await byTestId(testId);
-  await input.waitForDisplayed({ timeout: 5_000 });
-  // UiAutomator2 has no `value` attribute; native Android exposes input text via getText.
-  const readsText = getPlatform() === 'android' && !isWebViewSDK;
-  await driver.waitUntil(
-    async () => {
-      await input.setValue(value);
-      const typed = readsText ? await input.getText() : await input.getValue();
-      return typed === value;
-    },
-    { timeout: 10_000, interval: 500, timeoutMsg: `Input "${testId}" did not keep "${value}"` },
-  );
 }
 
 /** Tap a modal confirm button. */
@@ -759,7 +744,8 @@ export async function checkNotification(opts: {
   body?: string;
   expectImage?: boolean;
 }) {
-  await waitForPushSubscriptionReady(await waitForInitId());
+  const subscriptionId = await waitForInitId();
+  await waitForPushSubscriptionReady(subscriptionId);
 
   const button = await scrollToEl(opts.buttonId);
   await driver.pause(2_000); // small wait to hopefully get image notif early
@@ -771,11 +757,11 @@ export async function checkNotification(opts: {
     countLogMessages(...clickLog),
   ]);
 
-  await button.click();
-  await waitForNotification({
-    title: opts.title,
-    body: opts.body,
-    expectImage: opts.expectImage,
+  await sendPushWithRetry({
+    subscriptionId,
+    send: () => button.click(),
+    expectArrived: () =>
+      waitForNotification({ title: opts.title, body: opts.body, expectImage: opts.expectImage }),
   });
 
   await expectOneNewLog(displayLog, displaysBefore);
