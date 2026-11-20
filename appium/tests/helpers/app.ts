@@ -511,13 +511,14 @@ export async function getLogMessages(): Promise<string[]> {
     'android=new UiSelector().resourceIdMatches(".*log_view").childSelector(new UiSelector().scrollable(true))',
   );
   if (await logScroll.isExisting()) {
-    await driver
-      .execute('mobile: scrollGesture', {
-        elementId: await logScroll.elementId,
-        direction: 'down',
-        percent: 1,
-      })
-      .catch(() => {});
+    const elementId = await logScroll.elementId;
+    // One fling can fall short when the list has jumped back to the top.
+    for (let i = 0; i < 5; i++) {
+      const canScrollMore = await driver
+        .execute('mobile: scrollGesture', { elementId, direction: 'down', percent: 1 })
+        .catch(() => false);
+      if (!canScrollMore) break;
+    }
   }
   // One page-source read; per-element getText goes stale when a log arrives mid-read.
   // Flutter Android exposes text labels as content-desc, not text.
