@@ -331,6 +331,7 @@ type ElementWithInteractionMethods = {
   click(): Promise<void>;
   getAttribute(name: string): Promise<string | null>;
   getText(): Promise<string>;
+  getProperty(name: string): Promise<unknown>;
   getValue(): Promise<string>;
   selector: unknown;
   setValue(value: string): Promise<void>;
@@ -342,8 +343,7 @@ function withElementInteractionFixes<T extends ElementWithInteractionMethods>(el
   const sdkType = getSdkType();
   const isAndroid = getPlatform() === 'android';
   const isFlutterAndroid = isAndroid && sdkType === 'flutter';
-  // UiAutomator2 has no `value` attribute; native Android exposes input text via getText.
-  const readsText = isAndroid && sdkType !== 'capacitor' && sdkType !== 'cordova';
+  const isWebView = sdkType === 'capacitor' || sdkType === 'cordova';
 
   const getText = async () => {
     if (!isFlutterAndroid) return el.getText();
@@ -364,6 +364,12 @@ function withElementInteractionFixes<T extends ElementWithInteractionMethods>(el
     return '';
   };
 
+  // Mobile getValue reads the `value` attribute: UiAutomator2 has none, and a webview <textarea> doesn't set it.
+  const readValue = async () => {
+    if (isWebView) return el.getProperty('value');
+    return isAndroid ? getText() : el.getValue();
+  };
+
   return new Proxy(el, {
     get(target, prop, receiver) {
       if (prop === 'getText') return getText;
@@ -376,7 +382,7 @@ function withElementInteractionFixes<T extends ElementWithInteractionMethods>(el
               if (isFlutterAndroid) await target.click();
               await target.waitForDisplayed({ timeout: 5_000 });
               await target.setValue(value);
-              const typed = readsText ? await getText() : await target.getValue();
+              const typed = await readValue();
               return typed === value;
             },
             {
