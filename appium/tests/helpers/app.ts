@@ -410,11 +410,21 @@ export async function killApp() {
   } else {
     await swipeAwayFromRecents();
   }
-  await driver.waitUntil(async () => (await getAppState()) === AppState.NotRunning, {
-    timeout: 10_000,
-    interval: 200,
-    timeoutMsg: 'App process is still running after being killed',
-  });
+  await driver.waitUntil(
+    async () => {
+      const state = await getAppState();
+      // A swipe that lands before the recents card settles reopens the app instead.
+      if (state === AppState.RunningInForeground && getPlatform() === 'android') {
+        await swipeAwayFromRecents();
+      }
+      return state === AppState.NotRunning;
+    },
+    {
+      timeout: 20_000,
+      interval: 200,
+      timeoutMsg: 'App process is still running after being killed',
+    },
+  );
   if (getPlatform() === 'android') await driver.pressKeyCode(3); // KEYCODE_HOME
 }
 
