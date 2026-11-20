@@ -158,7 +158,7 @@ Skip only the build (simulator + reset still happen):
 
 ### Environment Variables
 
-All env vars can be set in `.env` or exported in your shell. See [`.env.example`](.env.example) for the full list.
+All env vars can be set in `.env` or in your shell. Shell values win over `.env`, so `ONESIGNAL_APP_ID=<id> ONESIGNAL_API_KEY=<key> ./run-all.sh` runs against a different app without editing `.env`. See [`.env.example`](.env.example) for the full list.
 
 SDK repo paths (`*_DIR`) resolve in this order:
 

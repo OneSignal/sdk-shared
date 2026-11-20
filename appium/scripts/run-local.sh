@@ -6,11 +6,8 @@ APPIUM_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SDK_ROOT="$(cd "$APPIUM_DIR/../.." && pwd)"
 
 # ── Load .env if present ─────────────────────────────────────────────────────
-if [[ -f "$SCRIPT_DIR/.env" ]]; then
-  set -a
-  source "$SCRIPT_DIR/.env"
-  set +a
-fi
+source "$SCRIPT_DIR/run-local/env.sh"
+load_env_defaults "$SCRIPT_DIR/.env"
 
 RUN_LOCAL_LIB_DIR="$SCRIPT_DIR/run-local"
 source "$RUN_LOCAL_LIB_DIR/common.sh"

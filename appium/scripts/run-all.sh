@@ -4,11 +4,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SDK_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
-if [[ -f "$SCRIPT_DIR/.env" ]]; then
-  set -a
-  source "$SCRIPT_DIR/.env"
-  set +a
-fi
+source "$SCRIPT_DIR/run-local/env.sh"
+load_env_defaults "$SCRIPT_DIR/.env"
 
 source "$SCRIPT_DIR/run-local/repo-dir.sh"
 source "$SCRIPT_DIR/run-local/device-picker.sh"
