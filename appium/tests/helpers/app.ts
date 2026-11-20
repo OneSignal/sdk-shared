@@ -431,12 +431,19 @@ export async function killApp() {
   if (getPlatform() === 'android') await driver.pressKeyCode(3); // KEYCODE_HOME
 }
 
-async function swipeAwayFromRecents() {
-  // UiAutomator2 otherwise blocks each action until the launcher's recents
-  // animations go idle, which takes seconds.
+// UiAutomator2 otherwise blocks each action until animations go idle, which can take seconds.
+async function withoutIdleWait<T>(fn: () => Promise<T>): Promise<T> {
   const { waitForIdleTimeout } = (await driver.getSettings()) as { waitForIdleTimeout?: number };
   await driver.updateSettings({ waitForIdleTimeout: 0 });
   try {
+    return await fn();
+  } finally {
+    await driver.updateSettings({ waitForIdleTimeout: waitForIdleTimeout ?? 10_000 });
+  }
+}
+
+async function swipeAwayFromRecents() {
+  await withoutIdleWait(async () => {
     await driver.pressKeyCode(187); // KEYCODE_APP_SWITCH, with this app as the focused card
     await driver.waitUntil(async () => (await driver.getCurrentPackage()) !== PACKAGE_ID, {
       timeout: 5_000,
@@ -452,9 +459,7 @@ async function swipeAwayFromRecents() {
       to: { x, y: Math.round(height * 0.05) },
       duration: 200,
     });
-  } finally {
-    await driver.updateSettings({ waitForIdleTimeout: waitForIdleTimeout ?? 10_000 });
-  }
+  });
 }
 
 /** Send the app to the background until something else activates it. */
@@ -892,8 +897,17 @@ async function waitForIamDismissed(timeoutMs = 8_000) {
 export async function expectSnackbar(text: string, timeoutMs = 5_000) {
   await switchToNativeContext();
   try {
-    const el = await byText(text);
-    await el.waitForDisplayed({ timeout: timeoutMs });
+    if (getPlatform() === 'android') {
+      // A short-lived snackbar can vanish during the idle wait or before a follow-up
+      // visibility check. UiAutomator2 only matches on-screen nodes, so one match is enough.
+      await withoutIdleWait(async () => {
+        const el = await byText(text);
+        await el.waitForExist({ timeout: timeoutMs });
+      });
+    } else {
+      const el = await byText(text);
+      await el.waitForDisplayed({ timeout: timeoutMs });
+    }
   } finally {
     await ensureMainWebViewContext();
   }
