@@ -240,8 +240,11 @@ async function switchToMainWebViewWindow(): Promise<boolean> {
   }
 
   // Probing a stale window blocks for the atom timeout, so try the current one first.
+  // Skip closed IAM windows: probing one mid-teardown can crash chromedriver.
   const current = await driver.getWindowHandle().catch(() => undefined);
-  const ordered = current ? [current, ...handles.filter((h) => h !== current)] : handles;
+  const ordered = (current ? [current, ...handles.filter((h) => h !== current)] : handles).filter(
+    (h) => !closedIamWindowHandles.has(h),
+  );
   for (const handle of ordered) {
     try {
       await driver.switchToWindow(handle);
