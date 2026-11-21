@@ -78,7 +78,7 @@ Options:
   --wipe-emulator     Wipe the Android AVD before launch. Deletes all emulator
                       apps and data; incompatible with --skip-device.
   --pods              Use examples/demo-pods instead of examples/demo for
-                      flutter, cordova, and capacitor SDKs
+                      flutter, cordova, capacitor, and react-native SDKs
   --release           Check out the latest release point for the selected SDK
   --main              Check out main at the latest origin/main for the selected SDK
                       (stashes uncommitted changes, including untracked files)
@@ -214,8 +214,8 @@ USAGE
 
   if [[ "$PODS_DEMO" == true ]]; then
     case "$SDK_TYPE" in
-      flutter|cordova|capacitor) ;;
-      *) warn "--pods only affects flutter, cordova, and capacitor SDKs; using examples/demo for $SDK_TYPE" ;;
+      flutter|cordova|capacitor|react-native) ;;
+      *) warn "--pods only affects flutter, cordova, capacitor, and react-native SDKs; using examples/demo for $SDK_TYPE" ;;
     esac
   fi
 
@@ -338,7 +338,11 @@ USAGE
     fi
   elif [[ "$SDK_TYPE" == "react-native" ]]; then
     [[ -d "$RN_DIR" ]] || error "React Native SDK not found at $RN_DIR — set RN_DIR in .env"
-    DEMO_DIR="$RN_DIR/examples/demo"
+    if [[ "$PODS_DEMO" == true ]]; then
+      DEMO_DIR="$RN_DIR/examples/demo-pods"
+    else
+      DEMO_DIR="$RN_DIR/examples/demo"
+    fi
     if [[ "$PLATFORM" == "ios" ]]; then
       APP_PATH="${APP_PATH:-$DEMO_DIR/ios/build/Build/Products/${IOS_BUILD_DIR}/demo.app}"
     else

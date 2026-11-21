@@ -75,22 +75,30 @@ build_rn_ios() {
   write_rn_demo_env
   setup_rn_sdk
 
+  # demo builds with Swift Package Manager; demo-pods (--pods) with CocoaPods.
+  local -a xcode_target_args=(-project demo.xcodeproj)
   local lock="$DEMO_DIR/ios/Podfile.lock"
-  local stamp="$DEMO_DIR/ios/build/.podfile.lock.stamp"
-  if [[ ! -f "$lock" ]] || [[ ! -f "$stamp" ]] || ! cmp -s "$lock" "$stamp"; then
-    # pod install never refreshes the spec repo, so a newly pinned
-    # OneSignalXCFramework fails to resolve on a stale local cache.
-    info "Updating OneSignalXCFramework and installing CocoaPods..."
-    (cd "$DEMO_DIR" && vp run update:pods)
-    mkdir -p "$(dirname "$stamp")"
-    cp "$lock" "$stamp" 2>/dev/null || true
+  if [[ -f "$lock" ]]; then
+    xcode_target_args=(-workspace demo.xcworkspace)
+    local stamp="$DEMO_DIR/ios/build/.podfile.lock.stamp"
+    if [[ ! -f "$stamp" ]] || ! cmp -s "$lock" "$stamp"; then
+      # pod install never refreshes the spec repo, so a newly pinned
+      # OneSignalXCFramework fails to resolve on a stale local cache.
+      info "Updating OneSignalXCFramework and installing CocoaPods..."
+      (cd "$DEMO_DIR" && vp run update:pods)
+      mkdir -p "$(dirname "$stamp")"
+      cp "$lock" "$stamp" 2>/dev/null || true
+    else
+      info "Pods up to date, skipping pod install"
+    fi
   else
-    info "Pods up to date, skipping pod install"
+    info "Generating React Native SwiftPM packages..."
+    (cd "$DEMO_DIR" && vp run update:spm)
   fi
 
   info "Building release .app for ${IOS_SDK} (self-contained, no Metro required)..."
   (cd "$DEMO_DIR/ios" && xcodebuild \
-    -workspace demo.xcworkspace \
+    "${xcode_target_args[@]}" \
     -scheme demo \
     -configuration Release \
     -sdk "$IOS_SDK" \

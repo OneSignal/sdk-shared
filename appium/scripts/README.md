@@ -86,7 +86,7 @@ If `--platform` or `--sdk` are not provided, the script prompts interactively.
 | `--skip-reset`   | Keep existing app data between runs                                                            |
 | `--install-only` | Build, launch the device, reset, and install the app; skip Appium and tests                    |
 | `--pick-device`  | Prompt for which iOS simulator or Android emulator to use                                      |
-| `--pods`         | Use `examples/demo-pods` for Flutter, Cordova, and Capacitor                                   |
+| `--pods`         | Use `examples/demo-pods` for Flutter, Cordova, Capacitor, and React Native                     |
 | `--release`      | Check out the latest release point in each SDK repo first                                      |
 | `--main`         | Check out the latest `main` in each SDK repo first                                             |
 | `-h, --help`     | Show help                                                                                      |

@@ -59,14 +59,15 @@ install_local_js_sdk_artifact() {
 }
 
 setup_rn_sdk() {
-  local stamp="$RN_DIR/.rn-sdk-source.stamp"
+  # Per demo: demo and demo-pods each install their own copy of the SDK.
+  local stamp="$DEMO_DIR/.rn-sdk-source.stamp"
   local installed_dir="$DEMO_DIR/node_modules/react-native-onesignal"
   local tarball="$RN_DIR/react-native-onesignal.tgz"
   local src_hash
 
   src_hash=$(hash_files "$RN_DIR/src" "$RN_DIR/ios" "$RN_DIR/android" \
                         "$RN_DIR/package.json" "$RN_DIR/tsconfig.json" \
-                        "$RN_DIR"/*.podspec)
+                        "$RN_DIR"/*.podspec "$RN_DIR/Package.swift")
 
   install_local_js_sdk_artifact \
     "RN SDK" \
