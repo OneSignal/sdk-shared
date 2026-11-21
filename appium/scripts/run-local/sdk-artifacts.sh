@@ -59,8 +59,10 @@ install_local_js_sdk_artifact() {
 }
 
 setup_rn_sdk() {
-  # Per demo: demo and demo-pods each install their own copy of the SDK.
-  local stamp="$DEMO_DIR/.rn-sdk-source.stamp"
+  # In node_modules: per demo (demo and demo-pods each install the SDK), and
+  # clear of the stamp the demo's own setup script writes.
+  local stamp="$DEMO_DIR/node_modules/.run-local-rn-sdk.stamp"
+  local deps_stamp="$DEMO_DIR/node_modules/.run-local-deps.stamp"
   local installed_dir="$DEMO_DIR/node_modules/react-native-onesignal"
   local tarball="$RN_DIR/react-native-onesignal.tgz"
   local src_hash
@@ -68,6 +70,14 @@ setup_rn_sdk() {
   src_hash=$(hash_files "$RN_DIR/src" "$RN_DIR/ios" "$RN_DIR/android" \
                         "$RN_DIR/package.json" "$RN_DIR/tsconfig.json" \
                         "$RN_DIR"/*.podspec "$RN_DIR/Package.swift")
+
+  # node_modules survives pulls and branch switches. A plain install would fail
+  # bun.lock's integrity check on a freshly packed SDK tarball, so drop the SDK
+  # and let the first-install path re-add it, which installs everything else.
+  if [[ "$(cat "$deps_stamp" 2>/dev/null)" != "$(hash_files "$DEMO_DIR/package.json" "$DEMO_DIR/bun.lock")" ]]; then
+    info "Demo dependencies changed, reinstalling..."
+    rm -rf "$installed_dir"
+  fi
 
   install_local_js_sdk_artifact \
     "RN SDK" \
@@ -80,6 +90,8 @@ setup_rn_sdk() {
     "react-native-onesignal-*.tgz" \
     "file:../../react-native-onesignal.tgz" \
     "$src_hash"
+
+  hash_files "$DEMO_DIR/package.json" "$DEMO_DIR/bun.lock" > "$deps_stamp"
 }
 
 setup_cordova_sdk() {
