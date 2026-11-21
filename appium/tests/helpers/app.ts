@@ -240,8 +240,11 @@ async function switchToMainWebViewWindow(): Promise<boolean> {
   }
 
   // Probing a stale window blocks for the atom timeout, so try the current one first.
+  // Skip closed IAM windows: probing one mid-teardown can crash chromedriver.
   const current = await driver.getWindowHandle().catch(() => undefined);
-  const ordered = current ? [current, ...handles.filter((h) => h !== current)] : handles;
+  const ordered = (current ? [current, ...handles.filter((h) => h !== current)] : handles).filter(
+    (h) => !closedIamWindowHandles.has(h),
+  );
   for (const handle of ordered) {
     try {
       await driver.switchToWindow(handle);
@@ -410,20 +413,37 @@ export async function killApp() {
   } else {
     await swipeAwayFromRecents();
   }
-  await driver.waitUntil(async () => (await getAppState()) === AppState.NotRunning, {
-    timeout: 10_000,
-    interval: 200,
-    timeoutMsg: 'App process is still running after being killed',
-  });
+  await driver.waitUntil(
+    async () => {
+      const state = await getAppState();
+      // A swipe that lands before the recents card settles reopens the app instead.
+      if (state === AppState.RunningInForeground && getPlatform() === 'android') {
+        await swipeAwayFromRecents();
+      }
+      return state === AppState.NotRunning;
+    },
+    {
+      timeout: 20_000,
+      interval: 200,
+      timeoutMsg: 'App process is still running after being killed',
+    },
+  );
   if (getPlatform() === 'android') await driver.pressKeyCode(3); // KEYCODE_HOME
 }
 
-async function swipeAwayFromRecents() {
-  // UiAutomator2 otherwise blocks each action until the launcher's recents
-  // animations go idle, which takes seconds.
+// UiAutomator2 otherwise blocks each action until animations go idle, which can take seconds.
+async function withoutIdleWait<T>(fn: () => Promise<T>): Promise<T> {
   const { waitForIdleTimeout } = (await driver.getSettings()) as { waitForIdleTimeout?: number };
   await driver.updateSettings({ waitForIdleTimeout: 0 });
   try {
+    return await fn();
+  } finally {
+    await driver.updateSettings({ waitForIdleTimeout: waitForIdleTimeout ?? 10_000 });
+  }
+}
+
+async function swipeAwayFromRecents() {
+  await withoutIdleWait(async () => {
     await driver.pressKeyCode(187); // KEYCODE_APP_SWITCH, with this app as the focused card
     await driver.waitUntil(async () => (await driver.getCurrentPackage()) !== PACKAGE_ID, {
       timeout: 5_000,
@@ -439,9 +459,7 @@ async function swipeAwayFromRecents() {
       to: { x, y: Math.round(height * 0.05) },
       duration: 200,
     });
-  } finally {
-    await driver.updateSettings({ waitForIdleTimeout: waitForIdleTimeout ?? 10_000 });
-  }
+  });
 }
 
 /** Send the app to the background until something else activates it. */
@@ -498,13 +516,14 @@ export async function getLogMessages(): Promise<string[]> {
     'android=new UiSelector().resourceIdMatches(".*log_view").childSelector(new UiSelector().scrollable(true))',
   );
   if (await logScroll.isExisting()) {
-    await driver
-      .execute('mobile: scrollGesture', {
-        elementId: await logScroll.elementId,
-        direction: 'down',
-        percent: 1,
-      })
-      .catch(() => {});
+    const elementId = await logScroll.elementId;
+    // One fling can fall short when the list has jumped back to the top.
+    for (let i = 0; i < 5; i++) {
+      const canScrollMore = await driver
+        .execute('mobile: scrollGesture', { elementId, direction: 'down', percent: 1 })
+        .catch(() => false);
+      if (!canScrollMore) break;
+    }
   }
   // One page-source read; per-element getText goes stale when a log arrives mid-read.
   // Flutter Android exposes text labels as content-desc, not text.
@@ -878,8 +897,17 @@ async function waitForIamDismissed(timeoutMs = 8_000) {
 export async function expectSnackbar(text: string, timeoutMs = 5_000) {
   await switchToNativeContext();
   try {
-    const el = await byText(text);
-    await el.waitForDisplayed({ timeout: timeoutMs });
+    if (getPlatform() === 'android') {
+      // A short-lived snackbar can vanish during the idle wait or before a follow-up
+      // visibility check. UiAutomator2 only matches on-screen nodes, so one match is enough.
+      await withoutIdleWait(async () => {
+        const el = await byText(text);
+        await el.waitForExist({ timeout: timeoutMs });
+      });
+    } else {
+      const el = await byText(text);
+      await el.waitForDisplayed({ timeout: timeoutMs });
+    }
   } finally {
     await ensureMainWebViewContext();
   }
