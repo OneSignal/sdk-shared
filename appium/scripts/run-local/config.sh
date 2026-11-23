@@ -323,6 +323,9 @@ USAGE
   else
     BUNDLE_ID="${BUNDLE_ID:-com.onesignal.sdkdemo}"
   fi
+  # Demos default to com.onesignal.example on another team; these build them as
+  # $BUNDLE_ID, which is registered to the enterprise team only.
+  IOS_DEMO_ID_ARGS="DEMO_BUNDLE_ID=$BUNDLE_ID DEMO_TEAM_ID=DL8TF3X4K3"
 
   if [[ "$SDK_TYPE" == "flutter" ]]; then
     [[ -d "$FLUTTER_DIR" ]] || error "Flutter SDK not found at $FLUTTER_DIR — set FLUTTER_DIR in .env"

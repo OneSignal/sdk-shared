@@ -4,8 +4,11 @@
 build_flutter_ios() {
   if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
     info "Writing .env for demo app..."
-    stage_demo_file "$DEMO_DIR/.env"
-    cat > "$DEMO_DIR/.env" <<EOF
+    # Newer demos bundle env/ as an asset folder; older ones bundle a root .env.
+    local env_file="$DEMO_DIR/.env"
+    [[ -d "$DEMO_DIR/env" ]] && env_file="$DEMO_DIR/env/.env"
+    stage_demo_file "$env_file"
+    cat > "$env_file" <<EOF
 ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
 EOF
@@ -19,6 +22,10 @@ EOF
   # info "Installing CocoaPods..."
   # (cd "$DEMO_DIR/ios" && pod install)
 
+  # `flutter build` can't pass Xcode build settings; demo.xcconfig includes this file.
+  stage_demo_file "$DEMO_DIR/ios/e2e.xcconfig"
+  printf 'DEMO_BUNDLE_ID = %s\nDEMO_TEAM_ID = DL8TF3X4K3\n' "$BUNDLE_ID" > "$DEMO_DIR/ios/e2e.xcconfig"
+
   info "Building debug .app for simulator (this may take a few minutes)..."
   (cd "$DEMO_DIR" && flutter build ios --simulator --debug)
 
@@ -29,8 +36,11 @@ EOF
 build_flutter_android() {
   if [[ -n "${ONESIGNAL_APP_ID:-}" && -n "${ONESIGNAL_API_KEY:-}" ]]; then
     info "Writing .env for demo app..."
-    stage_demo_file "$DEMO_DIR/.env"
-    cat > "$DEMO_DIR/.env" <<EOF
+    # Newer demos bundle env/ as an asset folder; older ones bundle a root .env.
+    local env_file="$DEMO_DIR/.env"
+    [[ -d "$DEMO_DIR/env" ]] && env_file="$DEMO_DIR/env/.env"
+    stage_demo_file "$env_file"
+    cat > "$env_file" <<EOF
 ONESIGNAL_APP_ID=$ONESIGNAL_APP_ID
 ONESIGNAL_API_KEY=$ONESIGNAL_API_KEY
 EOF
@@ -42,7 +52,7 @@ EOF
   (cd "$FLUTTER_DIR" && flutter pub get)
 
   # Match CI: E2E runs with Firebase Installation ID registration, which needs google-services.json.
-  local -a build_args=()
+  local -a build_args=("-PDEMO_BUNDLE_ID=$BUNDLE_ID")
   if [[ -f "$DEMO_DIR/android/app/google-services.json" ]]; then
     build_args+=("-PFIREBASE_INSTALLATION_ID_ENABLED=true")
   else
@@ -268,6 +278,7 @@ build_cordova_ios() {
     ENABLE_USER_SCRIPT_SANDBOXING=NO \
     COMPILER_INDEX_STORE_ENABLE=NO \
     SWIFT_INDEX_STORE_ENABLE=NO \
+    $IOS_DEMO_ID_ARGS \
     $IOS_SIGNING_ARGS)
 
   [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
@@ -294,7 +305,7 @@ build_cordova_android() {
   fi
 
   # Match CI: E2E runs with Firebase Installation ID registration, which needs google-services.json.
-  local -a gradle_args=()
+  local -a gradle_args=("-PDEMO_BUNDLE_ID=$BUNDLE_ID")
   if [[ -f "$DEMO_DIR/android/app/google-services.json" ]]; then
     gradle_args+=("-PFIREBASE_INSTALLATION_ID_ENABLED=true")
   else
@@ -389,6 +400,7 @@ build_capacitor_ios() {
     ENABLE_USER_SCRIPT_SANDBOXING=NO \
     COMPILER_INDEX_STORE_ENABLE=NO \
     SWIFT_INDEX_STORE_ENABLE=NO \
+    $IOS_DEMO_ID_ARGS \
     $IOS_SIGNING_ARGS)
 
   [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
@@ -415,7 +427,7 @@ build_capacitor_android() {
   fi
 
   # Match CI: E2E runs with Firebase Installation ID registration, which needs google-services.json.
-  local -a gradle_args=()
+  local -a gradle_args=("-PDEMO_BUNDLE_ID=$BUNDLE_ID")
   if [[ -f "$DEMO_DIR/android/app/google-services.json" ]]; then
     gradle_args+=("-PFIREBASE_INSTALLATION_ID_ENABLED=true")
   else
@@ -745,6 +757,7 @@ build_dotnet_ios() {
   local sdk_hash demo_hash
   sdk_hash=$(dotnet_sdk_inputs_hash ios)
   demo_hash=$(dotnet_demo_inputs_hash ios "$sdk_hash")
+  demo_hash=$(printf '%s\n%s\n' "$demo_hash" "$BUNDLE_ID" | shasum | awk '{print $1}')
 
   local stamp="$DEMO_DIR/bin/Debug/.dotnet-build-ios-${DOTNET_IOS_RID}.stamp"
   if dotnet_build_is_cached "$stamp" "$APP_PATH" "$demo_hash"; then
@@ -765,6 +778,8 @@ build_dotnet_ios() {
     -c Debug \
     -f "${DOTNET_TFM}-ios" \
     -p:RuntimeIdentifier="${DOTNET_IOS_RID}" \
+    -p:DEMO_BUNDLE_ID="$BUNDLE_ID" \
+    -p:DEMO_TEAM_ID=DL8TF3X4K3 \
     ${xcode_args[@]+"${xcode_args[@]}"} \
     --no-dependencies)
 
@@ -815,7 +830,7 @@ build_dotnet_android() {
   # _BuildApkEmbed only packs one Mono runtime instead of all four.
   # Match CI: E2E runs with Firebase Installation ID registration, which needs google-services.json.
   # The input hash covers the json, so adding or removing it busts the build cache.
-  local -a build_args=()
+  local -a build_args=("-p:DEMO_BUNDLE_ID=$BUNDLE_ID")
   if [[ -f "$DEMO_DIR/Platforms/Android/google-services.json" ]]; then
     build_args+=("-p:FIREBASE_INSTALLATION_ID_ENABLED=true")
   else
