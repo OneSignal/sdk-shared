@@ -119,6 +119,7 @@ build_rn_ios() {
     ENABLE_USER_SCRIPT_SANDBOXING=NO \
     COMPILER_INDEX_STORE_ENABLE=NO \
     SWIFT_INDEX_STORE_ENABLE=NO \
+    $IOS_DEMO_ID_ARGS \
     $IOS_SIGNING_ARGS)
 
   [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
@@ -130,7 +131,7 @@ build_rn_android() {
   setup_rn_sdk
 
   info "Building release APK (self-contained, no Metro required)..."
-  (cd "$DEMO_DIR/android" && ./gradlew assembleRelease)
+  (cd "$DEMO_DIR/android" && ./gradlew assembleRelease -PDEMO_BUNDLE_ID="$BUNDLE_ID")
 
   [[ -f "$APP_PATH" ]] || error ".apk not found after build at $APP_PATH"
   info "App built: $APP_PATH"
