@@ -512,6 +512,8 @@ expo_demo_deps_hash() {
 # whenever the inputs that produced them change.
 prepare_expo_demo() {
   local platform="$1"  # ios | android
+  # app.config.ts reads these at prebuild and again for the release JS bundle.
+  export DEMO_BUNDLE_ID="$BUNDLE_ID" DEMO_TEAM_ID=DL8TF3X4K3
   local deps_stamp="$DEMO_DIR/node_modules/.appium-deps.stamp"
 
   if [[ ! -f "$deps_stamp" ]] || [[ "$(cat "$deps_stamp")" != "$(expo_demo_deps_hash)" ]]; then
@@ -530,7 +532,7 @@ prepare_expo_demo() {
   prebuild_hash="$(hash_files "$DEMO_DIR/package.json" "$DEMO_DIR/bun.lock" \
                               "$DEMO_DIR/app.config.ts" "$DEMO_DIR/assets" \
                               "$DEMO_DIR/customNSE" "$DEMO_DIR/customWidget" \
-                              "$DEMO_DIR/google-services.json")-${EXPO_PLUGIN_SRC_HASH:-none}-fid=${FIREBASE_INSTALLATION_ID_ENABLED:-}"
+                              "$DEMO_DIR/google-services.json")-${EXPO_PLUGIN_SRC_HASH:-none}-fid=${FIREBASE_INSTALLATION_ID_ENABLED:-}-id=$BUNDLE_ID"
   if [[ -f "$prebuild_stamp" ]] && [[ "$(cat "$prebuild_stamp")" == "$prebuild_hash" ]]; then
     info "Expo $platform native project up to date, skipping prebuild"
     return
