@@ -1015,7 +1015,7 @@ unity_demo_inputs_hash() {
   [[ -f "$DEMO_DIR/.env" ]] && env_hash=$(shasum < "$DEMO_DIR/.env" | awk '{print $1}')
   [[ -f "$DEMO_DIR/google-services.json" ]] &&
     google_services_hash=$(shasum < "$DEMO_DIR/google-services.json" | awk '{print $1}')
-  printf '%s\n%s\n%s\n%s\n' "$sdk_hash" "$demo_hash" "$env_hash" "$google_services_hash" |
+  printf '%s\n%s\n%s\n%s\n%s\n' "$sdk_hash" "$demo_hash" "$env_hash" "$google_services_hash" "$BUNDLE_ID" |
     shasum | awk '{print $1}'
 }
 
@@ -1084,6 +1084,7 @@ build_unity_ios() {
   local unity_status=0
   "$UNITY_PATH" -batchmode -nographics -quit -buildTarget iOS \
         -projectPath "$DEMO_DIR" -executeMethod BuildScript.BuildiOSSimulator \
+        -demoBundleId "$BUNDLE_ID" -demoTeamId DL8TF3X4K3 \
         -logFile "$log" || unity_status=$?
   restore_unity_e2e_accessibility "$e2e_backup"
   if [[ $unity_status -ne 0 ]]; then
@@ -1173,6 +1174,7 @@ build_unity_android() {
   local unity_status=0
   "$UNITY_PATH" -batchmode -nographics -quit -buildTarget Android \
         -projectPath "$DEMO_DIR" -executeMethod BuildScript.BuildAndroidEmulator \
+        -demoBundleId "$BUNDLE_ID" \
         -logFile "$log" || unity_status=$?
   restore_unity_e2e_accessibility "$e2e_backup"
   if [[ $unity_status -ne 0 ]]; then
