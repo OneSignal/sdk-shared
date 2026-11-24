@@ -1211,7 +1211,7 @@ build_android_native() {
   # Demo reads ONESIGNAL_APP_ID / ONESIGNAL_ANDROID_CHANNEL_ID from
   # `BuildConfig.*` (see examples/demo/app/build.gradle.kts:demoOverride). Pass
   # them as Gradle -P props so the CLI value wins over examples/demo/local.properties.
-  local -a gradle_args=("-PSDK_VERSION=$sdk_version")
+  local -a gradle_args=("-PSDK_VERSION=$sdk_version" "-PDEMO_BUNDLE_ID=$BUNDLE_ID")
   if [[ -n "${ONESIGNAL_APP_ID:-}" ]]; then
     gradle_args+=("-PONESIGNAL_APP_ID=$ONESIGNAL_APP_ID")
   else
@@ -1222,10 +1222,11 @@ build_android_native() {
   fi
   # Match CI: E2E runs with Firebase Installation ID registration, which needs google-services.json.
   if [[ "$ANDROID_FLAVOR" == "gms" ]]; then
-    if [[ -f "$ANDROID_DIR/examples/demo/app/google-services.json" ]]; then
+    local google_services="$ANDROID_DIR/examples/demo/app/google-services.json"
+    if grep -q "\"package_name\": *\"$BUNDLE_ID\"" "$google_services" 2>/dev/null; then
       gradle_args+=("-PFIREBASE_INSTALLATION_ID_ENABLED=true")
     else
-      warn "examples/demo/app/google-services.json not found; building without Firebase Installation ID registration"
+      warn "examples/demo/app/google-services.json has no client for $BUNDLE_ID; building without Firebase Installation ID registration"
     fi
   fi
 
