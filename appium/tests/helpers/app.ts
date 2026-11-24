@@ -277,8 +277,9 @@ export async function waitForAppReady(opts: { skipLogin?: boolean } = {}) {
   await ensureMainWebViewContext();
 
   const mainScroll = await byTestId('main_scroll_view');
-  // .NET Android can return a session before the app is ready.
-  await mainScroll.waitForDisplayed({ timeout: 30_000 });
+  // .NET Android can return a session before the app is ready, and its first launch
+  // after install can keep the UI thread busy for over 30s.
+  await mainScroll.waitForDisplayed({ timeout: 90_000 });
 
   if (skipLogin) return;
 
@@ -862,8 +863,9 @@ export async function checkInAppMessage(opts: {
     const el = await scrollToEl(opts.buttonId);
     await el.click();
   }
+  // A cold Android WebView can take ~10s to render the IAM after the SDK queues it.
   await driver.waitUntil(() => findIamWebView(opts.expectedTitle), {
-    timeout: 20_000,
+    timeout: 60_000,
     timeoutMsg: `Could not find IAM with title "${opts.expectedTitle}"`,
   });
   const iamWindowHandle = await driver.getWindowHandle().catch(() => undefined);
