@@ -1406,7 +1406,7 @@ build_ios_native() {
   local build_stamp="$DEMO_DIR/build/.ios-native-build-${IOS_BUILD_DIR}.stamp"
   ensure_ios_kmp_xcframework
   local build_hash
-  build_hash="$(ios_native_inputs_hash)-$KMP_XCFRAMEWORK_HASH"
+  build_hash="$(ios_native_inputs_hash)-$KMP_XCFRAMEWORK_HASH-$BUNDLE_ID"
   if [[ -d "$APP_PATH" ]] && [[ -f "$build_stamp" ]] && [[ "$(cat "$build_stamp")" == "$build_hash" ]]; then
     info "Demo + SDK source unchanged, skipping iOS native rebuild"
     info "App: $APP_PATH"
@@ -1426,6 +1426,7 @@ build_ios_native() {
     ENABLE_USER_SCRIPT_SANDBOXING=NO \
     COMPILER_INDEX_STORE_ENABLE=NO \
     SWIFT_INDEX_STORE_ENABLE=NO \
+    $IOS_DEMO_ID_ARGS \
     $IOS_SIGNING_ARGS)
 
   [[ -d "$APP_PATH" ]] || error ".app not found after build at $APP_PATH"
