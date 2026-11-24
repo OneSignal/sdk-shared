@@ -36,8 +36,9 @@ async function tapPushAndExpectLaunchUrl(subscriptionId: string, title: string) 
     expectArrived: () => tapNotification(title),
   });
 
+  // A cold Chrome start on a slow emulator can take over 15s to show the address bar.
   await driver.waitUntil(async () => (await getBrowserAddress()).includes(LAUNCH_URL_HOST), {
-    timeout: 20_000,
+    timeout: 45_000,
     timeoutMsg: 'Launch URL never opened',
   });
 
