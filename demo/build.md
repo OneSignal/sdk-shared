@@ -154,9 +154,9 @@ Clean up listeners on teardown if the platform requires it.
 ### Section Order (top to bottom)
 
 0. **Log View** (sticky under the app bar, outside the scroll view; see Prompt 2.0)
-1. **App Section** (App ID, Guidance Banner, Consent Toggle)
-2. **User Section** (External ID, Language, Login/Logout, Login With Profile on Android, Update User JWT)
-3. **Push Section** (Push ID, Status, Opted In Toggle, Auto-prompts on load)
+1. **App Section** (Guidance Banner, App ID with copy button, Consent Toggle)
+2. **User Section** (External ID with copy button, Language, Login/Logout, Login With Profile on Android, Update User JWT)
+3. **Push Section** (Push ID with copy button, Status, Opted In Toggle, Auto-prompts on load)
 4. **Send Push Notification Section** (Simple, With Image, With Sound, Custom, Clear All)
 5. **In-App Messaging Section** (Pause toggle)
 6. **Send In-App Message Section** (Top, Center, Bottom, Full, Carousel, HTML, Full Bleed, Carousel Bleed)
@@ -545,6 +545,8 @@ Section keys: `app`, `user`, `push`, `send_push`, `iam`, `send_iam`, `aliases`, 
 | `user_language_dropdown`   | Language picker (User section)        |
 | `user_external_id_value`   | External ID text                      |
 
+**Copy buttons**: the copy-to-clipboard icon buttons on the App ID, External ID and Push ID rows have no test tag. Expose them as buttons with the accessibility label `Copy App ID`, `Copy External ID` and `Copy Push ID` (iOS `accessibilityLabel`, Android content description, web `aria-label`), shown only while the value is set.
+
 **Buttons**:
 
 | Identifier                                                                                                                  | Button                                                                     |
@@ -659,6 +661,7 @@ Single state container at app root. Holds all UI state with public getters. Expo
 
 - **SectionCard**: card with title, optional info icon, content slot, onInfoTap callback, optional `sectionKey` for accessibility identifiers (generates `{sectionKey}_section` on the container and `{sectionKey}_info_icon` on the info button)
 - **ToggleRow**: label, optional description, toggle control, optional `semanticsLabel` for accessibility identifier
+- **CardKvRow**: label + read-only value ("—" when unset), optional value identifier, and an optional copy-to-clipboard icon button (App ID, External ID, Push ID) per styles.md "Card Rows". Only the icon copies; it writes the full value to the clipboard and shows the Prompt 7.6 feedback
 - **ActionButton**: PrimaryButton (filled) and SecondaryButton (outlined, also used for removal and reset actions), full-width, per styles.md "Buttons". Both accept optional `semanticsLabel` for accessibility identifier.
 - **ButtonGrid**: lays out a section's ActionButtons per styles.md "Button Grid" (two columns, odd last button spans, hidden buttons reflow). Used by every section with two or more buttons.
 - **ListWidgets**: PairItem (key-value + optional delete), SingleItem (value + delete), EmptyState, LoadingState (inline spinner shown in the empty-state slot while a fetch is in flight, per styles.md), CollapsibleList (5 items then expandable; accepts an optional `loading` flag that swaps EmptyState for LoadingState when items is empty), PairList. All list widgets accept a required `sectionKey` for generating accessibility identifiers (e.g. `{sectionKey}_pair_key_{keyText}`, `{sectionKey}_remove_{keyText}`, `{sectionKey}_loading`). Empty list copy uses `"No <items> added"` with lowercase item names and lowercase `added` (exception: `"No SMS added"` keeps `SMS` uppercase).
@@ -704,7 +707,7 @@ Only the following actions show snackbar feedback from the UI:
 - Outcomes: "Outcome sent: {name}" / "Unique outcome sent: {name}" / "Outcome sent: {name} = {value}"
 - Custom Events: "Event tracked: {name}"
 - Location check: "Location shared: {bool}"
-- Copy button (App ID, External ID, Push ID): "Copied {label}", but only where the OS doesn't confirm clipboard writes itself. Android 13+ shows its own clipboard preview, which a snackbar would overlap, so skip it there (and in wrappers running on Android 13+); iOS shows nothing, so show it
+- Copy to clipboard (App ID, External ID, Push ID copy buttons): "Copied {label}", but only where the OS doesn't confirm clipboard writes itself. Android 13+ shows its own clipboard preview, which a snackbar would overlap, so skip it there (and in wrappers running on Android 13+); iOS shows nothing, so show it
 
 All other actions (login/logout, add/remove items, notifications, IAM, live activities, etc.) use the platform's standard logging primitive only -- no snackbar. The state management layer (ViewModel / Context / Store / etc.) MUST NOT hold snackbar state, expose snackbar messages (e.g. via `@Published`, `Flow`, `Channel`, observable events), or call the snackbar helper directly.
 
