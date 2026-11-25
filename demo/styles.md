@@ -86,6 +86,12 @@ All sizes in sp/px. Use the platform's default system font unless otherwise note
 
 - Style: bodyLarge (16)
 
+### Radio and Checkbox Rows (Dialogs)
+
+- Control aligns with the dialog content edge: drop the platform's extra tap-target padding (as for switches)
+- The whole row (control + label) is tappable instead
+- Row vertical padding: 6; 12 between the control and its label
+
 ## Buttons
 
 ### Primary Button
