@@ -159,7 +159,7 @@ Clean up listeners on teardown if the platform requires it.
 3. **Push Section** (Push ID, Status, Opted In Toggle, Auto-prompts on load)
 4. **Send Push Notification Section** (Simple, With Image, With Sound, Custom, Clear All)
 5. **In-App Messaging Section** (Pause toggle)
-6. **Send In-App Message Section** (Top, Bottom, Center, HTML, Full, Full Bleed, Carousel, Carousel Bleed)
+6. **Send In-App Message Section** (Top, Center, Bottom, Full, Carousel, HTML, Full Bleed, Carousel Bleed)
 7. **Aliases Section** (Add Alias/Add Aliases, read-only list)
 8. **Emails Section** (Collapsible list >5)
 9. **SMS Section** (Collapsible list >5)
@@ -173,12 +173,32 @@ Clean up listeners on teardown if the platform requires it.
 
 The scroll view draws behind the navigation bar / home indicator rather than stopping above it, and ends with the styles.md "Scroll bottom" inset so the Next Screen button scrolls clear of the bar.
 
+### Button Styles
+
+Buttons are Primary or Secondary (styles.md "Buttons"); there is no destructive style. Primary marks a section's main action and the common choices in a send grid. Everything else, including removal and reset actions, is Secondary.
+
+| Section                | Primary                    | Secondary                                              |
+| ---------------------- | -------------------------- | ------------------------------------------------------ |
+| User                   | LOGIN USER / SWITCH USER   | LOGOUT USER, LOGIN WITH PROFILE, UPDATE USER JWT       |
+| Push                   | PROMPT PUSH                |                                                        |
+| Send Push Notification | SIMPLE, WITH IMAGE         | WITH SOUND, CUSTOM, CLEAR ALL                          |
+| Send In-App Message    | TOP, CENTER, BOTTOM, FULL  | CAROUSEL, HTML, FULL BLEED, CAROUSEL BLEED             |
+| Aliases                | ADD ALIAS                  | ADD ALIASES                                            |
+| Emails / SMS           | ADD EMAIL / ADD SMS        |                                                        |
+| Tags                   | ADD TAG                    | ADD TAGS, REMOVE TAGS                                  |
+| Outcomes               | SEND OUTCOME               |                                                        |
+| Triggers               | ADD TRIGGER                | ADD TRIGGERS, REMOVE TRIGGERS, CLEAR ALL               |
+| Custom Events          | TRACK EVENT                |                                                        |
+| Location               | PROMPT LOCATION            | CHECK LOCATION                                         |
+| Live Activities        | START ACTIVITY, UPDATE     | END ACTIVITY                                           |
+| Next Screen            |                            | NEXT SCREEN                                            |
+
 ### Prompt 2.0 - Log View
 
 A logcat-style panel pinned directly below the app bar. It stays visible while the main scroll view scrolls underneath it.
 
-1. Header row: `LOGS ({count})` on the left; trash icon (clear) and chevron (collapse/expand) on the right.
-2. Body: fixed-height list of entries, oldest first, each `{HH:mm:ss} {message}` with the time de-emphasized. Auto-scroll to the newest entry when one is added or the panel is expanded. Long entries wrap.
+1. Header row: `LOGS` with the entry count in a badge on the left; trash icon (clear) and chevron (collapse/expand) on the right.
+2. Body: fixed-height list of entries, oldest first, each `{HH:mm:ss} {message}` with the time de-emphasized and in fixed-width digits so messages line up. Auto-scroll to the newest entry when one is added or the panel is expanded. Long entries wrap.
 3. Empty state: `No logs yet`.
 4. Collapse hides the body only; the header row stays. Starts expanded on every launch. Entries stay in the view hierarchy while collapsed.
 5. Clear removes all entries.
@@ -189,12 +209,11 @@ Styling in styles.md (Log View).
 
 ### Prompt 2.1a - App Section
 
-1. App ID display (readonly text).
-2. Guidance banner, shown only when the demo uses the shared default App ID (`1154c350-e715-4b71-a58b-1b84b6745baa`). A build configured with its own App ID, including Appium runs, hides it:
-   - "Add your own App ID, then rebuild to fully test all functionality."
-   - Link: "Get your keys at onesignal.com" (opens browser)
-   - Warning banner styling per styles.md
-3. Consent card with up to two toggles:
+1. Guidance banner, between the section header and the App card, shown only when the demo uses the shared default App ID (`1154c350-e715-4b71-a58b-1b84b6745baa`). A build configured with its own App ID, including Appium runs, hides it:
+   - "Set your App ID and rebuild to test all features." (short enough to fit on one line on a typical phone)
+   - Link: "Create an app at onesignal.com" (opens browser)
+   - Styling per styles.md "Guidance Banner"
+2. App card: the App ID row (readonly, with a copy button per styles.md "Card Rows"), then up to two consent toggles, each separated by a divider:
    - "Consent Required" (always visible) -> OneSignal.consentRequired(value)
      Description: "Require consent before SDK processes data"
    - "Privacy Consent" (only visible when Consent Required is ON) -> OneSignal.consentGiven(value)
@@ -208,19 +227,19 @@ Separate SectionCard titled "User":
 1. User card (always visible, ABOVE buttons):
    - Two rows separated by a divider: "External ID" and "Language"
    - Logged out: External ID = "—"
-   - Logged in: External ID = actual value
+   - Logged in: External ID = actual value, with a copy button (styles.md "Card Rows")
    - Language: picker showing the selected language name. Options are "Device Default" (code `""`) followed by the language list below, in this order. Selecting an option calls `OneSignal.User.setLanguage(code)`. `""` tells the native SDK to use the device language.
    - Use the platform's dropdown/picker where it is Appium-friendly; otherwise a single-select list dialog. Cap the open list's height at 320 so it doesn't cover the screen. Right-align the selected value so it sits next to the dropdown arrow, like the other value rows.
 Buttons 2-5 use one Button Grid (styles.md), in this order. Hidden buttons drop out and the rest reflow; an odd last button spans both columns.
 
-2. LOGIN USER button ("SWITCH USER" when logged in) -> "Login User" dialog with stacked fields: "External User Id" (required, empty) and "JWT Token (optional)" (multi-line, see JWT inputs below). Login stays disabled until External User Id is filled. Calls `OneSignal.login(externalId, jwt)`, passing a blank token as null. Login resets the Language picker to Device Default locally (clear the cached value only). Do NOT call `setLanguage` on login: `""` resolves to the device language and would overwrite the new user's language on the backend.
-3. LOGOUT USER button (only when logged in, outlined style). Logout also resets the Language picker to Device Default locally, without calling `setLanguage`. The SDK starts the new anonymous user with no language override, and `logout()` isn't awaited, so a `setLanguage('')` could land on the logged-out user.
-4. LOGIN WITH PROFILE button (outlined style, Android only) -> "Login With Profile" dialog. Native iOS doesn't show it (the iOS SDK has no composite login yet). Wrappers show it only when running on Android.
+2. LOGIN USER button ("SWITCH USER" when logged in, primary style) -> "Login User" dialog with stacked fields: "External User Id" (required, empty) and "JWT Token (optional)" (multi-line, see JWT inputs below). Login stays disabled until External User Id is filled. Calls `OneSignal.login(externalId, jwt)`, passing a blank token as null. Login resets the Language picker to Device Default locally (clear the cached value only). Do NOT call `setLanguage` on login: `""` resolves to the device language and would overwrite the new user's language on the backend.
+3. LOGOUT USER button (only when logged in, secondary style). Logout also resets the Language picker to Device Default locally, without calling `setLanguage`. The SDK starts the new anonymous user with no language override, and `logout()` isn't awaited, so a `setLanguage('')` could land on the logged-out user.
+4. LOGIN WITH PROFILE button (secondary style, Android only) -> "Login With Profile" dialog. Native iOS doesn't show it (the iOS SDK has no composite login yet). Wrappers show it only when running on Android.
    - Fields, in order, each its own full-width form field: "External User Id" (required), "JWT Token (optional)" (multi-line), "Email (optional)", "Email status", "SMS (optional)" (placeholder `+14155552671`; the SDK requires E.164), "SMS status", then a "Tag (optional)" row and an "Alias (optional)" row. Each row is a small caption (styles.md "Field Group Caption") above two fields side by side: "Key" | "Value" for the tag, "Label" | "ID" for the alias. The caption carries "(optional)" because it would be cut off in half-width field labels
    - Each status field is a select (platform picker / dropdown / `<select>`), always shown, with options "Default" (selected initially, sends no status: an address that already exists keeps its status, a new one gets the backend default), "Subscribed" (true), "Unsubscribed" (false). Only send a status when its address is filled; the SDK ignores it otherwise
    - A tag or alias row must be fully filled or left empty (the SDK rejects empty keys and values). While one field of a row is filled and the other isn't, mark the empty field as an error with "Fill both or leave both empty" and disable Login. One tag and one alias cover the profile's tags/aliases maps; an alias that already belongs to another user fails the whole login
    - Login stays disabled until External User Id is filled. Calls `OneSignal.login(externalId, profile, jwt)` with the email, SMS, their statuses, the tag and the alias in the profile. The External ID row shows the result; failures go to the log (a backend failure still leaves the new external ID set locally)
-5. UPDATE USER JWT button (outlined style, only when logged in; there is no identified user to refresh a token for until login) -> "Update User JWT" dialog with stacked fields: "External User Id" (prefilled with the current external ID) and "JWT Token" (multi-line). Actions: Cancel and Update; Update stays disabled until both are filled. Calls `OneSignal.updateUserJwt(externalId, token)`, caches the token, and refetches the user (see fetchUser).
+5. UPDATE USER JWT button (secondary style, only when logged in; there is no identified user to refresh a token for until login) -> "Update User JWT" dialog with stacked fields: "External User Id" (prefilled with the current external ID) and "JWT Token" (multi-line). Actions: Cancel and Update; Update stays disabled until both are filled. Calls `OneSignal.updateUserJwt(externalId, token)`, caches the token, and refetches the user (see fetchUser).
 
 JWT inputs: every JWT field above is full width and multi-line, 3 lines tall and growing to 5 before it scrolls. Tokens run to hundreds of characters, and a single-line field hides most of the pasted value.
 
@@ -231,7 +250,7 @@ Language list, after Device Default, in this order: English (`en`), Arabic (`ar`
 ### Prompt 2.2 - Push Section
 
 - Title: "Push" with info icon
-- Push Subscription ID (readonly).
+- Push Subscription ID (readonly, with a copy button per styles.md "Card Rows").
 - Status (readonly), directly above the toggle: "Subscribed" when opted in AND notification permission is granted AND the push token is non-empty; otherwise "Unsubscribed". Recompute on push subscription and permission changes.
 - "Opted In" toggle (optIn/optOut), disabled when permission NOT granted
 - Auto-request permission when home screen loads
@@ -240,7 +259,7 @@ Language list, after Device Default, in this order: English (`en`), Arabic (`ar`
 ### Prompt 2.3 - Send Push Notification Section
 
 - Title: "Send Push Notification" with info icon
-- Five buttons in a Button Grid (styles.md); CLEAR ALL spans the last row:
+- Five buttons in a Button Grid (styles.md); CLEAR ALL spans the last row. SIMPLE and WITH IMAGE are primary; the rest are secondary:
   1. SIMPLE - title: "Simple Notification", body: "This is a simple push notification"
   2. WITH IMAGE - title: "Image Notification", body: "This notification includes an image"
      big_picture/ios_attachments: `https://media.onesignal.com/automated_push_templates/ratings_template.png`
@@ -248,7 +267,7 @@ Language list, after Device Default, in this order: English (`en`), Arabic (`ar`
      ios_sound: "vine_boom.wav", android_channel_id: optional `ONESIGNAL_ANDROID_CHANNEL_ID` env var, falling back to "b3b015d9-c050-4042-8548-dcc34aa44aa4" when empty or missing
      Sound file: copy `vine_boom.wav` from https://github.com/OneSignal/sdk-shared/tree/main/assets and add to each platform's native sound/resource directory (e.g. iOS app bundle, Android `res/raw/`)
   4. CUSTOM - dialog for custom title and body
-  5. CLEAR ALL - outlined style, calls OneSignal.Notifications.clearAll()
+  5. CLEAR ALL - calls OneSignal.Notifications.clearAll()
 
 ### Prompt 2.4 - In-App Messaging Section
 
@@ -260,14 +279,14 @@ Language list, after Device Default, in this order: English (`en`), Arabic (`ar`
 - Title: "Send In-App Message" with info icon
 - Eight buttons in a Button Grid (styles.md, 4 rows), in this order (left, right):
   1. TOP - trigger: "iam_type" = "top_banner"
-  2. BOTTOM - trigger: "iam_type" = "bottom_banner"
-  3. CENTER - trigger: "iam_type" = "center_modal"
-  4. HTML - trigger: "iam_type" = "html"
-  5. FULL - trigger: "iam_type" = "full_screen"
-  6. FULL BLEED - trigger: "iam_type" = "full_bleed"
-  7. CAROUSEL - trigger: "iam_type" = "carousel"
+  2. CENTER - trigger: "iam_type" = "center_modal"
+  3. BOTTOM - trigger: "iam_type" = "bottom_banner"
+  4. FULL - trigger: "iam_type" = "full_screen"
+  5. CAROUSEL - trigger: "iam_type" = "carousel"
+  6. HTML - trigger: "iam_type" = "html"
+  7. FULL BLEED - trigger: "iam_type" = "full_bleed"
   8. CAROUSEL BLEED - trigger: "iam_type" = "carousel_bleed"
-- Styling: primary (red) background, white text, centered, no icons, UPPERCASE (same as other primary buttons)
+- Styling: TOP, CENTER, BOTTOM and FULL are primary; the other four are secondary. Centered, no icons, UPPERCASE
 - On tap: upserts `iam_type` in Triggers list. No snackbar (silent action — see Prompt 7.6)
 
 ### Prompt 2.6 - Aliases Section
@@ -354,7 +373,7 @@ Only shown on iOS. Requires an iOS Widget Extension target with a Live Activity 
 - Three buttons in a Button Grid (styles.md); END ACTIVITY spans the second row:
   1. START ACTIVITY — calls `OneSignal.LiveActivities.startDefault(activityId, attributes, content)` with initial order status. Disabled when Activity ID is empty.
   2. UPDATE → {NEXT STATUS} — cycles through order statuses via REST API (`event: "update"`). Label dynamically shows the next status (e.g. "UPDATE → ON THE WAY"). Disabled when Activity ID is empty, while updating, or when no API key is configured.
-  3. END ACTIVITY — ends the activity via REST API (`event: "end"`) with `dismissal_date`. Destructive style. Disabled when Activity ID is empty or when no API key is configured.
+  3. END ACTIVITY — ends the activity via REST API (`event: "end"`) with `dismissal_date`. Secondary style. Disabled when Activity ID is empty or when no API key is configured.
 
 Order status cycle (content state fields: `status`, `message`, `estimatedTime`):
 
@@ -376,7 +395,7 @@ For `.env` setup and `hasApiKey()` semantics see the Configuration section at th
 
 ### Prompt 2.15 - Secondary Screen
 
-Launched by the "NEXT SCREEN" button at the bottom of the main screen. It uses the outlined style because it navigates rather than calling the SDK. Keep it a pushed screen (a separate Activity on Android), not a tab:
+Launched by the "NEXT SCREEN" button at the bottom of the main screen. It uses the secondary style because it navigates rather than calling the SDK. Keep it a pushed screen (a separate Activity on Android), not a tab:
 
 - Title: "Secondary Screen"
 - Centered large headline text "Secondary Screen"
@@ -640,7 +659,7 @@ Single state container at app root. Holds all UI state with public getters. Expo
 
 - **SectionCard**: card with title, optional info icon, content slot, onInfoTap callback, optional `sectionKey` for accessibility identifiers (generates `{sectionKey}_section` on the container and `{sectionKey}_info_icon` on the info button)
 - **ToggleRow**: label, optional description, toggle control, optional `semanticsLabel` for accessibility identifier
-- **ActionButton**: PrimaryButton (filled) and DestructiveButton (outlined, for secondary/destructive actions), full-width, per styles.md. Both accept optional `semanticsLabel` for accessibility identifier.
+- **ActionButton**: PrimaryButton (filled) and SecondaryButton (outlined, also used for removal and reset actions), full-width, per styles.md "Buttons". Both accept optional `semanticsLabel` for accessibility identifier.
 - **ButtonGrid**: lays out a section's ActionButtons per styles.md "Button Grid" (two columns, odd last button spans, hidden buttons reflow). Used by every section with two or more buttons.
 - **ListWidgets**: PairItem (key-value + optional delete), SingleItem (value + delete), EmptyState, LoadingState (inline spinner shown in the empty-state slot while a fetch is in flight, per styles.md), CollapsibleList (5 items then expandable; accepts an optional `loading` flag that swaps EmptyState for LoadingState when items is empty), PairList. All list widgets accept a required `sectionKey` for generating accessibility identifiers (e.g. `{sectionKey}_pair_key_{keyText}`, `{sectionKey}_remove_{keyText}`, `{sectionKey}_loading`). Empty list copy uses `"No <items> added"` with lowercase item names and lowercase `added` (exception: `"No SMS added"` keeps `SMS` uppercase).
 - **Dialogs**: all full-width with consistent padding, top-anchored and keyboard-fixed, with a backdrop that covers the status and navigation bars and dismisses on tap, per styles.md "Dialogs". Dialogs accept optional semantics label parameters for key inputs and confirm buttons (e.g. `keySemanticsLabel`, `valueSemanticsLabel`, `confirmSemanticsLabel`).
@@ -685,6 +704,7 @@ Only the following actions show snackbar feedback from the UI:
 - Outcomes: "Outcome sent: {name}" / "Unique outcome sent: {name}" / "Outcome sent: {name} = {value}"
 - Custom Events: "Event tracked: {name}"
 - Location check: "Location shared: {bool}"
+- Copy button (App ID, External ID, Push ID): "Copied {label}", but only where the OS doesn't confirm clipboard writes itself. Android 13+ shows its own clipboard preview, which a snackbar would overlap, so skip it there (and in wrappers running on Android 13+); iOS shows nothing, so show it
 
 All other actions (login/logout, add/remove items, notifications, IAM, live activities, etc.) use the platform's standard logging primitive only -- no snackbar. The state management layer (ViewModel / Context / Store / etc.) MUST NOT hold snackbar state, expose snackbar messages (e.g. via `@Published`, `Flow`, `Channel`, observable events), or call the snackbar helper directly.
 
