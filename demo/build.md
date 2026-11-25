@@ -171,6 +171,8 @@ Clean up listeners on teardown if the platform requires it.
 15. **Live Activities Section** (iOS only - Start, Update, End)
 16. **Next Screen Button**
 
+The scroll view draws behind the navigation bar / home indicator rather than stopping above it, and ends with the styles.md "Scroll bottom" inset so the Next Screen button scrolls clear of the bar.
+
 ### Prompt 2.0 - Log View
 
 A logcat-style panel pinned directly below the app bar. It stays visible while the main scroll view scrolls underneath it.
