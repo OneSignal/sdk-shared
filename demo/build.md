@@ -209,10 +209,19 @@ Separate SectionCard titled "User":
    - Logged in: External ID = actual value
    - Language: picker showing the selected language name. Options are "Device Default" (code `""`) followed by the language list below, in this order. Selecting an option calls `OneSignal.User.setLanguage(code)`. `""` tells the native SDK to use the device language.
    - Use the platform's dropdown/picker where it is Appium-friendly; otherwise a single-select list dialog. Cap the open list's height at 320 so it doesn't cover the screen. Right-align the selected value so it sits next to the dropdown arrow, like the other value rows.
-Buttons 2-3 use the Button Grid (styles.md): LOGIN USER spans full width when logged out, LOGIN / LOGOUT share a row when logged in.
+Buttons 2-5 use one Button Grid (styles.md), in this order. Hidden buttons drop out and the rest reflow; an odd last button spans both columns.
 
-2. LOGIN USER button ("SWITCH USER" when logged in) -> dialog with empty "External User Id" field. Login resets the Language picker to Device Default locally (clear the cached value only). Do NOT call `setLanguage` on login: `""` resolves to the device language and would overwrite the new user's language on the backend.
+2. LOGIN USER button ("SWITCH USER" when logged in) -> "Login User" dialog with stacked fields: "External User Id" (required, empty) and "JWT Token (optional)" (multi-line, see JWT inputs below). Login stays disabled until External User Id is filled. Calls `OneSignal.login(externalId, jwt)`, passing a blank token as null. Login resets the Language picker to Device Default locally (clear the cached value only). Do NOT call `setLanguage` on login: `""` resolves to the device language and would overwrite the new user's language on the backend.
 3. LOGOUT USER button (only when logged in, outlined style). Logout also resets the Language picker to Device Default locally, without calling `setLanguage`. The SDK starts the new anonymous user with no language override, and `logout()` isn't awaited, so a `setLanguage('')` could land on the logged-out user.
+4. LOGIN WITH PROFILE button (outlined style, Android only) -> "Login With Profile" dialog. Native iOS doesn't show it (the iOS SDK has no composite login yet). Wrappers show it only when running on Android.
+   - Fields, in order: "External User Id" (required), "JWT Token (optional)" (multi-line), "Email (optional)", "SMS (optional)"
+   - Under Email and under SMS, once that field has a value, a status select: "Keep existing" (default, sends no status, so an address that already exists keeps its status), "Subscribed" (true), "Unsubscribed" (false). Hidden without its address, since the SDK ignores it
+   - Login stays disabled until External User Id is filled. Calls `OneSignal.login(externalId, profile, jwt)` with the email, SMS and their statuses in the profile
+5. UPDATE USER JWT button (outlined style) -> "Update User JWT" dialog with stacked fields: "External User Id" (prefilled with the current external ID) and "JWT Token" (multi-line). Actions: Cancel and Update; Update stays disabled until both are filled. Calls `OneSignal.updateUserJwt(externalId, token)`, caches the token, and refetches the user (see fetchUser).
+
+JWT inputs: every JWT field above is full width and multi-line, 3 lines tall and growing to 5 before it scrolls. Tokens run to hundreds of characters, and a single-line field hides most of the pasted value.
+
+Resulting grid: logged out, LOGIN USER | LOGIN WITH PROFILE, then UPDATE USER JWT spanning (on iOS: LOGIN USER | UPDATE USER JWT). Logged in, SWITCH USER | LOGOUT USER, then LOGIN WITH PROFILE | UPDATE USER JWT (on iOS: UPDATE USER JWT spans).
 
 Language list, after Device Default, in this order: English (`en`), Arabic (`ar`), Azerbaijani (`az`), Bosnian (`bs`), Catalan (`ca`), Chinese (Simplified) (`zh-Hans`), Chinese (Traditional) (`zh-Hant`), Croatian (`hr`), Czech (`cs`), Danish (`da`), Dutch (`nl`), Estonian (`et`), Finnish (`fi`), French (`fr`), Georgian (`ka`), Bulgarian (`bg`), German (`de`), Greek (`el`), Hindi (`hi`), Hebrew (`he`), Hungarian (`hu`), Indonesian (`id`), Italian (`it`), Japanese (`ja`), Korean (`ko`), Latvian (`lv`), Lithuanian (`lt`), Malay (`ms`), Norwegian (`nb`), Persian (`fa`), Polish (`pl`), Portuguese (`pt`), Punjabi (`pa`), Romanian (`ro`), Russian (`ru`), Serbian (`sr`), Slovak (`sk`), Spanish (`es`), Swedish (`sv`), Thai (`th`), Turkish (`tr`), Ukrainian (`uk`), Vietnamese (`vi`).
 
@@ -520,6 +529,8 @@ Section keys: `app`, `user`, `push`, `send_push`, `iam`, `send_iam`, `aliases`, 
 | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | `login_user_button`                                                                                                         | Login / Switch User                                                        |
 | `logout_user_button`                                                                                                        | Logout User                                                                |
+| `composite_login_button`                                                                                                    | Login With Profile (Android only)                                          |
+| `update_user_jwt_button`                                                                                                    | Update User JWT                                                            |
 | `prompt_push_button`                                                                                                        | Prompt Push (only when permission not granted)                             |
 | `send_simple_button`                                                                                                        | Send Simple notification                                                   |
 | `send_image_button`                                                                                                         | Send Image notification                                                    |
@@ -564,6 +575,16 @@ Confirm buttons on the shared SingleInput, SinglePair, MultiPair and MultiSelect
 | `remove_checkbox_{key}`            | Checkbox in MultiSelectRemove dialog (one per item)         |
 | `login_user_id_input`              | Login External User Id field                                |
 | `login_user_jwt_input`             | Login JWT field                                             |
+| `composite_login_user_id_input`    | Login With Profile External User Id field                   |
+| `composite_login_jwt_input`        | Login With Profile JWT field                                |
+| `composite_login_email_input`      | Login With Profile Email field                              |
+| `composite_login_email_enabled_input` | Login With Profile Email status select                   |
+| `composite_login_sms_input`        | Login With Profile SMS field                                |
+| `composite_login_sms_enabled_input` | Login With Profile SMS status select                       |
+| `composite_login_confirm_button`   | Login With Profile confirm                                  |
+| `update_jwt_external_id_input`     | Update User JWT External User Id field                      |
+| `update_jwt_token_input`           | Update User JWT token field                                 |
+| `update_jwt_confirm_button`        | Update User JWT confirm                                     |
 | `alias_label_input`                | Add Alias label field                                       |
 | `alias_id_input`                   | Add Alias ID field                                          |
 | `email_input`                      | Add Email field                                             |
