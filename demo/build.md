@@ -62,13 +62,13 @@ The state container (see Prompt 1.1) calls the OneSignal SDK directly and expose
 - **Privacy consent**: setConsentRequired(bool), setConsentGiven(bool)
 - **User IDs**: getExternalId() -> nullable, getOnesignalId() -> nullable
 - **Live Activities** (iOS only): startDefaultLiveActivity(activityId, attributes, content)
-- **REST API** (delegated to OneSignalApiService): sendNotification(type) -> async bool, sendCustomNotification(title, body) -> async bool, fetchUser(onesignalId) -> async nullable UserData, updateLiveActivity(activityId, event, eventUpdates?) -> async bool
+- **REST API** (delegated to OneSignalApiService): sendNotification(type) -> async bool, sendCustomNotification(title, body) -> async bool, fetchUser(onesignalId, externalId?, jwt?) -> async nullable UserData, updateLiveActivity(activityId, event, eventUpdates?) -> async bool
 
 ### Prompt 1.4 - OneSignalApiService (REST API Client)
 
 Properties: \_appId (set during initialization)
 
-Methods: setAppId(), getAppId(), hasApiKey(), sendNotification(type, subscriptionId), sendCustomNotification(title, body, subscriptionId), fetchUser(onesignalId), updateLiveActivity(activityId, event, eventUpdates?)
+Methods: setAppId(), getAppId(), hasApiKey(), sendNotification(type, subscriptionId), sendCustomNotification(title, body, subscriptionId), fetchUser(onesignalId, externalId?, jwt?), updateLiveActivity(activityId, event, eventUpdates?)
 
 sendNotification:
 
@@ -80,8 +80,11 @@ sendNotification:
 
 fetchUser:
 
-- GET `https://api.onesignal.com/apps/{app_id}/users/by/onesignal_id/{onesignal_id}`
-- NO Authorization header (public endpoint)
+- Logged in with a cached JWT: GET `https://api.onesignal.com/apps/{app_id}/users/by/external_id/{external_id}` with `Authorization: Bearer {jwt}`
+- Otherwise: GET `https://api.onesignal.com/apps/{app_id}/users/by/onesignal_id/{onesignal_id}` with NO Authorization header
+- Apps with Identity Verification (set per app in the dashboard) reject unauthenticated lookups. A logged-in user on those apps always has a JWT, and logged out there is no anonymous user to fetch, so the `onesignal_id` branch only runs on apps without it. No toggle: the cached JWT picks the branch
+- Never use the REST API key here. It only works by `external_id`, and it must not ship in a client app
+- Cache the JWT passed to login, Login With Profile, and Update User JWT. Clear it on logout. Refetch after Update User JWT succeeds
 - Returns UserData with aliases, tags, emails, smsNumbers, externalId
 
 updateLiveActivity (iOS only):
@@ -374,7 +377,7 @@ Launched by "NEXT SCREEN" button at bottom of main screen:
 
 Single boolean `isLoading` on the state container drives a per-section inline spinner (see styles.md "Loading State"). The spinner is rendered by the four list sections that depend on the API fetch (Aliases, Tags, Emails, SMS) in the same slot as their empty state, so non-loading sections (push, IAM, location, live activities, etc.) stay fully interactive. Do NOT use a full-screen blocking overlay.
 
-`fetchUserDataFromApi` is the single source of truth for refreshing user data and owns the `isLoading` toggle. On entry it bumps a monotonically-increasing `requestSequence` counter, sets `isLoading=true`, and notifies. In a try/finally it reads `getOnesignalId()` (returns early if null), calls `fetchUser`, and then writes the lists/externalId — but only if `requestSequence` still matches its captured value, so a stale fetch can't overwrite a newer one. The finally clears `isLoading` only when `requestSequence` still matches, so an in-flight call doesn't prematurely clear the spinner for a newer one.
+`fetchUserDataFromApi` is the single source of truth for refreshing user data and owns the `isLoading` toggle. On entry it bumps a monotonically-increasing `requestSequence` counter, sets `isLoading=true`, and notifies. In a try/finally it picks the lookup per fetchUser above (returns early when neither a cached JWT with an external ID nor an `onesignalId` is available), calls `fetchUser`, and then writes the lists/externalId — but only if `requestSequence` still matches its captured value, so a stale fetch can't overwrite a newer one. The finally clears `isLoading` only when `requestSequence` still matches, so an in-flight call doesn't prematurely clear the spinner for a newer one.
 
 Merge, don't replace. When the fetch returns, write each remote list into local state via merge helpers rather than wholesale assignment:
 
@@ -392,7 +395,7 @@ State transitions:
 
 Caveat: if `OneSignal.login(sameExternalId)` does not emit a change event (e.g., logging in with the already-active external id), `isLoading` will stay true. Acceptable for the demo; per-action handlers still work via optimistic updates.
 
-REST API key is NOT required for fetchUser.
+REST API key is NOT used for fetchUser.
 
 ### Prompt 3.2 - UserData Model
 
@@ -703,4 +706,4 @@ Android package name / iOS bundle identifier MUST be `com.onesignal.sdkdemo` so 
 
 ### REST API authentication
 
-The `fetchUser` endpoint does NOT require an API key. All other authenticated endpoints (currently just Live Activity update/end) use `Authorization: Key {ONESIGNAL_API_KEY}`.
+The `fetchUser` endpoint never uses the API key (no auth, or a Bearer JWT on Identity Verification apps). All other authenticated endpoints (currently just Live Activity update/end) use `Authorization: Key {ONESIGNAL_API_KEY}`.
