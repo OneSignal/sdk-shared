@@ -242,7 +242,7 @@ Sticky panel below the header bar (see build.md Prompt 2.0). Dark, logcat-style,
 | Property         | Value                                                        |
 | ---------------- | ------------------------------------------------------------ |
 | Background       | osLogBackground (`#1E1E1E`)                                  |
-| Entry text       | osLogText (`#D4D4D4`), monospace, 8                          |
+| Entry text       | osLogText (`#D4D4D4`), platform default (proportional) font, 9, timestamp included; monospace made long IDs and titles wrap |
 | Timestamp, empty state | osGrey600                                              |
 | Header text      | `LOGS ({count})`, osGrey500, monospace, 11, bold, 0.5 letter spacing |
 | Header icons     | osGrey500; trash (filled) 14, then chevron 18, 12 apart       |
