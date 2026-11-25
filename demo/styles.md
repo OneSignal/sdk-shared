@@ -244,14 +244,14 @@ Sticky panel below the header bar (see build.md Prompt 2.0). Dark, logcat-style,
 | Background       | osLogBackground (`#1E1E1E`)                                  |
 | Entry text       | osLogText (`#D4D4D4`), platform default (proportional) font, 9, timestamp included; monospace made long IDs and titles wrap |
 | Timestamp, empty state | osGrey600                                              |
-| Header text      | `LOGS ({count})`, osGrey500, monospace, 11, bold, 0.5 letter spacing |
+| Header text      | `LOGS ({count})`, osGrey500, platform default font (same as entries), 11, bold, 0.5 letter spacing |
 | Header icons     | osGrey500; trash (filled) 14, then chevron 18, 12 apart       |
 | Header height    | 24 (fixed; content vertically centered)                      |
 | Header padding   | 0 vertical, 16 horizontal                                    |
 | Body height      | 100 (fixed; scrolls internally)                              |
 | Total height     | 24 collapsed, 124 expanded                                   |
 | Body padding     | 0 top, 16 horizontal, 6 bottom                               |
-| Entry line height | 1.4                                                         |
+| Entry line height | 1.5, applied to single-line entries too (e.g. Compose `LineHeightStyle.Trim.None`; the default trim drops it). Seven entries fill the 100 body exactly |
 | Stacking         | Above page content, below the header bar                     |
 
 ## Loading State
