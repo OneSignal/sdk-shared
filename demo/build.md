@@ -374,7 +374,7 @@ For `.env` setup and `hasApiKey()` semantics see the Configuration section at th
 
 ### Prompt 2.15 - Secondary Screen
 
-Launched by "NEXT SCREEN" button at bottom of main screen:
+Launched by the "NEXT SCREEN" button at the bottom of the main screen. It uses the outlined style because it navigates rather than calling the SDK. Keep it a pushed screen (a separate Activity on Android), not a tab:
 
 - Title: "Secondary Screen"
 - Centered large headline text "Secondary Screen"
