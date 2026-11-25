@@ -214,9 +214,10 @@ Buttons 2-5 use one Button Grid (styles.md), in this order. Hidden buttons drop 
 2. LOGIN USER button ("SWITCH USER" when logged in) -> "Login User" dialog with stacked fields: "External User Id" (required, empty) and "JWT Token (optional)" (multi-line, see JWT inputs below). Login stays disabled until External User Id is filled. Calls `OneSignal.login(externalId, jwt)`, passing a blank token as null. Login resets the Language picker to Device Default locally (clear the cached value only). Do NOT call `setLanguage` on login: `""` resolves to the device language and would overwrite the new user's language on the backend.
 3. LOGOUT USER button (only when logged in, outlined style). Logout also resets the Language picker to Device Default locally, without calling `setLanguage`. The SDK starts the new anonymous user with no language override, and `logout()` isn't awaited, so a `setLanguage('')` could land on the logged-out user.
 4. LOGIN WITH PROFILE button (outlined style, Android only) -> "Login With Profile" dialog. Native iOS doesn't show it (the iOS SDK has no composite login yet). Wrappers show it only when running on Android.
-   - Fields, in order, each its own full-width form field: "External User Id" (required), "JWT Token (optional)" (multi-line), "Email (optional)", "Email status", "SMS (optional)", "SMS status"
+   - Fields, in order, each its own full-width form field: "External User Id" (required), "JWT Token (optional)" (multi-line), "Email (optional)", "Email status", "SMS (optional)", "SMS status", then a "Tag key" | "Tag value" row and an "Alias label" | "Alias ID" row (two fields side by side, both optional)
    - Each status field is a select (platform picker / dropdown / `<select>`), always shown, with options "Default" (selected initially, sends no status: an address that already exists keeps its status, a new one gets the backend default), "Subscribed" (true), "Unsubscribed" (false). Only send a status when its address is filled; the SDK ignores it otherwise
-   - Login stays disabled until External User Id is filled. Calls `OneSignal.login(externalId, profile, jwt)` with the email, SMS and their statuses in the profile
+   - A tag or alias row is sent only when both of its fields are filled (the SDK rejects empty keys and values). One tag and one alias cover the profile's tags/aliases maps; an alias that already belongs to another user fails the whole login
+   - Login stays disabled until External User Id is filled. Calls `OneSignal.login(externalId, profile, jwt)` with the email, SMS, their statuses, the tag and the alias in the profile. The External ID row shows the result; failures go to the log (a backend failure still leaves the new external ID set locally)
 5. UPDATE USER JWT button (outlined style) -> "Update User JWT" dialog with stacked fields: "External User Id" (prefilled with the current external ID) and "JWT Token" (multi-line). Actions: Cancel and Update; Update stays disabled until both are filled. Calls `OneSignal.updateUserJwt(externalId, token)`, caches the token, and refetches the user (see fetchUser).
 
 JWT inputs: every JWT field above is full width and multi-line, 3 lines tall and growing to 5 before it scrolls. Tokens run to hundreds of characters, and a single-line field hides most of the pasted value.
@@ -581,6 +582,10 @@ Confirm buttons on the shared SingleInput, SinglePair, MultiPair and MultiSelect
 | `composite_login_email_enabled_input` | Login With Profile Email status select                   |
 | `composite_login_sms_input`        | Login With Profile SMS field                                |
 | `composite_login_sms_enabled_input` | Login With Profile SMS status select                       |
+| `composite_login_tag_key_input`    | Login With Profile tag key field                            |
+| `composite_login_tag_value_input`  | Login With Profile tag value field                          |
+| `composite_login_alias_label_input` | Login With Profile alias label field                       |
+| `composite_login_alias_id_input`   | Login With Profile alias ID field                           |
 | `composite_login_confirm_button`   | Login With Profile confirm                                  |
 | `update_jwt_external_id_input`     | Update User JWT External User Id field                      |
 | `update_jwt_token_input`           | Update User JWT token field                                 |
