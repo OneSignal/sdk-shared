@@ -540,6 +540,8 @@ const XML_ENTITIES: Record<string, string> = { quot: '"', amp: '&', lt: '<', gt:
 
 type LogPart = string | RegExp;
 
+export const NOTIFICATION_CLICK_LOG = /Notif(ication)? click:/;
+
 const matchesPart = (message: string, part: LogPart) =>
   typeof part === 'string' ? message.includes(part) : part.test(message);
 
@@ -775,9 +777,9 @@ export async function checkNotification(opts: {
   const button = await scrollToEl(opts.buttonId);
   await driver.pause(2_000); // small wait to hopefully get image notif early
 
-  // Accepts the older "Notification foregroundWillDisplay:" until every demo logs "Notif willDisplay:".
+  // Accept the older "Notification ..." wording until every demo logs "Notif willDisplay:" / "Notif click:".
   const displayLog = [/Notif(ication)? (willDisplay|foregroundWillDisplay):/, opts.title];
-  const clickLog = ['Notification click:', opts.title];
+  const clickLog = [NOTIFICATION_CLICK_LOG, opts.title];
   const [displaysBefore, clicksBefore] = await Promise.all([
     countLogMessages(...displayLog),
     countLogMessages(...clickLog),

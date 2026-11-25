@@ -130,7 +130,7 @@ Every listener in steps 2 and 3 writes one entry to the Log View (Prompt 2.0) an
 
 | Event                           | Log message                                                                          |
 | ------------------------------- | ------------------------------------------------------------------------------------ |
-| Notification click              | `Notification click: {notificationId} {title}`                                       |
+| Notification click              | `Notif click: {notificationId} {title}`                                              |
 | Notification foregroundWillDisplay | `Notif willDisplay: {notificationId} {title}`                                     |
 | IAM willDisplay / didDisplay / willDismiss / didDismiss / click | `IAM {event}: {messageId}` (e.g. `IAM didDisplay: {messageId}`)  |
 | Push subscription change        | `Push subscription changed: id={prev} → {curr}, optedIn={prev} → {curr}, token={prev8}… → {curr8}…` |
