@@ -136,7 +136,7 @@ Every listener in steps 2 and 3 writes one entry to the Log View (Prompt 2.0) an
 | Push subscription change        | `Push subscription changed: id={prev} → {curr}, optedIn={prev} → {curr}, token={prev8}… → {curr8}…` |
 | Notification permission change  | `Permission changed: {granted}`                                                      |
 | User state change               | `User changed: onesignalId={id}, externalId={externalId}`                            |
-| User JWT invalidated            | `JWT invalidated for externalId: {externalId}`                                       |
+| User JWT invalidated            | `JWT invalidated: {externalId}`                                                       |
 
 Use `null` for missing ids and an empty string for a missing title. Truncate push tokens to their first 8 characters.
 
