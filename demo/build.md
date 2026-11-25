@@ -307,7 +307,7 @@ Language list, after Device Default, in this order: English (`en`), Arabic (`ar`
 ### Prompt 2.10 - Outcomes Section
 
 - Title: "Outcomes" with info icon
-- SEND OUTCOME -> dialog with 3 radio options:
+- SEND OUTCOME -> dialog with 3 radio options (compact rows, whole row tappable; styles.md "Radio and Checkbox Rows"):
   1. Normal Outcome -> name field
   2. Unique Outcome -> name field
   3. Outcome with Value -> name + value (number) fields
@@ -660,7 +660,7 @@ Shared by the Aliases, Tags, and Triggers ADD ALIASES / ADD TAGS / ADD TRIGGERS 
 Shared by Tags and Triggers REMOVE buttons.
 
 - The section button that opens this dialog (`remove_tags_button`, `remove_triggers_button`) is **hidden entirely** when the list is empty. Do not show it disabled.
-- Checkbox per item, label shows key only
+- Checkbox per item, label shows key only. Compact rows, whole row tappable (styles.md "Radio and Checkbox Rows"). The test tag stays on the checkbox itself
 - "Remove (N)" button shows selected count, disabled when none
 - Returns selected keys list
 
