@@ -14,10 +14,6 @@ describe('User', () => {
   });
 
   it('should start as anonymous', async () => {
-    const statusEl = await scrollToEl('user_status_value');
-    const status = await statusEl.getText();
-    expect(status).toBe('Anonymous');
-
     const externalIdEl = await scrollToEl('user_external_id_value');
     const externalId = await externalIdEl.getText();
     expect(externalId).toBe('—');
@@ -32,10 +28,6 @@ describe('User', () => {
     await loginUser(userId);
     await waitForIdentityChange({ externalId: userId });
 
-    let statusEl = await scrollToEl('user_status_value');
-    const status = await statusEl.getText();
-    expect(status).toBe('Logged In');
-
     const externalIdEl = await scrollToEl('user_external_id_value');
     const externalId = await externalIdEl.getText();
     expect(externalId).toBe(getTestExternalId());
@@ -43,10 +35,10 @@ describe('User', () => {
     await logoutUser();
     await waitForIdentityChange({ externalId: null });
 
-    statusEl = await scrollToEl('user_status_value');
-    await statusEl.waitUntil(async () => (await statusEl.getText()) === 'Anonymous', {
+    const loggedOutIdEl = await scrollToEl('user_external_id_value');
+    await loggedOutIdEl.waitUntil(async () => (await loggedOutIdEl.getText()) === '—', {
       timeout: 5_000,
-      timeoutMsg: 'Expected status to be "Anonymous"',
+      timeoutMsg: 'Expected external ID to be "—"',
     });
   });
 });

@@ -152,7 +152,7 @@ Clean up listeners on teardown if the platform requires it.
 
 0. **Log View** (sticky under the app bar, outside the scroll view; see Prompt 2.0)
 1. **App Section** (App ID, Guidance Banner, Consent Toggle)
-2. **User Section** (Status, External ID, Language, Login/Logout)
+2. **User Section** (External ID, Language, Login/Logout)
 3. **Push Section** (Push ID, Status, Opted In Toggle, Auto-prompts on load)
 4. **Send Push Notification Section** (Simple, With Image, With Sound, Custom, Clear All)
 5. **In-App Messaging Section** (Pause toggle)
@@ -200,10 +200,10 @@ Styling in styles.md (Log View).
 
 Separate SectionCard titled "User":
 
-1. Status card (always visible, ABOVE buttons):
-   - Three rows separated by dividers: "Status", "External ID" and "Language"
-   - Logged out: Status = "Anonymous", External ID = "—"
-   - Logged in: Status = "Logged In" (success/green), External ID = actual value
+1. User card (always visible, ABOVE buttons):
+   - Two rows separated by a divider: "External ID" and "Language"
+   - Logged out: External ID = "—"
+   - Logged in: External ID = actual value
    - Language: picker showing the selected language name. Options are "Device Default" (code `""`) followed by the language list below, in this order. Selecting an option calls `OneSignal.User.setLanguage(code)`. `""` tells the native SDK to use the device language.
    - Use the platform's dropdown/picker where it is Appium-friendly; otherwise a single-select list dialog. Cap the open list's height at 320 so it doesn't cover the screen. Right-align the selected value so it sits next to the dropdown arrow, like the other value rows.
 Buttons 2-3 use the Button Grid (styles.md): LOGIN USER spans full width when logged out, LOGIN / LOGOUT share a row when logged in.
@@ -509,7 +509,6 @@ Section keys: `app`, `user`, `push`, `send_push`, `iam`, `send_iam`, `aliases`, 
 | `push_id_value`            | Push Subscription ID text             |
 | `push_subscription_status` | Push Status (Subscribed/Unsubscribed) |
 | `user_language_dropdown`   | Language picker (User section)        |
-| `user_status_value`        | User status (Anonymous/Logged In)     |
 | `user_external_id_value`   | External ID text                      |
 
 **Buttons**:
