@@ -53,6 +53,7 @@ All sizes in sp/px. Use the platform's default system font unless otherwise note
 
 ### Header Bar
 
+- Height: 48 (below the status bar)
 - Logo height: 22
 - Title text ("Sample App"): bodyMedium (14, normal/400), color white
 - Centered
