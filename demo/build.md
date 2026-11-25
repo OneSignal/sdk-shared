@@ -190,7 +190,7 @@ Styling in styles.md (Log View).
 ### Prompt 2.1a - App Section
 
 1. App ID display (readonly text).
-2. Sticky guidance banner:
+2. Guidance banner, shown only when the demo uses the shared default App ID (`1154c350-e715-4b71-a58b-1b84b6745baa`). A build configured with its own App ID, including Appium runs, hides it:
    - "Add your own App ID, then rebuild to fully test all functionality."
    - Link: "Get your keys at onesignal.com" (opens browser)
    - Warning banner styling per styles.md
