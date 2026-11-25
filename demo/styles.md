@@ -137,7 +137,7 @@ A section with two or more action buttons lays them out two per row instead of s
 
 - Position: prefer top-anchored (below the safe area plus the vertical inset) over centered, and keep the dialog fixed when the keyboard opens. A dialog that moves while open can leave Appium with stale element frames, so taps miss. Fall back to the platform default only if it can't be anchored
 - Height: bounded by the screen. Content with no natural height (multi-line inputs, lists) gets a fixed or max height, with scrolling for overflow, so the action row stays on screen in landscape and above the keyboard
-- Backdrop: osBackdrop (`rgba(0,0,0,0.54)`)
+- Backdrop: osBackdrop (`rgba(0,0,0,0.54)`), covering the full display including the status and navigation bars. If the platform's dialog window stops at the system bars, use its window dim (e.g. Android `FLAG_DIM_BEHIND` at 0.54) instead of drawing the color inside the dialog
 - Background: osCardBackground (`#FFFFFF`)
 - Corner radius: 28
 - Horizontal inset from screen edge: 16
