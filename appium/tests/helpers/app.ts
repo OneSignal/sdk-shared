@@ -538,10 +538,15 @@ export async function getLogMessages(): Promise<string[]> {
 
 const XML_ENTITIES: Record<string, string> = { quot: '"', amp: '&', lt: '<', gt: '>', apos: "'" };
 
-/** Number of log entries that contain every one of `parts`. */
-export async function countLogMessages(...parts: string[]): Promise<number> {
+type LogPart = string | RegExp;
+
+const matchesPart = (message: string, part: LogPart) =>
+  typeof part === 'string' ? message.includes(part) : part.test(message);
+
+/** Number of log entries that match every one of `parts` (substring or regex). */
+export async function countLogMessages(...parts: LogPart[]): Promise<number> {
   const messages = await getLogMessages();
-  return messages.filter((message) => parts.every((part) => message.includes(part))).length;
+  return messages.filter((message) => parts.every((part) => matchesPart(message, part))).length;
 }
 
 const USER_CHANGED_LOG = /User changed: onesignalId=([^,\s]+), externalId=(\S+)/;
@@ -579,11 +584,11 @@ export async function waitForIdentityChange(
   return onesignalId;
 }
 
-/** Expect exactly one new log entry containing every one of `parts` beyond `baseline`. */
-export async function expectOneNewLog(parts: string[], baseline = 0, timeoutMs = 15_000) {
+/** Expect exactly one new log entry matching every one of `parts` beyond `baseline`. */
+export async function expectOneNewLog(parts: LogPart[], baseline = 0, timeoutMs = 15_000) {
   await driver.waitUntil(async () => (await countLogMessages(...parts)) > baseline, {
     timeout: timeoutMs,
-    timeoutMsg: `No new log entry containing ${JSON.stringify(parts)}`,
+    timeoutMsg: `No new log entry matching ${parts.map(String).join(', ')}`,
   });
   // Give a duplicate replay time to land before counting.
   await driver.pause(2_000);
@@ -770,7 +775,8 @@ export async function checkNotification(opts: {
   const button = await scrollToEl(opts.buttonId);
   await driver.pause(2_000); // small wait to hopefully get image notif early
 
-  const displayLog = ['Notification foregroundWillDisplay:', opts.title];
+  // Accepts the older "Notification foregroundWillDisplay:" until every demo logs "Notif willDisplay:".
+  const displayLog = [/Notif(ication)? (willDisplay|foregroundWillDisplay):/, opts.title];
   const clickLog = ['Notification click:', opts.title];
   const [displaysBefore, clicksBefore] = await Promise.all([
     countLogMessages(...displayLog),
