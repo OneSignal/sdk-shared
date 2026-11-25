@@ -47,7 +47,7 @@ Reference the OneSignal SDK from the parent repo using a local path/file depende
 
 The state container (see Prompt 1.1) calls the OneSignal SDK directly and exposes the operations below as actions/methods:
 
-- **User**: loginUser(externalUserId) -> async, logoutUser() -> async, setLanguage(code)
+- **User**: loginUser(externalUserId, jwt?) -> async, loginUserWithProfile(externalUserId, profile, jwt?) -> async result (Android only), updateUserJwt(externalUserId, token), logoutUser() -> async, setLanguage(code)
 - **Aliases**: addAlias(label, id), addAliases(map)
 - **Email**: addEmail(email), removeEmail(email)
 - **SMS**: addSms(number), removeSms(number)
@@ -155,7 +155,7 @@ Clean up listeners on teardown if the platform requires it.
 
 0. **Log View** (sticky under the app bar, outside the scroll view; see Prompt 2.0)
 1. **App Section** (App ID, Guidance Banner, Consent Toggle)
-2. **User Section** (External ID, Language, Login/Logout)
+2. **User Section** (External ID, Language, Login/Logout, Login With Profile on Android, Update User JWT)
 3. **Push Section** (Push ID, Status, Opted In Toggle, Auto-prompts on load)
 4. **Send Push Notification Section** (Simple, With Image, With Sound, Custom, Clear All)
 5. **In-App Messaging Section** (Pause toggle)
@@ -643,7 +643,7 @@ Single state container at app root. Holds all UI state with public getters. Expo
 - **ListWidgets**: PairItem (key-value + optional delete), SingleItem (value + delete), EmptyState, LoadingState (inline spinner shown in the empty-state slot while a fetch is in flight, per styles.md), CollapsibleList (5 items then expandable; accepts an optional `loading` flag that swaps EmptyState for LoadingState when items is empty), PairList. All list widgets accept a required `sectionKey` for generating accessibility identifiers (e.g. `{sectionKey}_pair_key_{keyText}`, `{sectionKey}_remove_{keyText}`, `{sectionKey}_loading`). Empty list copy uses `"No <items> added"` with lowercase item names and lowercase `added` (exception: `"No SMS added"` keeps `SMS` uppercase).
 - **Dialogs**: all full-width with consistent padding, top-anchored and keyboard-fixed per styles.md "Dialogs". Dialogs accept optional semantics label parameters for key inputs and confirm buttons (e.g. `keySemanticsLabel`, `valueSemanticsLabel`, `confirmSemanticsLabel`).
   - SingleInputDialog, PairInputDialog (same row), MultiPairInputDialog (dynamic rows, dividers, X to delete, batch submit), MultiSelectRemoveDialog (checkboxes, batch remove)
-  - LoginDialog, OutcomeDialog, TrackEventDialog, CustomNotificationDialog, TooltipDialog
+  - LoginDialog, LoginWithProfileDialog (Android only), UpdateUserJwtDialog, OutcomeDialog, TrackEventDialog, CustomNotificationDialog, TooltipDialog
 
 ### Prompt 7.3 - MultiPairInputDialog
 
