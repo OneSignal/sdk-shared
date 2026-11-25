@@ -210,7 +210,7 @@ Styling in styles.md (Log View).
 ### Prompt 2.1a - App Section
 
 1. Guidance banner, between the section header and the App card, shown only when the demo uses the shared default App ID (`1154c350-e715-4b71-a58b-1b84b6745baa`). A build configured with its own App ID, including Appium runs, hides it:
-   - "Set your App ID and rebuild to test all features." (short enough to fit on one line on a typical phone)
+   - "Set your App ID and rebuild to test all features" (short enough to fit on one line on a typical phone)
    - Link: "Create an app at onesignal.com" (opens browser)
    - Styling per styles.md "Guidance Banner"
 2. App card: the App ID row (readonly, with a copy button per styles.md "Card Rows"), then up to two consent toggles, each separated by a divider:
