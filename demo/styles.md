@@ -25,7 +25,8 @@ Design spec for OneSignal SDK demo/sample apps. Values use platform-independent 
 | Token           | Value                      | Usage                                                                                                      |
 | --------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | gap             | 8                          | Gap between elements inside a section                                                                      |
-| Section spacing | 24 vertical, 16 horizontal | Gap between sections. CSS platforms can use `gap: 24` on the list container instead of per-section padding |
+| Section spacing | 16 vertical, 16 horizontal | Gap between sections. CSS platforms can use `gap: 16` on the list container instead of per-section padding |
+| Scroll top      | 16                         | Padding above the first section, inside the scroll view so it scrolls away                                 |
 
 ## Cards
 
@@ -92,7 +93,7 @@ All sizes in sp/px. Use the platform's default system font unless otherwise note
 - Background: osPrimary
 - Text color: white
 - Font weight: semibold/600
-- Height: 48
+- Height: 40
 - Corner radius: 8
 - Leading icon (when present): size 18, 8 gap before label
 
@@ -104,7 +105,7 @@ Used for secondary and destructive actions. "Destructive" and "outlined" refer t
 - Background: transparent
 - Border + text color: osPrimary
 - Font weight: semibold/600
-- Height: 48
+- Height: 40
 - Corner radius: 8
 
 ### Button Grid
@@ -117,11 +118,13 @@ A section with two or more action buttons lays them out two per row instead of s
 - Hidden buttons (e.g. REMOVE TAGS on an empty list) drop out and the rest reflow; never leave an empty cell
 - Each button fills its cell. Labels stay on one line and scale down if needed instead of truncating
 - Single-button sections (e.g. ADD EMAIL, SEND OUTCOME) stay full width
+- Buttons carry no vertical margin of their own. Spacing comes from the layout: gap (8) between a card and its buttons and between button rows, then section spacing below the last row. A section that ends in buttons must leave the same space below as one that ends in a card
 
 ## Toggle / Switch
 
 - Use the platform's native switch component
-- Reduce extra tap-target padding where the platform allows
+- Reduce extra tap-target padding where the platform allows (e.g. Compose: disable `LocalMinimumInteractiveComponentEnforcement` around the switch, so the row sizes to the 32dp switch instead of a 48dp target)
+- Toggle row vertical padding: 4
 
 ## Dialogs
 
@@ -133,10 +136,12 @@ A section with two or more action buttons lays them out two per row instead of s
 - Horizontal inset from screen edge: 16
 - Vertical inset: 24
 - Title: size 24, weight normal/400
+- Content padding: 20 left, 20 right, 20 top; 12 between the title and the first field
+- Gap between fields: 12
 - Action buttons (cancel, confirm, delete): size 14, weight medium/500, color osPrimary, padding 12 horizontal 8 vertical
 - Action buttons disabled color: osGrey500
 - Actions gap: 8
-- Actions area padding: 24 left, 24 right, 24 bottom
+- Actions area padding: 20 left, 20 right, 12 top, 12 bottom
 
 ## Dividers
 
@@ -147,10 +152,17 @@ A section with two or more action buttons lays them out two per row instead of s
 Standalone bordered inputs used in dialogs.
 
 - Corner radius: 8
-- Content padding: 12 horizontal, 14 vertical
+- Content padding: 12 horizontal, 10 vertical (about 44 tall for a single line). Don't let the platform's default minimum height win; e.g. Compose's `OutlinedTextField` enforces 56, so build on `BasicTextField` with the outlined decoration
 - Border: 1px solid osGrey700
 - Focused border: 2px solid osPrimary (must not cause layout shift)
 - Placeholder color: osGrey600
+
+### Field Group Caption
+
+A small caption above a group of side-by-side fields that form one value (e.g. Login With Profile's "Tag (optional)" over Key | Value). Carries "(optional)" when half-width field labels would cut it off.
+
+- Style: bodySmall (12), color osGrey700
+- Padding: 4 top, 4 bottom
 
 ### Inline Input Row
 
