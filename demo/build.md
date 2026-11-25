@@ -136,6 +136,7 @@ Every listener in steps 2 and 3 writes one entry to the Log View (Prompt 2.0) an
 | Push subscription change        | `Push subscription changed: id={prev} → {curr}, optedIn={prev} → {curr}, token={prev8}… → {curr8}…` |
 | Notification permission change  | `Permission changed: {granted}`                                                      |
 | User state change               | `User changed: onesignalId={id}, externalId={externalId}`                            |
+| User JWT invalidated            | `JWT invalidated for externalId: {externalId}`                                       |
 
 Use `null` for missing ids and an empty string for a missing title. Truncate push tokens to their first 8 characters.
 
@@ -143,6 +144,7 @@ Use `null` for missing ids and an empty string for a missing title. Truncate pus
 
 - Push subscription change
 - Notification permission change
+- User JWT invalidated (`OneSignal.addUserJwtInvalidatedListener`): only log it. The SDK fires it when the current user's JWT is rejected or expires on an identity-verified app; the tester recovers with UPDATE USER JWT (Prompt 2.1b). Don't prompt for a token or refetch from the listener. Wrappers that don't expose the listener yet add it once they do
 - User state change — log the new `onesignalId`/`externalId`. When `onesignalId` is non-null, call `fetchUserDataFromApi()` so the post-login fetch runs once the SDK has actually assigned an id (see Phase 3.1). When `onesignalId` is null (logout), skip the fetch — the logout path already cleared local lists.
 
 Clean up listeners on teardown if the platform requires it.
