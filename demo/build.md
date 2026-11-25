@@ -399,7 +399,6 @@ Launched by the "NEXT SCREEN" button at the bottom of the main screen. It uses t
 
 - Title: "Secondary Screen"
 - Centered large headline text "Secondary Screen"
-- Optional platform test buttons below the headline (e.g. CRASH and SIMULATE ANR (10S BLOCK) in the native Android demo): full-width Secondary buttons, UPPERCASE like every other button label, 8 apart
 
 ---
 
