@@ -179,21 +179,23 @@ The scroll view draws behind the navigation bar / home indicator rather than sto
 
 Buttons are Primary or Secondary (styles.md "Buttons"); there is no destructive style. Primary marks a section's main action and the common choices in a send grid. Everything else, including removal and reset actions, is Secondary.
 
+This guide writes button names in caps (LOGIN USER, CLEAR ALL) so they stand out in the text. Render them in Title Case per styles.md, exactly as in the table below.
+
 | Section                | Primary                    | Secondary                                              |
 | ---------------------- | -------------------------- | ------------------------------------------------------ |
-| User                   | LOGIN USER / SWITCH USER   | LOGOUT USER, LOGIN WITH PROFILE, UPDATE USER JWT       |
-| Push                   | PROMPT PUSH                |                                                        |
-| Send Push Notification | SIMPLE, WITH IMAGE         | WITH SOUND, CUSTOM, CLEAR ALL                          |
-| Send In-App Message    | TOP, CENTER, BOTTOM, FULL  | CAROUSEL, HTML, FULL BLEED, CAROUSEL BLEED             |
-| Aliases                | ADD ALIAS                  | ADD ALIASES                                            |
-| Emails / SMS           | ADD EMAIL / ADD SMS        |                                                        |
-| Tags                   | ADD TAG                    | ADD TAGS, REMOVE TAGS                                  |
-| Outcomes               | SEND OUTCOME               |                                                        |
-| Triggers               | ADD TRIGGER                | ADD TRIGGERS, REMOVE TRIGGERS, CLEAR ALL               |
-| Custom Events          | TRACK EVENT                |                                                        |
-| Location               | PROMPT LOCATION            | CHECK LOCATION                                         |
-| Live Activities        | START ACTIVITY, UPDATE     | END ACTIVITY                                           |
-| Next Screen            |                            | NEXT SCREEN                                            |
+| User                   | Login User / Switch User   | Logout User, Login with Profile, Update User JWT       |
+| Push                   | Prompt Push                |                                                        |
+| Send Push Notification | Simple, With Image         | With Sound, Custom, Clear All                          |
+| Send In-App Message    | Top, Center, Bottom, Full  | Carousel, HTML, Full Bleed, Carousel Bleed             |
+| Aliases                | Add Alias                  | Add Aliases                                            |
+| Emails / SMS           | Add Email / Add SMS        |                                                        |
+| Tags                   | Add Tag                    | Add Tags, Remove Tags                                  |
+| Outcomes               | Send Outcome               |                                                        |
+| Triggers               | Add Trigger                | Add Triggers, Remove Triggers, Clear All               |
+| Custom Events          | Track Event                |                                                        |
+| Location               | Prompt Location            | Check Location                                         |
+| Live Activities        | Start Activity, Update → {Next Status} | End Activity                               |
+| Next Screen            |                            | Next Screen                                            |
 
 ### Prompt 2.0 - Log View
 
@@ -288,7 +290,7 @@ Language list, after Device Default, in this order: English (`en`), Arabic (`ar`
   6. HTML - trigger: "iam_type" = "html"
   7. FULL BLEED - trigger: "iam_type" = "full_bleed"
   8. CAROUSEL BLEED - trigger: "iam_type" = "carousel_bleed"
-- Styling: TOP, CENTER, BOTTOM and FULL are primary; the other four are secondary. Centered, no icons, UPPERCASE
+- Styling: TOP, CENTER, BOTTOM and FULL are primary; the other four are secondary. Centered, no icons, Title Case
 - On tap: upserts `iam_type` in Triggers list. No snackbar (silent action — see Prompt 7.6)
 
 ### Prompt 2.6 - Aliases Section
@@ -353,7 +355,7 @@ Language list, after Device Default, in this order: English (`en`), Arabic (`ar`
   - "Properties (optional, JSON)" with placeholder `{"key": "value"}`
     - Invalid JSON shows "Invalid JSON format" error
     - Valid JSON parsed to map, empty passes null
-  - TRACK button disabled until name filled AND JSON valid (or empty)
+  - Track button disabled until name filled AND JSON valid (or empty)
 - Calls OneSignal.User.trackEvent(name, properties)
 
 ### Prompt 2.13 - Location Section

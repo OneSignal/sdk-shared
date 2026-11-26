@@ -135,7 +135,7 @@ Both:
 
 - Height: 40
 - Corner radius: 10
-- Label: button (13, medium/500), UPPERCASE, centered, one line (see Button Grid for scaling)
+- Label: button (13, medium/500), Title Case, centered, one line (see Button Grid for scaling). Small words stay lowercase and acronyms stay uppercase ("Login with Profile", "Update User JWT", "Add SMS", "HTML"). Section headers are the only uppercase text, which keeps them distinct from buttons
 - Horizontal content padding: 12
 - No shadow
 - Pressed: darken by a 12% black overlay. On Android keep the ripple but make it black at 12% (the default ripple takes the label color and turns red buttons pink)
@@ -190,7 +190,7 @@ A section with two or more action buttons lays them out two per row instead of s
 - Title: headline (20, semibold)
 - Content padding: 20 left, 20 right, 20 top; 12 between the title and the first field
 - Gap between fields: 12
-- Action buttons: size 14, weight semibold/600, padding 12 horizontal 8 vertical. Confirm (Login, Add, Remove, ...) is osPrimary; Cancel is osGrey700 so the confirm action stands out
+- Action buttons: Title Case like screen buttons (Cancel, Login, Add All, Remove (N)), size 14, weight semibold/600, padding 12 horizontal 8 vertical. Confirm (Login, Add, Remove, ...) is osPrimary; Cancel is osGrey700 so the confirm action stands out
 - Action buttons disabled color: osGrey500
 - Actions gap: 8
 - Actions area padding: 20 left, 20 right, 12 top, 12 bottom
