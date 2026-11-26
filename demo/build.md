@@ -201,7 +201,7 @@ This guide writes button names in caps (LOGIN USER, CLEAR ALL) so they stand out
 
 A logcat-style panel pinned directly below the app bar. It stays visible while the main scroll view scrolls underneath it.
 
-1. Header row: `LOGS` with the entry count in a badge on the left; trash icon (clear) and chevron (collapse/expand) on the right.
+1. Header row: `Logs` with the entry count in a badge on the left; trash icon (clear) and chevron (collapse/expand) on the right.
 2. Body: fixed-height list of entries, oldest first, each `{HH:mm:ss} {message}` with the time de-emphasized and in fixed-width digits so messages line up. Auto-scroll to the newest entry when one is added or the panel is expanded. Long entries wrap.
 3. Empty state: `No logs yet`.
 4. Collapse hides the body only; the header row stays. Starts expanded on every launch. Entries stay in the view hierarchy while collapsed.
