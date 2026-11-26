@@ -78,7 +78,7 @@ Use **Google Sans Flex** for all text, including the Log View. It is open source
 | rowLabel   | 13   | medium/500 | Card row labels, toggle labels, stacked list keys                            |
 | button     | 13   | medium/500 | Button labels                                                                |
 | bodySmall  | 12   | normal/400 | Card row values, toggle descriptions, list values, empty states, banner text |
-| sectionHeader | 12 | bold/700  | Section headers                                                              |
+| sectionHeader | 15 | semibold/600 | Section headers                                                           |
 
 ### Header Bar
 
@@ -90,9 +90,9 @@ Use **Google Sans Flex** for all text, including the Log View. It is open source
 
 ### Section Headers
 
-- Style: sectionHeader (12, bold), color osInk
-- Letter spacing: 0.8
-- Transform: uppercase
+- Style: sectionHeader (15, semibold), color osInk
+- Letter spacing: 0
+- Title Case, same as buttons ("Send Push Notification", "In-App Messaging"); the size and weight set headers apart from the 13 medium labels and buttons
 - Height: 24, bottom padding 8 (gap)
 - No accent bar or other decoration
 - Info icon: 18, color osGrey600, glyph aligned with the card's right edge
@@ -135,7 +135,7 @@ Both:
 
 - Height: 40
 - Corner radius: 10
-- Label: button (13, medium/500), Title Case, centered, one line (see Button Grid for scaling). Small words stay lowercase and acronyms stay uppercase ("Login with Profile", "Update User JWT", "Add SMS", "HTML"). Section headers are the only uppercase text, which keeps them distinct from buttons
+- Label: button (13, medium/500), Title Case, centered, one line (see Button Grid for scaling). Small words stay lowercase and acronyms stay uppercase ("Login with Profile", "Update User JWT", "Add SMS", "HTML").
 - Horizontal content padding: 12
 - No shadow
 - Pressed: darken by a 12% black overlay. On Android keep the ripple but make it black at 12% (the default ripple takes the label color and turns red buttons pink)
