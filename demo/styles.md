@@ -299,7 +299,7 @@ Sticky panel below the header bar (see build.md Prompt 2.0). Dark, logcat-style,
 | ----------------- | ------------------------------------------------------------------------------------------------------------ |
 | Body background   | osLogBackground                                                                                              |
 | Header            | 28 tall, osLogHeader background, 16 left / 8 right padding, content vertically centered                      |
-| Header title      | `Logs` (Title Case like section headers), osLogText, 11, semibold, no letter spacing                        |
+| Header title      | `Logs` (Title Case like section headers), osLogText, 13, semibold, no letter spacing                        |
 | Count badge       | 6 after the title: entry count, osLogMuted, 10, semibold, on an osLogBadge pill (6 horizontal, 1 vertical padding) |
 | Header icons      | osLogMuted; trash (filled) 14, then chevron 18, each centered in a 32-wide tap area                          |
 | Divider           | 1, osLogBorder, between header and body (hidden with the body)                                               |
