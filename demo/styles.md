@@ -254,8 +254,8 @@ Items displayed inside cards (e.g. tags, aliases, emails, SMS numbers). The list
 
 | Property     | Value                                                                    |
 | ------------ | ------------------------------------------------------------------------ |
-| Item padding | 6 vertical                                                               |
-| Divider      | osDivider, 1, between items                                              |
+| Item padding | none vertical; the card's padding sets the list's top and bottom edge    |
+| Divider      | osDivider, 1, between items, 5 above and 1 below. The row above ends in descender space and the row below starts with ascender space, so equal padding reads closer to the row above; this split measures even |
 | Delete icon  | close/X, 16, color osGrey600, trailing, glyph aligned with the card edge |
 
 ### Stacked (key-value pairs)
