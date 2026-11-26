@@ -39,7 +39,7 @@ Tappable icons use osGrey600, not osGrey500: osGrey500 is about 2.4:1 against th
 | Token           | Value                      | Usage                                                                                                      |
 | --------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | gap             | 8                          | Gap between elements inside a section                                                                      |
-| Section spacing | 16 vertical, 16 horizontal | Gap between sections. CSS platforms can use `gap: 16` on the list container instead of per-section padding |
+| Section spacing | 20 vertical, 16 horizontal | Gap between sections. CSS platforms can use `gap: 20` on the list container instead of per-section padding |
 | Scroll top      | 16                         | Padding above the first section, inside the scroll view so it scrolls away                                 |
 | Scroll bottom   | 16 + bottom safe area      | Space after the last element, inside the scroll view. The list draws behind the navigation bar / home indicator instead of stopping above it, and this inset lets the last item scroll clear |
 
